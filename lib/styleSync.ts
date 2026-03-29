@@ -1,0 +1,1 @@
+// Style synchronization logic placeholder
