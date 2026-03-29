@@ -1,31 +1,9 @@
-// Types for canvas elements as stored in PostgreSQL
-export interface CanvasElement {
-	id: string;
-	workspace_id: string;
-	type: 'rectangle' | 'circle' | 'text';
-	position: { x: number; y: number; width: number; height: number };
-	style: {
-		fill: string;
-		stroke: string;
-		strokeWidth: number;
-		opacity: number;
-		fontSize?: number;
-	};
-	layer_order: number;
-	visible: boolean;
-	locked: boolean;
-}
 
-// Types for workspace metadata
-export interface WorkspaceMeta {
-	id: string;
-	name: string;
-	owner_id: string;
-}
+import type { CanvasElement, WorkspaceMeta } from '../types/canvas.ts';
 
 
-import { supabase } from './supabaseClient';
-import { useWorkspaceStore } from '../store/workspaceStore';
+import { supabase } from './supabaseClient.ts';
+import { useWorkspaceStore } from '../store/workspaceStore.ts';
 
 /**
  * Loads workspace metadata and canvas elements, sorted by layer_order.
@@ -42,16 +20,19 @@ export async function loadWorkspace(
 	redirect404?: () => void
 ): Promise<void> {
 	const store = useWorkspaceStore.getState();
+	console.log('[loadWorkspace] Called with workspaceId:', workspaceId);
 	// Start loading and clear previous state
 	store.setLoading(true);
 	store.clear();
 	try {
 		// 1. Fetch workspace metadata
+
 		const { data: workspace, error: workspaceError } = await supabase
 			.from('workspaces')
 			.select('id, name, owner_id')
 			.eq('id', workspaceId)
 			.single();
+		console.log('[loadWorkspace] Workspace fetch result:', { workspace, workspaceError });
 
 		if (workspaceError || !workspace) {
 			console.error('Error fetching workspace metadata:', workspaceError);
@@ -59,14 +40,17 @@ export async function loadWorkspace(
 			store.setLoading(false);
 			return;
 		}
+		console.log('[loadWorkspace] Workspace found:', workspace);
 		store.setWorkspace(workspace);
 
 		// 2. Fetch all canvas elements for this workspace, ordered by layer_order
+
 		const { data: elements, error: elementsError } = await supabase
 			.from('canvas_elements')
 			.select('*')
 			.eq('workspace_id', workspaceId)
 			.order('layer_order', { ascending: true });
+		console.log('[loadWorkspace] Canvas elements fetch result:', { elements, elementsError });
 
 		if (elementsError) {
 			console.error('Error fetching canvas elements:', elementsError);
@@ -74,10 +58,12 @@ export async function loadWorkspace(
 			store.setLoading(false);
 			return;
 		}
+		console.log('[loadWorkspace] Elements found:', elements);
 
 		// 3. Hydrate Zustand store
 		store.setElements((elements || []) as CanvasElement[]);
 		store.setSelectedElementId(null); // Reset selection
+		console.log('[loadWorkspace] Zustand store hydrated.');
 	} catch (err) {
 		console.error('Unexpected error loading workspace:', err);
 		store.setWorkspace(null);

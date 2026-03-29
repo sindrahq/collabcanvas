@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { CanvasElement, WorkspaceMeta } from '../lib/workspaceLoader';
+import type { CanvasElement, WorkspaceMeta } from '../types/canvas.ts';
 
 interface WorkspaceStore {
 	workspace: WorkspaceMeta | null;
