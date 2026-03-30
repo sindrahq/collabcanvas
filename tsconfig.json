@@ -21,8 +21,11 @@
     "paths": {
       "@/*": ["./*"]
     }
+<<<<<<< HEAD
     ,
     "allowImportingTsExtensions": true
+=======
+>>>>>>> chetna
   },
   "include": [
     "next-env.d.ts",
