@@ -1,4 +1,5 @@
-// Editor page for the app/editor route
+import { EditorShell } from "@/components/editor/editor-shell";
+
 export default function EditorPage() {
-  return <div>Editor Page</div>;
+  return <EditorShell />;
 }
