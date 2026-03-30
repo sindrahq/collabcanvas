@@ -3,10 +3,13 @@ import { type CanvasElement, useWorkspaceStore } from "../store/workspaceStore";
 import type { CanvasElement as DbCanvasElement, WorkspaceMeta } from "../types/canvas";
 
 function mapDbElement(element: DbCanvasElement): CanvasElement {
+  const label = `${element.type[0].toUpperCase()}${element.type.slice(1)} ${element.layer_order + 1}`;
+
   return {
     id: element.id,
     workspaceId: element.workspace_id,
-    name: `${element.type[0].toUpperCase()}${element.type.slice(1)} ${element.layer_order + 1}`,
+    name: label,
+    label,
     type: element.type,
     x: element.position.x,
     y: element.position.y,
@@ -16,6 +19,7 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
     visible: element.visible,
     locked: element.locked,
     layerOrder: element.layer_order,
+    layer_order: element.layer_order,
     text: element.type === "text" ? "Loaded text element" : undefined,
     style: {
       fill: element.style.fill,
