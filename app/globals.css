@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --bg: #ebe8df;
   --surface: rgba(255, 252, 246, 0.82);
@@ -14,7 +16,7 @@
   --shadow-xl: 0 32px 90px rgba(30, 38, 34, 0.14);
   --shadow-lg: 0 18px 42px rgba(30, 38, 34, 0.12);
   --display-font: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
-  --body-font: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  --body-font: var(--font-geist-sans), "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
 }
 
 * {

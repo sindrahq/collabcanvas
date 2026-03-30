@@ -1,0 +1,1 @@
+// Layer synchronization logic placeholder

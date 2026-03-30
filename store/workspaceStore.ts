@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 
+import type { WorkspaceMeta } from "../types/canvas";
+
 export type CanvasElementType = "rectangle" | "circle" | "text";
 
 export type CanvasElementStyle = {
@@ -14,6 +16,7 @@ export type CanvasElementStyle = {
 
 export type CanvasElement = {
   id: string;
+  workspaceId?: string;
   name: string;
   type: CanvasElementType;
   x: number;
@@ -37,11 +40,18 @@ export type WorkspaceSnapshot = {
 };
 
 type WorkspaceState = {
+  workspace: WorkspaceMeta | null;
   workspaceName: string;
   selectedElementId: string | null;
   elements: CanvasElement[];
   snapshots: WorkspaceSnapshot[];
+  loading: boolean;
   selectElement: (elementId: string | null) => void;
+  setSelectedElementId: (elementId: string | null) => void;
+  setWorkspace: (workspace: WorkspaceMeta | null) => void;
+  setElements: (elements: CanvasElement[]) => void;
+  setLoading: (loading: boolean) => void;
+  clear: () => void;
   addElement: (type: CanvasElementType) => void;
   updateElement: (elementId: string, updates: Partial<CanvasElement>) => void;
   duplicateSelectedElement: () => void;
@@ -155,11 +165,36 @@ const starterElements: CanvasElement[] = [
 ];
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+  workspace: null,
   workspaceName: "Harsh Workspace",
   selectedElementId: starterElements[2]?.id ?? null,
   elements: starterElements,
   snapshots: [],
+  loading: false,
   selectElement: (selectedElementId) => set({ selectedElementId }),
+  setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
+  setWorkspace: (workspace) =>
+    set({
+      workspace,
+      workspaceName: workspace?.name ?? get().workspaceName
+    }),
+  setElements: (elements) =>
+    set({
+      elements,
+      selectedElementId: elements.find((element) => element.id === get().selectedElementId)
+        ? get().selectedElementId
+        : null
+    }),
+  setLoading: (loading) => set({ loading }),
+  clear: () =>
+    set({
+      workspace: null,
+      workspaceName: "Harsh Workspace",
+      elements: [],
+      selectedElementId: null,
+      snapshots: [],
+      loading: false
+    }),
   addElement: (type) =>
     set((state) => {
       const nextElement = createElement(type, state.elements.length);
@@ -294,6 +329,7 @@ export function getWorkspaceExport() {
 
   return JSON.stringify(
     {
+      workspace: state.workspace,
       workspaceName: state.workspaceName,
       selectedElementId: state.selectedElementId,
       elements: state.elements,

@@ -1,4 +1,4 @@
-# collaborative-canvas
+# collabcanvas
 
 A collaborative canvas editor built with Next.js, Zustand, React Konva, and Supabase.
 
@@ -25,12 +25,10 @@ npm run dev
 
 4. Open `http://localhost:3000`.
 
-## Planned Feature Branches
+## Included Modules
 
-- `codex/bootstrap-next-supabase`
-- `codex/workspace-store`
-- `codex/canvas-engine`
-- `codex/selection-transform`
-- `codex/toolbar-actions`
-- `codex/supabase-persistence`
-- `codex/final-integration`
+- backend foundation and workspace loader
+- Zustand workspace state
+- React Konva canvas rendering
+- editor toolbar and selection flow
+- local snapshot handling
