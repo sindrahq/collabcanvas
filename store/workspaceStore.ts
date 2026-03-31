@@ -4,7 +4,7 @@ import { create } from "zustand";
 
 import type { WorkspaceMeta } from "../types/canvas";
 
-export type CanvasElementType = "rectangle" | "rect" | "circle" | "text";
+export type CanvasElementType = "rectangle" | "rectangle" | "circle" | "text";
 
 export type CanvasElementStyle = {
   fill: string;
@@ -50,16 +50,16 @@ type WorkspaceState = {
   snapshots: WorkspaceSnapshot[];
   loading: boolean;
   selectElement: (elementId: string | null) => void;
-  setSelectedElement: (elementId: string | null) => void;
-  setSelectedElementId: (elementId: string | null) => void;
+  selectElement: (elementId: string | null) => void;
+  selectElementId: (elementId: string | null) => void;
   setWorkspace: (workspace: WorkspaceMeta | null) => void;
   setElements: (elements: CanvasElement[]) => void;
   setLoading: (loading: boolean) => void;
   clear: () => void;
   addElement: (type: CanvasElementType) => void;
   updateElement: (elementId: string, updates: Partial<CanvasElement>) => void;
-  updateElementStyle: (elementId: string, style: Partial<CanvasElementStyle>) => void;
-  updateLayerOrder: (elements: CanvasElement[]) => void;
+  updateElement: (elementId: string, style: Partial<CanvasElementStyle>) => void;
+  reorderElement: (elements: CanvasElement[]) => void;
   duplicateSelectedElement: () => void;
   deleteSelectedElement: () => void;
   toggleVisibility: (elementId: string) => void;
@@ -77,7 +77,7 @@ const defaultElementStyle = {
     opacity: 1,
     fontSize: 16
   },
-  rect: {
+  rectangle: {
     fill: "#cfe1df",
     stroke: "#1f6f78",
     strokeWidth: 2,
@@ -101,7 +101,7 @@ const defaultElementStyle = {
 } satisfies Record<CanvasElementType, CanvasElementStyle>;
 
 function withCompatFields(element: CanvasElement): CanvasElement {
-  const canonicalType = element.type === "rect" ? "rectangle" : element.type;
+  const canonicalType = element.type === "rectangle" ? "rectangle" : element.type;
 
   return {
     ...element,
@@ -130,7 +130,7 @@ function createId(prefix: string) {
 }
 
 function createElement(type: CanvasElementType, layerOrder: number): CanvasElement {
-  const canonicalType = type === "rect" ? "rectangle" : type;
+  const canonicalType = type === "rectangle" ? "rectangle" : type;
   const isText = canonicalType === "text";
   const label = `${canonicalType[0].toUpperCase()}${canonicalType.slice(1)} ${layerOrder + 1}`;
 
@@ -232,7 +232,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   snapshots: [],
   loading: false,
   selectElement: (selectedElementId) => set({ selectedElementId }),
-  setSelectedElement: (selectedElementId) => set({ selectedElementId }),
+  selectElement: (selectedElementId) => set({ selectedElementId }),
   setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
   setWorkspace: (workspace) =>
     set({
@@ -290,7 +290,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
       return setElementCollections(nextElements);
     }),
-  updateElementStyle: (elementId, style) => {
+  updateElement: (elementId, style) => {
     const current = get().elements.find((element) => element.id === elementId);
 
     if (!current) {
@@ -304,7 +304,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     });
   },
-  updateLayerOrder: (elements) =>
+  reorderElement: (elements) =>
     set(() => {
       const nextElements = normalizeElements(
         elements.map((element, index) =>
