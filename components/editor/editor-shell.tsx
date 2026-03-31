@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { RightSidebar } from "@/components/editor/right-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
 import { useWorkspaceStore } from "@/store/workspaceStore";
+import { syncAllElements } from "@/lib/styleSync";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -17,6 +18,34 @@ export function EditorShell() {
   const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
   const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
   const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
+  const elements = useWorkspaceStore((s) => s.elements);
+
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "idle">("idle");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstRender = useRef(true);
+
+  // Auto-save whenever elements change
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    setSaveStatus("saving");
+
+    debounceRef.current = setTimeout(async () => {
+      await syncAllElements(elements);
+      setSaveStatus("saved");
+
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }, 1200);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [elements]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -27,14 +56,14 @@ export function EditorShell() {
         return;
       }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedElementId) {
-  e.preventDefault();
-  deleteSelectedElement();
-}
-if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-  e.preventDefault();
-  const { snapshots, restoreSnapshot } = useWorkspaceStore.getState();
-  if (snapshots.length > 0) restoreSnapshot(snapshots[0].id);
-}
+        e.preventDefault();
+        deleteSelectedElement();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        const { snapshots, restoreSnapshot } = useWorkspaceStore.getState();
+        if (snapshots.length > 0) restoreSnapshot(snapshots[0].id);
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -54,10 +83,24 @@ if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         </div>
 
         <div className="topbar-right">
-          <div className="autosave-badge">
-            <div className="autosave-dot" />
-            Autosaved
-          </div>
+          {saveStatus === "saving" && (
+            <div className="autosave-badge" style={{ color: "var(--text-muted)" }}>
+              <div className="autosave-dot" style={{ background: "var(--text-muted)" }} />
+              Saving...
+            </div>
+          )}
+          {saveStatus === "saved" && (
+            <div className="autosave-badge">
+              <div className="autosave-dot" />
+              Saved ✓
+            </div>
+          )}
+          {saveStatus === "idle" && (
+            <div className="autosave-badge">
+              <div className="autosave-dot" />
+              Autosave on
+            </div>
+          )}
         </div>
       </header>
 

@@ -125,8 +125,8 @@ function normalizeElements(elements: CanvasElement[]) {
   );
 }
 
-function createId(prefix: string) {
-  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+function createId(_prefix: string) {
+  return crypto.randomUUID();
 }
 
 function createElement(type: CanvasElementType, layerOrder: number): CanvasElement {

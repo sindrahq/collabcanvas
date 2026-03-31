@@ -1,7 +1,13 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { CanvasElement } from "@/store/workspaceStore";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function syncElementStyle(element: CanvasElement) {
+  if (!UUID_REGEX.test(element.id)) {
+    console.log("[styleSync] Skipping non-UUID element:", element.id);
+    return;
+  }
   const { error } = await supabase
     .from("canvas_elements")
     .upsert({
