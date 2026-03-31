@@ -290,21 +290,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
       return setElementCollections(nextElements);
     }),
-  updateElement: (elementId, style) => {
-    const current = get().elements.find((element) => element.id === elementId);
-
-    if (!current) {
-      return;
-    }
-
-    get().updateElement(elementId, {
-      style: {
-        ...current.style,
-        ...style
-      }
-    });
-  },
-  reorderElement: (elements) =>
+    reorderElement: (elements) =>
     set(() => {
       const nextElements = normalizeElements(
         elements.map((element, index) =>

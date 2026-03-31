@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { motion } from "framer-motion";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { RightSidebar } from "@/components/editor/right-sidebar";
@@ -9,108 +8,61 @@ import { Toolbar } from "@/components/editor/toolbar";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
 function isEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  const tagName = target.tagName.toLowerCase();
-
-  return tagName === "input" || tagName === "textarea" || target.isContentEditable;
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || target.isContentEditable;
 }
 
-const panelMotion = {
-  initial: { opacity: 0, y: 18 },
-  animate: { opacity: 1, y: 0 }
-};
-
 export function EditorShell() {
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
-  const duplicateSelectedElement = useWorkspaceStore((state) => state.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((state) => state.deleteSelectedElement);
+  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
+  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (isEditableTarget(event.target)) {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (isEditableTarget(e.target)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (selectedElementId) duplicateSelectedElement();
         return;
       }
-
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
-        event.preventDefault();
-
-        if (selectedElementId) {
-          duplicateSelectedElement();
-        }
-
-        return;
-      }
-
-      if ((event.key === "Delete" || event.key === "Backspace") && selectedElementId) {
-        event.preventDefault();
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedElementId) {
+        e.preventDefault();
         deleteSelectedElement();
       }
     }
-
     window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [deleteSelectedElement, duplicateSelectedElement, selectedElementId]);
 
   return (
     <main className="editor-page">
-      <div className="editor-ambient editor-ambient-one" />
-      <div className="editor-ambient editor-ambient-two" />
-
-      <motion.section
-        className="editor-shell"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
-      >
-        <motion.header
-          className="editor-topbar"
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08, duration: 0.35 }}
-        >
-          <div>
-            <p className="eyebrow">Live Editor</p>
-            <h1 className="editor-heading">Harsh Workspace Canvas</h1>
-          </div>
-          <div className="editor-status">
-            <span className="status-dot" />
-            Konva canvas active
-          </div>
-        </motion.header>
-
-        <div className="editor-grid">
-          <motion.div
-            className="editor-column editor-column-left"
-            {...panelMotion}
-            transition={{ delay: 0.12, duration: 0.35 }}
-          >
-            <LeftSidebar />
-          </motion.div>
-
-          <motion.div
-            className="editor-column editor-column-main"
-            {...panelMotion}
-            transition={{ delay: 0.18, duration: 0.35 }}
-          >
-            <Toolbar />
-            <CanvasWorkspace />
-          </motion.div>
-
-          <motion.div
-            className="editor-column editor-column-right"
-            {...panelMotion}
-            transition={{ delay: 0.24, duration: 0.35 }}
-          >
-            <RightSidebar />
-          </motion.div>
+      <header className="editor-topbar">
+        <div className="topbar-left">
+          <span className="topbar-logo">CollabCanvas</span>
+          <div className="topbar-divider" />
+          <span className="topbar-filename">Untitled Project</span>
         </div>
-      </motion.section>
+
+        <div className="topbar-center">
+          <Toolbar />
+        </div>
+
+        <div className="topbar-right">
+          <div className="autosave-badge">
+            <div className="autosave-dot" />
+            Autosaved
+          </div>
+        </div>
+      </header>
+
+      <div className="editor-grid">
+        <LeftSidebar />
+        <div className="editor-column-main">
+          <CanvasWorkspace />
+        </div>
+        <RightSidebar />
+      </div>
     </main>
   );
 }
