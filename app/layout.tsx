@@ -1,24 +1,20 @@
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
+import type { Metadata } from "next";
 
-const inter = Inter({ subsets: ["latin"] })
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Collaborative Canvas Editor",
-  description: "Built with Next.js and Supabase",
-}
+  title: "Collaborative Canvas",
+  description: "Collaborative canvas editor assignment project"
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+type RootLayoutProps = Readonly<{
+  children: React.ReactNode;
+}>;
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-zinc-950 text-white`}>
-        {children}
-      </body>
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
-  )
+  );
 }
