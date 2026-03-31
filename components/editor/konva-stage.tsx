@@ -88,13 +88,12 @@ export function KonvaStageWorkspace() {
 
   const transformerRef = useRef<Konva.Transformer>(null);
   const nodeRefs = useRef<Record<string, Konva.Shape | Konva.Text | null>>({});
+  const editingRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     const transformer = transformerRef.current;
 
-    if (!transformer) {
-      return;
-    }
+    if (!transformer) return;
 
     if (!selectedElementId) {
       transformer.nodes([]);
@@ -117,7 +116,7 @@ export function KonvaStageWorkspace() {
     <>
       <div className="canvas-instructions">
         <span>Drag enabled for unlocked elements.</span>
-        <span>Click an element to select it, or click the stage to clear selection.</span>
+        <span>Click to select · Double-click text to edit · Delete key to remove</span>
       </div>
 
       <div className="konva-frame">
@@ -251,6 +250,57 @@ export function KonvaStageWorkspace() {
                   onTransformEnd={(event) =>
                     updateFromTransform(element, event.target as Konva.Text, updateElement)
                   }
+                  onDblClick={() => {
+                    const node = nodeRefs.current[element.id] as Konva.Text;
+                    if (!node) return;
+
+                    const stageBox = node.getStage()!.container().getBoundingClientRect();
+                    const absPos = node.getAbsolutePosition();
+
+                    const textarea = document.createElement("textarea");
+                    editingRef.current = textarea;
+
+                    textarea.value = element.text ?? "";
+                    textarea.style.cssText = `
+                      position: fixed;
+                      top: ${stageBox.top + absPos.y + 8}px;
+                      left: ${stageBox.left + absPos.x + 8}px;
+                      width: ${elementWidth - 16}px;
+                      min-height: ${elementHeight - 16}px;
+                      font-size: ${Math.max(16, element.style.fontSize / 1.25)}px;
+                      color: ${element.style.fill};
+                      background: rgba(20, 20, 20, 0.96);
+                      border: 1.5px solid #7c6cfc;
+                      border-radius: 6px;
+                      padding: 6px 8px;
+                      resize: none;
+                      outline: none;
+                      z-index: 9999;
+                      font-family: inherit;
+                      line-height: 1.5;
+                    `;
+
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+
+                    function finish() {
+  if (!editingRef.current) return;
+  const newText = textarea.value.trim() || "Text element";
+  updateElement(element.id, { text: newText });
+  editingRef.current = null;
+  textarea.remove();
+}
+
+                    textarea.addEventListener("blur", finish);
+                    textarea.addEventListener("keydown", (e) => {
+                      if (e.key === "Escape") finish();
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        finish();
+                      }
+                    });
+                  }}
                 />
               );
             })}

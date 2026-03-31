@@ -27,9 +27,14 @@ export function EditorShell() {
         return;
       }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedElementId) {
-        e.preventDefault();
-        deleteSelectedElement();
-      }
+  e.preventDefault();
+  deleteSelectedElement();
+}
+if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+  e.preventDefault();
+  const { snapshots, restoreSnapshot } = useWorkspaceStore.getState();
+  if (snapshots.length > 0) restoreSnapshot(snapshots[0].id);
+}
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
