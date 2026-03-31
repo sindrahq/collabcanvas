@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Ellipse, Layer, Rect, Stage, Text as KonvaText, Transformer } from "react-konva";
+import { Ellipse, Layer, Rect, RegularPolygon, Stage, Star, Arrow, Image as KonvaImage, Text as KonvaText, Transformer } from "react-konva";
 import type Konva from "konva";
+import useImage from "use-image";
 import { CANVAS_DIMENSIONS } from "@/lib/constants";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 
@@ -14,14 +15,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getRectDragBounds(position: { x: number; y: number }, width: number, height: number) {
-  return {
-    x: clamp(position.x, 0, STAGE_WIDTH - width),
-    y: clamp(position.y, 0, STAGE_HEIGHT - height)
-  };
-}
-
-function getTextDragBounds(position: { x: number; y: number }, width: number, height: number) {
+function getDragBounds(position: { x: number; y: number }, width: number, height: number) {
   return {
     x: clamp(position.x, 0, STAGE_WIDTH - width),
     y: clamp(position.y, 0, STAGE_HEIGHT - height)
@@ -42,10 +36,8 @@ function updateFromTransform(
 ) {
   const scaleX = node.scaleX();
   const scaleY = node.scaleY();
-
   node.scaleX(1);
   node.scaleY(1);
-
   updateElement(element.id, {
     x: node.x() * STAGE_SCALE,
     y: node.y() * STAGE_SCALE,
@@ -63,16 +55,53 @@ function updateEllipseFromTransform(
   const scaleY = node.scaleY();
   const nextWidth = Math.max(48, node.width() * scaleX * STAGE_SCALE);
   const nextHeight = Math.max(48, node.height() * scaleY * STAGE_SCALE);
-
   node.scaleX(1);
   node.scaleY(1);
-
   updateElement(element.id, {
     x: (node.x() - node.width() / 2) * STAGE_SCALE,
     y: (node.y() - node.height() / 2) * STAGE_SCALE,
     width: nextWidth,
     height: nextHeight
   });
+}
+
+// Image element component
+function ImageElement({ element, isSelected, selectElement, updateElement, nodeRefs }: {
+  element: CanvasElement;
+  isSelected: boolean;
+  selectElement: (id: string) => void;
+  updateElement: (id: string, updates: Partial<CanvasElement>) => void;
+  nodeRefs: React.MutableRefObject<Record<string, Konva.Shape | Konva.Text | null>>;
+}) {
+  const [image] = useImage(element.imageUrl ?? "");
+  const elementWidth = element.width / STAGE_SCALE;
+  const elementHeight = element.height / STAGE_SCALE;
+
+  return (
+    <KonvaImage
+      key={element.id}
+      image={image}
+      x={element.x / STAGE_SCALE}
+      y={element.y / STAGE_SCALE}
+      width={elementWidth}
+      height={elementHeight}
+      rotation={element.rotation}
+      draggable={!element.locked}
+      visible={element.visible}
+      opacity={element.style.opacity}
+      stroke={isSelected ? "#7c6cfc" : "transparent"}
+      strokeWidth={isSelected ? 2 : 0}
+      ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
+      onClick={() => selectElement(element.id)}
+      onTap={() => selectElement(element.id)}
+      onDragEnd={(e) => updateElement(element.id, {
+        x: e.target.x() * STAGE_SCALE,
+        y: e.target.y() * STAGE_SCALE
+      })}
+      onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Shape, updateElement)}
+      dragBoundFunc={(pos) => getDragBounds(pos, elementWidth, elementHeight)}
+    />
+  );
 }
 
 export function KonvaStageWorkspace() {
@@ -92,31 +121,25 @@ export function KonvaStageWorkspace() {
 
   useEffect(() => {
     const transformer = transformerRef.current;
-
     if (!transformer) return;
-
     if (!selectedElementId) {
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
       return;
     }
-
     const selectedNode = nodeRefs.current[selectedElementId];
-
     if (selectedNode) {
       transformer.nodes([selectedNode]);
     } else {
       transformer.nodes([]);
     }
-
     transformer.getLayer()?.batchDraw();
   }, [selectedElementId, orderedElements]);
 
   return (
     <>
       <div className="canvas-instructions">
-        <span>Drag enabled for unlocked elements.</span>
-        <span>Click to select · Double-click text to edit · Delete key to remove</span>
+        <span>Click to select · Drag to move · Double-click text to edit</span>
       </div>
 
       <div className="konva-frame">
@@ -125,15 +148,12 @@ export function KonvaStageWorkspace() {
           height={STAGE_HEIGHT}
           className="konva-stage"
           onMouseDown={(event) => {
-            if (event.target === event.target.getStage()) {
-              selectElement(null);
-            }
+            if (event.target === event.target.getStage()) selectElement(null);
           }}
         >
           <Layer>
             <Rect
-              x={0}
-              y={0}
+              x={0} y={0}
               width={STAGE_WIDTH}
               height={STAGE_HEIGHT}
               fill="#fffdf8"
@@ -144,6 +164,9 @@ export function KonvaStageWorkspace() {
               const isSelected = element.id === selectedElementId;
               const elementWidth = element.width / STAGE_SCALE;
               const elementHeight = element.height / STAGE_SCALE;
+              const cx = element.x / STAGE_SCALE + elementWidth / 2;
+              const cy = element.y / STAGE_SCALE + elementHeight / 2;
+
               const commonProps = {
                 rotation: element.rotation,
                 draggable: !element.locked,
@@ -168,23 +191,17 @@ export function KonvaStageWorkspace() {
                     y={element.y / STAGE_SCALE}
                     width={elementWidth}
                     height={elementHeight}
-                    ref={(node) => {
-                      nodeRefs.current[element.id] = node;
-                    }}
+                    ref={(node) => { nodeRefs.current[element.id] = node; }}
                     fill={element.style.fill}
-                    stroke={isSelected ? "#124b52" : element.style.stroke}
+                    stroke={isSelected ? "#7c6cfc" : element.style.stroke}
                     strokeWidth={isSelected ? 3 : element.style.strokeWidth}
-                    cornerRadius={18}
-                    shadowColor="rgba(31, 38, 35, 0.16)"
-                    shadowBlur={18}
-                    shadowOffset={{ x: 0, y: 10 }}
+                    cornerRadius={12}
+                    shadowColor="rgba(0,0,0,0.2)"
+                    shadowBlur={12}
+                    shadowOffset={{ x: 0, y: 6 }}
                     shadowOpacity={0.2}
-                    dragBoundFunc={(position) =>
-                      getRectDragBounds(position, elementWidth, elementHeight)
-                    }
-                    onTransformEnd={(event) =>
-                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
-                    }
+                    dragBoundFunc={(pos) => getDragBounds(pos, elementWidth, elementHeight)}
+                    onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Rect, updateElement)}
                   />
                 );
               }
@@ -194,36 +211,103 @@ export function KonvaStageWorkspace() {
                   <Ellipse
                     key={element.id}
                     {...commonProps}
-                    x={element.x / STAGE_SCALE + elementWidth / 2}
-                    y={element.y / STAGE_SCALE + elementHeight / 2}
-                    ref={(node) => {
-                      nodeRefs.current[element.id] = node;
-                    }}
+                    x={cx} y={cy}
+                    ref={(node) => { nodeRefs.current[element.id] = node; }}
                     radiusX={elementWidth / 2}
                     radiusY={elementHeight / 2}
                     fill={element.style.fill}
-                    stroke={isSelected ? "#a25715" : element.style.stroke}
+                    stroke={isSelected ? "#7c6cfc" : element.style.stroke}
                     strokeWidth={isSelected ? 3 : element.style.strokeWidth}
-                    shadowColor="rgba(31, 38, 35, 0.12)"
-                    shadowBlur={14}
-                    shadowOffset={{ x: 0, y: 6 }}
-                    shadowOpacity={0.18}
-                    dragBoundFunc={(position) =>
-                      getEllipseDragBounds(position, elementWidth, elementHeight)
-                    }
-                    onDragEnd={(event) => {
-                      updateElement(element.id, {
-                        x: (event.target.x() - event.target.width() / 2) * STAGE_SCALE,
-                        y: (event.target.y() - event.target.height() / 2) * STAGE_SCALE
-                      });
-                    }}
-                    onTransformEnd={(event) =>
-                      updateEllipseFromTransform(
-                        element,
-                        event.target as Konva.Ellipse,
-                        updateElement
-                      )
-                    }
+                    dragBoundFunc={(pos) => getEllipseDragBounds(pos, elementWidth, elementHeight)}
+                    onDragEnd={(e) => updateElement(element.id, {
+                      x: (e.target.x() - e.target.width() / 2) * STAGE_SCALE,
+                      y: (e.target.y() - e.target.height() / 2) * STAGE_SCALE
+                    })}
+                    onTransformEnd={(e) => updateEllipseFromTransform(element, e.target as Konva.Ellipse, updateElement)}
+                  />
+                );
+              }
+
+              if (element.type === "triangle") {
+                return (
+                  <RegularPolygon
+                    key={element.id}
+                    {...commonProps}
+                    x={cx} y={cy}
+                    ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
+                    sides={3}
+                    radius={Math.min(elementWidth, elementHeight) / 2}
+                    fill={element.style.fill}
+                    stroke={isSelected ? "#7c6cfc" : element.style.stroke}
+                    strokeWidth={isSelected ? 3 : element.style.strokeWidth}
+                    onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Shape, updateElement)}
+                  />
+                );
+              }
+
+              if (element.type === "diamond") {
+                return (
+                  <RegularPolygon
+                    key={element.id}
+                    {...commonProps}
+                    x={cx} y={cy}
+                    ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
+                    sides={4}
+                    radius={Math.min(elementWidth, elementHeight) / 2}
+                    fill={element.style.fill}
+                    stroke={isSelected ? "#7c6cfc" : element.style.stroke}
+                    strokeWidth={isSelected ? 3 : element.style.strokeWidth}
+                    onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Shape, updateElement)}
+                  />
+                );
+              }
+
+              if (element.type === "star") {
+                return (
+                  <Star
+                    key={element.id}
+                    {...commonProps}
+                    x={cx} y={cy}
+                    ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
+                    numPoints={5}
+                    innerRadius={Math.min(elementWidth, elementHeight) / 4}
+                    outerRadius={Math.min(elementWidth, elementHeight) / 2}
+                    fill={element.style.fill}
+                    stroke={isSelected ? "#7c6cfc" : element.style.stroke}
+                    strokeWidth={isSelected ? 3 : element.style.strokeWidth}
+                    onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Shape, updateElement)}
+                  />
+                );
+              }
+
+              if (element.type === "arrow") {
+                return (
+                  <Arrow
+                    key={element.id}
+                    {...commonProps}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
+                    points={[0, elementHeight / 2, elementWidth, elementHeight / 2]}
+                    fill={element.style.fill}
+                    stroke={isSelected ? "#7c6cfc" : element.style.stroke}
+                    strokeWidth={isSelected ? 3 : element.style.strokeWidth + 1}
+                    pointerLength={12}
+                    pointerWidth={10}
+                    onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Shape, updateElement)}
+                  />
+                );
+              }
+
+              if (element.type === "image") {
+                return (
+                  <ImageElement
+                    key={element.id}
+                    element={element}
+                    isSelected={isSelected}
+                    selectElement={selectElement}
+                    updateElement={updateElement}
+                    nodeRefs={nodeRefs}
                   />
                 );
               }
@@ -236,30 +320,21 @@ export function KonvaStageWorkspace() {
                   y={element.y / STAGE_SCALE}
                   width={elementWidth}
                   height={elementHeight}
-                  ref={(node) => {
-                    nodeRefs.current[element.id] = node;
-                  }}
+                  ref={(node) => { nodeRefs.current[element.id] = node; }}
                   text={element.text ?? "Text element"}
                   fill={element.style.fill}
                   fontSize={Math.max(16, element.style.fontSize / 1.25)}
                   fontStyle={isSelected ? "bold" : "normal"}
                   padding={8}
-                  dragBoundFunc={(position) =>
-                    getTextDragBounds(position, elementWidth, elementHeight)
-                  }
-                  onTransformEnd={(event) =>
-                    updateFromTransform(element, event.target as Konva.Text, updateElement)
-                  }
+                  dragBoundFunc={(pos) => getDragBounds(pos, elementWidth, elementHeight)}
+                  onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Text, updateElement)}
                   onDblClick={() => {
                     const node = nodeRefs.current[element.id] as Konva.Text;
                     if (!node) return;
-
                     const stageBox = node.getStage()!.container().getBoundingClientRect();
                     const absPos = node.getAbsolutePosition();
-
                     const textarea = document.createElement("textarea");
                     editingRef.current = textarea;
-
                     textarea.value = element.text ?? "";
                     textarea.style.cssText = `
                       position: fixed;
@@ -279,26 +354,20 @@ export function KonvaStageWorkspace() {
                       font-family: inherit;
                       line-height: 1.5;
                     `;
-
                     document.body.appendChild(textarea);
                     textarea.focus();
                     textarea.select();
-
                     function finish() {
-  if (!editingRef.current) return;
-  const newText = textarea.value.trim() || "Text element";
-  updateElement(element.id, { text: newText });
-  editingRef.current = null;
-  textarea.remove();
-}
-
+                      if (!editingRef.current) return;
+                      const newText = textarea.value.trim() || "Text element";
+                      updateElement(element.id, { text: newText });
+                      editingRef.current = null;
+                      textarea.remove();
+                    }
                     textarea.addEventListener("blur", finish);
                     textarea.addEventListener("keydown", (e) => {
                       if (e.key === "Escape") finish();
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        finish();
-                      }
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); finish(); }
                     });
                   }}
                 />
@@ -308,38 +377,19 @@ export function KonvaStageWorkspace() {
             <Transformer
               ref={transformerRef}
               rotateEnabled={false}
-              borderStroke="#1f6f78"
+              borderStroke="#7c6cfc"
               borderStrokeWidth={2}
               anchorFill="#fff"
-              anchorStroke="#1f6f78"
+              anchorStroke="#7c6cfc"
               anchorSize={10}
               boundBoxFunc={(oldBox, newBox) => {
-                const minWidth = 36;
-                const minHeight = 28;
-
-                if (newBox.width < minWidth || newBox.height < minHeight) {
-                  return oldBox;
-                }
-
-                if (
-                  newBox.x < 0 ||
-                  newBox.y < 0 ||
+                if (newBox.width < 36 || newBox.height < 28) return oldBox;
+                if (newBox.x < 0 || newBox.y < 0 ||
                   newBox.x + newBox.width > STAGE_WIDTH ||
-                  newBox.y + newBox.height > STAGE_HEIGHT
-                ) {
-                  return oldBox;
-                }
-
+                  newBox.y + newBox.height > STAGE_HEIGHT) return oldBox;
                 return newBox;
               }}
-              enabledAnchors={[
-                "top-left",
-                "top-right",
-                "bottom-left",
-                "bottom-right",
-                "middle-left",
-                "middle-right"
-              ]}
+              enabledAnchors={["top-left","top-right","bottom-left","bottom-right","middle-left","middle-right"]}
             />
           </Layer>
         </Stage>
