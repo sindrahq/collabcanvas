@@ -1,5 +1,5 @@
-import { LandingHero } from "@/components/landing/landing-hero";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return <LandingHero />;
+  redirect("/editor");
 }
