@@ -1,95 +1,82 @@
 "use client";
 
+import { motion } from "framer-motion";
+import { Circle, Copy, RectangleHorizontal, Trash2, Type } from "lucide-react";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
-const shapes = [
-  { label: "Rectangle", icon: "⬜", action: "rectangle" as const, color: "#7c6cfc" },
-  { label: "Circle", icon: "⭕", action: "circle" as const, color: "#4caf82" },
-  { label: "Text", icon: "T", action: "text" as const, color: "#f59e0b" },
+const addButtons = [
+  { label: "Rectangle", action: "rectangle" as const, icon: RectangleHorizontal },
+  { label: "Circle", action: "circle" as const, icon: Circle },
+  { label: "Text", action: "text" as const, icon: Type }
 ];
 
 export function Toolbar() {
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const addElement = useWorkspaceStore((s) => s.addElement);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const saveSnapshot = useWorkspaceStore((s) => s.saveSnapshot);
-  const restoreSnapshot = useWorkspaceStore((s) => s.restoreSnapshot);
-  const snapshots = useWorkspaceStore((s) => s.snapshots);
-
-  function handleAdd(type: "rectangle" | "circle" | "text") {
-    saveSnapshot();
-    addElement(type);
-  }
-
-  function handleDuplicate() {
-    if (!selectedElementId) return;
-    saveSnapshot();
-    duplicateSelectedElement();
-  }
-
-  function handleDelete() {
-    if (!selectedElementId) return;
-    saveSnapshot();
-    deleteSelectedElement();
-  }
-
-  function handleUndo() {
-    if (snapshots.length === 0) return;
-    restoreSnapshot(snapshots[0].id);
-  }
+  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+  const addElement = useWorkspaceStore((state) => state.addElement);
+  const duplicateSelectedElement = useWorkspaceStore((state) => state.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((state) => state.deleteSelectedElement);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-      {shapes.map((s) => (
-        <button
-          key={s.action}
-          className="toolbar-btn"
-          onClick={() => handleAdd(s.action)}
-          title={`Add ${s.label}`}
-          style={{ gap: "6px" }}
+    <motion.div
+      className="toolbar"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="toolbar-group">
+        <span className="toolbar-label">Add</span>
+        {addButtons.map((item, index) => {
+          const Icon = item.icon;
+          return (
+            <motion.button
+              key={item.label}
+              type="button"
+              className="toolbar-button"
+              onClick={() => addElement(item.action)}
+              title={`Add ${item.label}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 * index, duration: 0.25 }}
+              whileHover={{ y: -2, scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <Icon size={15} />
+              <span>{item.label}</span>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-group">
+        <span className="toolbar-label">Edit</span>
+        <motion.button
+          type="button"
+          className="toolbar-button"
+          onClick={duplicateSelectedElement}
+          disabled={!selectedElementId}
+          title="Duplicate (Ctrl+D)"
+          whileHover={selectedElementId ? { y: -2, scale: 1.02 } : undefined}
+          whileTap={selectedElementId ? { scale: 0.97 } : undefined}
         >
-          <span style={{ fontSize: 14, color: s.color }}>{s.icon}</span>
-          <span style={{ fontSize: 12 }}>{s.label}</span>
-        </button>
-      ))}
+          <Copy size={15} />
+          <span>Duplicate</span>
+        </motion.button>
 
-      <div style={{ width: 1, height: 18, background: "var(--border)", margin: "0 6px" }} />
-
-      <button
-        className="toolbar-btn"
-        onClick={handleDuplicate}
-        disabled={!selectedElementId}
-        title="Duplicate (Ctrl+D)"
-        style={{ gap: "6px" }}
-      >
-        <span style={{ fontSize: 14 }}>⧉</span>
-        <span style={{ fontSize: 12 }}>Duplicate</span>
-      </button>
-
-      <button
-        className="toolbar-btn"
-        onClick={handleDelete}
-        disabled={!selectedElementId}
-        title="Delete (Del)"
-        style={{ gap: "6px", color: selectedElementId ? "var(--danger)" : undefined }}
-      >
-        <span style={{ fontSize: 14 }}>✕</span>
-        <span style={{ fontSize: 12 }}>Delete</span>
-      </button>
-
-      <div style={{ width: 1, height: 18, background: "var(--border)", margin: "0 6px" }} />
-
-      <button
-        className="toolbar-btn"
-        onClick={handleUndo}
-        disabled={snapshots.length === 0}
-        title="Undo (Ctrl+Z)"
-        style={{ gap: "6px" }}
-      >
-        <span style={{ fontSize: 14 }}>↩</span>
-        <span style={{ fontSize: 12 }}>Undo {snapshots.length > 0 ? `(${snapshots.length})` : ""}</span>
-      </button>
-    </div>
+        <motion.button
+          type="button"
+          className="toolbar-button toolbar-button-danger"
+          onClick={deleteSelectedElement}
+          disabled={!selectedElementId}
+          title="Delete (Del)"
+          whileHover={selectedElementId ? { y: -2, scale: 1.02 } : undefined}
+          whileTap={selectedElementId ? { scale: 0.97 } : undefined}
+        >
+          <Trash2 size={15} />
+          <span>Delete</span>
+        </motion.button>
+      </div>
+    </motion.div>
   );
 }

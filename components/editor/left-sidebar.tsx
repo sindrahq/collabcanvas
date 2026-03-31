@@ -1,124 +1,111 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
 import { useMemo } from "react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import {
+  ArrowDown, ArrowUp, Circle, Eye, EyeOff,
+  Layers, Lock, RectangleHorizontal, Type, Unlock
+} from "lucide-react";
+import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 
-const typeConfig: Record<string, { icon: string; color: string }> = {
-  rectangle: { icon: "⬜", color: "#7c6cfc" },
-  circle:    { icon: "⭕", color: "#4caf82" },
-  text:      { icon: "T",  color: "#f59e0b" },
+const TYPE_ICONS = {
+  rectangle: RectangleHorizontal,
+  rect: RectangleHorizontal,
+  circle: Circle,
+  text: Type
 };
 
-export function LeftSidebar() {
-  const elements = useWorkspaceStore((s) => s.elements);
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const selectElement = useWorkspaceStore((s) => s.selectElement);
-  const reorderElement = useWorkspaceStore((s) => s.reorderElement);
-  const toggleVisibility = useWorkspaceStore((s) => s.toggleVisibility);
-  const toggleLock = useWorkspaceStore((s) => s.toggleLock);
+function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
+  const selectElement = useWorkspaceStore((state) => state.selectElement);
+  const reorderElement = useWorkspaceStore((state) => state.reorderElement);
+  const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
+  const toggleLock = useWorkspaceStore((state) => state.toggleLock);
+  const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
 
-  const ordered = useMemo(
+  return (
+    <motion.article
+      layout
+      className={`layer-row${isSelected ? " selected" : ""}${!element.visible ? " layer-hidden" : ""}`}
+      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+    >
+      <button
+        type="button"
+        className="layer-row-main"
+        onClick={() => selectElement(element.id)}
+        title={element.name}
+      >
+        <Icon size={13} className="layer-type-icon" />
+        <span className="layer-name">{element.name}</span>
+      </button>
+
+      <div className="layer-row-actions">
+        <button type="button" className="layer-icon-btn"
+          onClick={() => reorderElement(element.id, "forward")} title="Move up">
+          <ArrowUp size={12} />
+        </button>
+        <button type="button" className="layer-icon-btn"
+          onClick={() => reorderElement(element.id, "backward")} title="Move down">
+          <ArrowDown size={12} />
+        </button>
+        <button type="button" className="layer-icon-btn"
+          onClick={() => toggleVisibility(element.id)}
+          title={element.visible ? "Hide" : "Show"}>
+          {element.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+        </button>
+        <button type="button"
+          className={`layer-icon-btn${element.locked ? " active" : ""}`}
+          onClick={() => toggleLock(element.id)}
+          title={element.locked ? "Unlock" : "Lock"}>
+          {element.locked ? <Lock size={12} /> : <Unlock size={12} />}
+        </button>
+      </div>
+    </motion.article>
+  );
+}
+
+export function LeftSidebar() {
+  const elements = useWorkspaceStore((state) => state.elements);
+  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+  const orderedElements = useMemo(
     () => [...elements].sort((a, b) => b.layerOrder - a.layerOrder),
     [elements]
   );
+  const visibleCount = orderedElements.filter((el) => el.visible).length;
 
   return (
-    <aside className="editor-panel">
-      <div className="panel-header">
-        Layers
-        <span style={{
-          marginLeft: "auto",
-          fontSize: 10,
-          background: "var(--surface-3)",
-          padding: "1px 6px",
-          borderRadius: 10,
-          color: "var(--text-muted)"
-        }}>
-          {ordered.length}
+    <motion.aside
+      className="editor-panel layers-panel"
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.35 }}
+    >
+      <div className="layers-header">
+        <Layers size={14} className="layers-header-icon" />
+        <span className="eyebrow" style={{ margin: 0 }}>Layers</span>
+        <span className="layers-count">{orderedElements.length}</span>
+      </div>
+
+      <div className="layers-meta">
+        <span className="layers-stat">{visibleCount} visible</span>
+        <span className="layers-stat">
+          {orderedElements.filter((el) => el.locked).length} locked
         </span>
       </div>
 
-      <div className="panel-scroll">
-        {ordered.length === 0 && (
-          <div style={{
-            padding: "32px 16px",
-            textAlign: "center",
-            color: "var(--text-faint)",
-            fontSize: 12,
-            lineHeight: 1.6
-          }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>⬜</div>
-            No layers yet.
-            <br />Add a shape from the toolbar.
-          </div>
+      <div className="layer-list">
+        <AnimatePresence>
+          {orderedElements.map((element) => (
+            <LayerRow
+              key={element.id}
+              element={element}
+              isSelected={element.id === selectedElementId}
+            />
+          ))}
+        </AnimatePresence>
+        {orderedElements.length === 0 && (
+          <p className="layers-empty">No elements yet. Add shapes from the toolbar above.</p>
         )}
-
-        {ordered.map((el) => {
-          const config = typeConfig[el.type] ?? { icon: "◻", color: "#888" };
-          const isSelected = el.id === selectedElementId;
-
-          return (
-            <div
-              key={el.id}
-              className={`layer-item${isSelected ? " selected" : ""}`}
-              onClick={() => selectElement(el.id)}
-              style={{
-                borderLeft: isSelected
-                  ? `3px solid ${config.color}`
-                  : "3px solid transparent",
-                opacity: el.visible ? 1 : 0.4,
-              }}
-            >
-              <span style={{
-                fontSize: 13,
-                width: 20,
-                textAlign: "center",
-                flexShrink: 0,
-                color: config.color,
-              }}>
-                {config.icon}
-              </span>
-
-              <span className="layer-item-name" style={{
-                fontSize: 12,
-                color: isSelected ? "var(--text)" : "var(--text-muted)",
-                fontWeight: isSelected ? 500 : 400,
-              }}>
-                {el.name}
-              </span>
-
-              <div className="layer-item-actions">
-                <button
-                  className="layer-action-btn"
-                  onClick={(e) => { e.stopPropagation(); toggleVisibility(el.id); }}
-                  title={el.visible ? "Hide" : "Show"}
-                  style={{ fontSize: 12 }}
-                >
-                  {el.visible ? "👁" : "🙈"}
-                </button>
-                <button
-                  className="layer-action-btn"
-                  onClick={(e) => { e.stopPropagation(); toggleLock(el.id); }}
-                  title={el.locked ? "Unlock" : "Lock"}
-                  style={{ fontSize: 12 }}
-                >
-                  {el.locked ? "🔒" : "🔓"}
-                </button>
-                <button
-                  className="layer-action-btn"
-                  onClick={(e) => { e.stopPropagation(); reorderElement(el.id, "forward"); }}
-                  title="Move up"
-                >↑</button>
-                <button
-                  className="layer-action-btn"
-                  onClick={(e) => { e.stopPropagation(); reorderElement(el.id, "backward"); }}
-                  title="Move down"
-                >↓</button>
-              </div>
-            </div>
-          );
-        })}
       </div>
-    </aside>
+    </motion.aside>
   );
 }
