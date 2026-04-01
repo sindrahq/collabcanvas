@@ -19,7 +19,11 @@ function LayerItem({ element }: { element: CanvasElement }) {
 
   const isSelected = selectedElementId === element.id;
   const typeIcon =
-    element.type === "rectangle" || element.type === "rectangle" ? "[]" : element.type === "circle" ? "()" : "T";
+    element.type === "rectangle"
+      ? "[]"
+      : element.type === "circle"
+        ? "()"
+        : "T";
 
   return (
     <div
@@ -69,7 +73,7 @@ function LayerItem({ element }: { element: CanvasElement }) {
 }
 
 export default function LayerPanel() {
-  const { elementList, reorderElement } = useWorkspaceStore();
+  const { elementList, updateLayerOrder } = useWorkspaceStore();
   const sensors = useSensors(useSensor(PointerSensor));
   const sortedElements = [...elementList].sort((left, right) => left.layer_order - right.layer_order);
 
@@ -89,7 +93,7 @@ export default function LayerPanel() {
       layerOrder: index
     }));
 
-    reorderElement(reordered);
+    updateLayerOrder(reordered);
   }
 
   return (
