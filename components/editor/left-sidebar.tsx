@@ -3,8 +3,8 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useMemo } from "react";
 import {
-  ArrowDown, ArrowUp, Circle, Eye, EyeOff,
-  Layers, Lock, RectangleHorizontal, Type, Unlock
+  ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
+  Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
 } from "lucide-react";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 
@@ -12,7 +12,11 @@ const TYPE_ICONS = {
   rectangle: RectangleHorizontal,
   rect: RectangleHorizontal,
   circle: Circle,
-  text: Type
+  text: Type,
+  triangle: Triangle,
+  star: Star,
+  arrow: ArrowRight,
+  line: Minus,
 };
 
 function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
@@ -26,7 +30,12 @@ function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected:
     <motion.article
       layout
       className={`layer-row${isSelected ? " selected" : ""}${!element.visible ? " layer-hidden" : ""}`}
+      variants={{
+        hidden: { opacity: 0, x: -12 },
+        show:   { opacity: 1, x: 0 },
+      }}
       transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      exit={{ opacity: 0, x: -8, transition: { duration: 0.15 } }}
     >
       <button
         type="button"
@@ -92,7 +101,12 @@ export function LeftSidebar() {
         </span>
       </div>
 
-      <div className="layer-list">
+      <motion.div
+        className="layer-list"
+        variants={{ show: { transition: { staggerChildren: 0.06 } } }}
+        initial="hidden"
+        animate="show"
+      >
         <AnimatePresence>
           {orderedElements.map((element) => (
             <LayerRow
@@ -105,7 +119,7 @@ export function LeftSidebar() {
         {orderedElements.length === 0 && (
           <p className="layers-empty">No elements yet. Add shapes from the toolbar above.</p>
         )}
-      </div>
+      </motion.div>
     </motion.aside>
   );
 }

@@ -19,7 +19,11 @@ function LayerItem({ element }: { element: CanvasElement }) {
 
   const isSelected = selectedElementId === element.id;
   const typeIcon =
-    element.type === "rectangle" || element.type === "rect" ? "[]" : element.type === "circle" ? "()" : "T";
+    element.type === "rectangle"
+      ? "[]"
+      : element.type === "circle"
+        ? "()"
+        : "T";
 
   return (
     <div
