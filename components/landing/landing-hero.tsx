@@ -1,88 +1,73 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-
-const stats = [
-  { value: "03", label: "Feature branches" },
-  { value: "07", label: "Editor actions" },
-  { value: "Live", label: "Canvas prototype" }
-];
-
-const cards = [
-  "Structured workspace state",
-  "Real Konva-driven element rendering",
-  "Selection, transform, and export flow"
-];
 
 export function LandingHero() {
   return (
-    <main className="landing-shell">
-      <div className="landing-ambient landing-ambient-one" />
-      <div className="landing-ambient landing-ambient-two" />
+    <main style={{
+      minHeight: "100vh",
+      display: "grid",
+      placeItems: "center",
+      background: "#111111",
+      padding: "24px",
+    }}>
+      <div style={{
+        width: "min(500px, 100%)",
+        background: "#1a1a1a",
+        border: "1px solid #2e2e2e",
+        borderRadius: "16px",
+        padding: "48px 40px",
+        textAlign: "center",
+      }}>
+        <p style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
+          Internship Project
+        </p>
 
-      <motion.section
-        className="landing-card"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <div className="landing-grid">
-          <div>
-            <p className="eyebrow">Assignment Workspace</p>
-            <h1>Collaborative Canvas Editor</h1>
-            <p className="landing-copy">
-              A polished frontend workspace for building a simplified Canva or Figma-style editor
-              with shared state, live canvas rendering, keyboard shortcuts, and a branch-based
-              implementation flow.
-            </p>
+        <h1 style={{ fontSize: "2rem", fontWeight: 700, color: "#f0f0f0", letterSpacing: "-0.03em", marginBottom: 12 }}>
+          Collaborative Canvas Editor
+        </h1>
 
-            <div className="landing-actions">
-              <Link href="/editor" className="primary-link">
-                Open Editor Workspace
-              </Link>
-              <span className="landing-note">Current focus: canvas engine plus editor UX polish</span>
+        <p style={{ color: "#888", lineHeight: 1.7, fontSize: 14, marginBottom: 32 }}>
+          A Figma/Canva-style editor with live canvas rendering,
+          shared Zustand state, and real-time collaboration.
+        </p>
+
+        <Link href="/editor" style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 28px",
+          background: "#7c6cfc",
+          color: "#fff",
+          borderRadius: "8px",
+          fontWeight: 600,
+          fontSize: 14,
+          textDecoration: "none",
+          transition: "background 150ms",
+        }}>
+          Open Editor →
+        </Link>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 12,
+          marginTop: 40,
+          paddingTop: 32,
+          borderTop: "1px solid #2e2e2e",
+        }}>
+          {[
+            { value: "3", label: "Branches" },
+            { value: "7", label: "Actions" },
+            { value: "Live", label: "Canvas" },
+          ].map((s) => (
+            <div key={s.label} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "#f0f0f0" }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{s.label}</div>
             </div>
-          </div>
-
-          <motion.aside
-            className="landing-panel"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1, duration: 0.45 }}
-          >
-            <div className="landing-chip">Frontend milestone</div>
-            <div className="landing-stat-row">
-              {stats.map((item, index) => (
-                <motion.article
-                  key={item.label}
-                  className="landing-stat"
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.18 + index * 0.08, duration: 0.35 }}
-                >
-                  <strong>{item.value}</strong>
-                  <span>{item.label}</span>
-                </motion.article>
-              ))}
-            </div>
-
-            <div className="landing-mini-canvas">
-              {cards.map((label, index) => (
-                <motion.div
-                  key={label}
-                  className={`mini-canvas-card mini-canvas-card-${index + 1}`}
-                  initial={{ opacity: 0, y: 22 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.28 + index * 0.1, duration: 0.4 }}
-                >
-                  {label}
-                </motion.div>
-              ))}
-            </div>
-          </motion.aside>
+          ))}
         </div>
-      </motion.section>
+      </div>
     </main>
   );
 }

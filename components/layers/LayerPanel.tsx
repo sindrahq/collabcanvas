@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 
 function LayerItem({ element }: { element: CanvasElement }) {
-  const { selectedElementId, setSelectedElement, toggleVisibility, toggleLock } = useWorkspaceStore();
+  const { selectedElementId, selectElement, toggleVisibility, toggleLock } = useWorkspaceStore();
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: element.id
   });
@@ -19,7 +19,11 @@ function LayerItem({ element }: { element: CanvasElement }) {
 
   const isSelected = selectedElementId === element.id;
   const typeIcon =
-    element.type === "rect" || element.type === "rectangle" ? "[]" : element.type === "circle" ? "()" : "T";
+    element.type === "rectangle"
+      ? "[]"
+      : element.type === "circle"
+        ? "()"
+        : "T";
 
   return (
     <div
@@ -28,7 +32,7 @@ function LayerItem({ element }: { element: CanvasElement }) {
       className={`group mb-1 flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 ${
         isSelected ? "bg-indigo-600" : "bg-zinc-800 hover:bg-zinc-700"
       }`}
-      onClick={() => setSelectedElement(element.id)}
+      onClick={() => selectElement(element.id)}
     >
       <span
         {...attributes}

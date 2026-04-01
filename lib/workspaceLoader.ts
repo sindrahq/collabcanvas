@@ -26,7 +26,16 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
       stroke: element.style.stroke,
       strokeWidth: element.style.strokeWidth,
       opacity: element.style.opacity,
-      fontSize: element.style.fontSize ?? 28
+      fontSize: element.style.fontSize ?? 28,
+      fontFamily: "Inter",
+      fontStyle: "normal" as const,
+      fontWeight: "normal" as const,
+      textAlign: "left" as const,
+      shadowEnabled: false,
+      shadowBlur: 12,
+      shadowColor: "#00000033",
+      shadowOffsetX: 0,
+      shadowOffsetY: 4,
     }
   };
 }

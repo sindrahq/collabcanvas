@@ -1,97 +1,125 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useMemo } from "react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import {
+  ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
+  Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
+} from "lucide-react";
+import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 
-export function LeftSidebar() {
-  const workspaceName = useWorkspaceStore((state) => state.workspaceName);
-  const elements = useWorkspaceStore((state) => state.elements);
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+const TYPE_ICONS = {
+  rectangle: RectangleHorizontal,
+  rect: RectangleHorizontal,
+  circle: Circle,
+  text: Type,
+  triangle: Triangle,
+  star: Star,
+  arrow: ArrowRight,
+  line: Minus,
+};
+
+function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
   const selectElement = useWorkspaceStore((state) => state.selectElement);
   const reorderElement = useWorkspaceStore((state) => state.reorderElement);
   const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
   const toggleLock = useWorkspaceStore((state) => state.toggleLock);
+  const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
+
+  return (
+    <motion.article
+      layout
+      className={`layer-row${isSelected ? " selected" : ""}${!element.visible ? " layer-hidden" : ""}`}
+      variants={{
+        hidden: { opacity: 0, x: -12 },
+        show:   { opacity: 1, x: 0 },
+      }}
+      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      exit={{ opacity: 0, x: -8, transition: { duration: 0.15 } }}
+    >
+      <button
+        type="button"
+        className="layer-row-main"
+        onClick={() => selectElement(element.id)}
+        title={element.name}
+      >
+        <Icon size={13} className="layer-type-icon" />
+        <span className="layer-name">{element.name}</span>
+      </button>
+
+      <div className="layer-row-actions">
+        <button type="button" className="layer-icon-btn"
+          onClick={() => reorderElement(element.id, "forward")} title="Move up">
+          <ArrowUp size={12} />
+        </button>
+        <button type="button" className="layer-icon-btn"
+          onClick={() => reorderElement(element.id, "backward")} title="Move down">
+          <ArrowDown size={12} />
+        </button>
+        <button type="button" className="layer-icon-btn"
+          onClick={() => toggleVisibility(element.id)}
+          title={element.visible ? "Hide" : "Show"}>
+          {element.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+        </button>
+        <button type="button"
+          className={`layer-icon-btn${element.locked ? " active" : ""}`}
+          onClick={() => toggleLock(element.id)}
+          title={element.locked ? "Unlock" : "Lock"}>
+          {element.locked ? <Lock size={12} /> : <Unlock size={12} />}
+        </button>
+      </div>
+    </motion.article>
+  );
+}
+
+export function LeftSidebar() {
+  const elements = useWorkspaceStore((state) => state.elements);
+  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
   const orderedElements = useMemo(
-    () => [...elements].sort((left, right) => right.layerOrder - left.layerOrder),
+    () => [...elements].sort((a, b) => b.layerOrder - a.layerOrder),
     [elements]
   );
+  const visibleCount = orderedElements.filter((el) => el.visible).length;
 
   return (
     <motion.aside
-      className="editor-panel"
+      className="editor-panel layers-panel"
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.35 }}
     >
-      <p className="eyebrow">Project Scope</p>
-      <h2 className="panel-title">{workspaceName}</h2>
-      <p>
-        This branch owns the shared workspace store and the live canvas frame. Every layer below is
-        synced with the same state the canvas engine consumes.
-      </p>
-
-      <div className="panel-highlight">
-        <span>{orderedElements.length} layers</span>
-        <span>{orderedElements.filter((element) => element.visible).length} visible</span>
+      <div className="layers-header">
+        <Layers size={14} className="layers-header-icon" />
+        <span className="eyebrow" style={{ margin: 0 }}>Layers</span>
+        <span className="layers-count">{orderedElements.length}</span>
       </div>
 
-      <div className="layer-stack">
-        {orderedElements.map((element) => {
-          const isSelected = element.id === selectedElementId;
+      <div className="layers-meta">
+        <span className="layers-stat">{visibleCount} visible</span>
+        <span className="layers-stat">
+          {orderedElements.filter((el) => el.locked).length} locked
+        </span>
+      </div>
 
-          return (
-            <motion.article
+      <motion.div
+        className="layer-list"
+        variants={{ show: { transition: { staggerChildren: 0.06 } } }}
+        initial="hidden"
+        animate="show"
+      >
+        <AnimatePresence>
+          {orderedElements.map((element) => (
+            <LayerRow
               key={element.id}
-              className={`layer-card${isSelected ? " selected" : ""}`}
-              layout
-              transition={{ type: "spring", stiffness: 340, damping: 28 }}
-            >
-              <button
-                type="button"
-                className="layer-main-button"
-                onClick={() => selectElement(element.id)}
-              >
-                <strong>{element.name}</strong>
-                <span>
-                  {element.type} | layer {element.layerOrder + 1}
-                </span>
-              </button>
-
-              <div className="layer-actions">
-                <button
-                  type="button"
-                  className="mini-button"
-                  onClick={() => toggleVisibility(element.id)}
-                >
-                  {element.visible ? "Hide" : "Show"}
-                </button>
-                <button
-                  type="button"
-                  className="mini-button"
-                  onClick={() => toggleLock(element.id)}
-                >
-                  {element.locked ? "Unlock" : "Lock"}
-                </button>
-                <button
-                  type="button"
-                  className="mini-button"
-                  onClick={() => reorderElement(element.id, "forward")}
-                >
-                  Up
-                </button>
-                <button
-                  type="button"
-                  className="mini-button"
-                  onClick={() => reorderElement(element.id, "backward")}
-                >
-                  Down
-                </button>
-              </div>
-            </motion.article>
-          );
-        })}
-      </div>
+              element={element}
+              isSelected={element.id === selectedElementId}
+            />
+          ))}
+        </AnimatePresence>
+        {orderedElements.length === 0 && (
+          <p className="layers-empty">No elements yet. Add shapes from the toolbar above.</p>
+        )}
+      </motion.div>
     </motion.aside>
   );
 }
