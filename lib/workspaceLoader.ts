@@ -28,14 +28,14 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
       opacity: element.style.opacity,
       fontSize: element.style.fontSize ?? 28,
       fontFamily: "Inter",
-      fontStyle: "normal",
-      fontWeight: "normal",
-      textAlign: "left",
+      fontStyle: "normal" as const,
+      fontWeight: "normal" as const,
+      textAlign: "left" as const,
       shadowEnabled: false,
       shadowBlur: 12,
       shadowColor: "#00000033",
       shadowOffsetX: 0,
-      shadowOffsetY: 4
+      shadowOffsetY: 4,
     }
   };
 }
