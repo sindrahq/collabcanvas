@@ -1,182 +1,132 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useMemo } from "react";
+import { AlignLeft, Circle, Lock, MousePointer2, Palette, RectangleHorizontal, Type } from "lucide-react";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
-export function RightSidebar() {
-  const elements = useWorkspaceStore((s) => s.elements);
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-  const [showColorPicker, setShowColorPicker] = useState(false);
+const TYPE_ICONS = {
+  rectangle: RectangleHorizontal, rect: RectangleHorizontal, circle: Circle, text: Type
+};
 
+function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="inspector-row">
+      <label className="inspector-label">{label}</label>
+      <div className="inspector-color-field">
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)}
+          className="color-swatch" title={label} />
+        <span className="inspector-mono">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function SliderRow({ label, value, min, max, step = 1, display, onChange }:
+  { label: string; value: number; min: number; max: number; step?: number; display?: string; onChange: (v: number) => void }) {
+  return (
+    <div className="inspector-row inspector-row-col">
+      <div className="inspector-row-header">
+        <label className="inspector-label">{label}</label>
+        <span className="inspector-value">{display ?? value}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(Number(e.target.value))} className="inspector-slider" />
+    </div>
+  );
+}
+
+export function RightSidebar() {
+  const elements = useWorkspaceStore((state) => state.elements);
+  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+  const updateElementStyle = useWorkspaceStore((state) => state.updateElementStyle);
+  const updateElement = useWorkspaceStore((state) => state.updateElement);
   const selectedElement = useMemo(
-    () => elements.find((e) => e.id === selectedElementId) ?? null,
+    () => elements.find((el) => el.id === selectedElementId) ?? null,
     [elements, selectedElementId]
   );
+  const TypeIcon = selectedElement ? (TYPE_ICONS[selectedElement.type] ?? Palette) : MousePointer2;
 
   return (
-    <aside className="editor-panel editor-panel-right">
-      <div className="panel-header">Inspector</div>
+    <motion.aside className="editor-panel inspector-panel"
+      initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35 }}>
+      <div className="inspector-header">
+        <Palette size={14} className="inspector-header-icon" />
+        <span className="eyebrow" style={{ margin: 0 }}>Inspector</span>
+      </div>
 
-      {!selectedElement ? (
-        <div className="inspector-empty">
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🎯</div>
-          Select an element to inspect its properties.
-        </div>
-      ) : (
-        <>
-          {/* Element Info */}
-          <div className="inspector-section">
-            <div className="inspector-section-title">Element</div>
-            <div className="inspector-row">
-              <span className="inspector-label">Name</span>
-              <span className="inspector-value">{selectedElement.name}</span>
+      <AnimatePresence mode="wait">
+        {selectedElement ? (
+          <motion.div key={selectedElement.id}
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+            <div className="inspector-identity">
+              <div className="inspector-type-badge">
+                <TypeIcon size={13} />
+                <span>{selectedElement.type}</span>
+              </div>
+              <input type="text" className="inspector-name-input" value={selectedElement.name}
+                onChange={(e) => updateElement(selectedElement.id, { name: e.target.value, label: e.target.value })} />
             </div>
-            <div className="inspector-row">
-              <span className="inspector-label">Type</span>
-              <span className="inspector-value" style={{ textTransform: "capitalize" }}>
-                {selectedElement.type}
-              </span>
-            </div>
-          </div>
 
-          {/* Position & Size */}
-          <div className="inspector-section">
-            <div className="inspector-section-title">Position & Size</div>
-            <div className="inspector-row">
-              <span className="inspector-label">X</span>
-              <span className="inspector-value">{Math.round(selectedElement.x)}</span>
-            </div>
-            <div className="inspector-row">
-              <span className="inspector-label">Y</span>
-              <span className="inspector-value">{Math.round(selectedElement.y)}</span>
-            </div>
-            <div className="inspector-row">
-              <span className="inspector-label">W</span>
-              <span className="inspector-value">{Math.round(selectedElement.width)}</span>
-            </div>
-            <div className="inspector-row">
-              <span className="inspector-label">H</span>
-              <span className="inspector-value">{Math.round(selectedElement.height)}</span>
-            </div>
-            <div className="inspector-row">
-              <span className="inspector-label">Layer</span>
-              <span className="inspector-value">{selectedElement.layerOrder + 1}</span>
-            </div>
-          </div>
-
-          {/* Fill Color */}
-          <div className="inspector-section">
-            <div className="inspector-section-title">Fill</div>
-            <div className="inspector-row">
-              <span className="inspector-label">Color</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 4,
-                    background: selectedElement.style.fill,
-                    border: "2px solid var(--border-hover)",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
-                  title="Click to change color"
-                />
-                <span className="inspector-value" style={{ fontSize: 11 }}>
-                  {selectedElement.style.fill}
-                </span>
+            <div className="inspector-section">
+              <div className="inspector-section-title"><AlignLeft size={12} /><span>Layout</span></div>
+              <div className="inspector-grid-2">
+                {(["x","y","width","height"] as const).map((field) => (
+                  <div key={field} className="inspector-num-field">
+                    <label>{field === "width" ? "W" : field === "height" ? "H" : field.toUpperCase()}</label>
+                    <input type="number" value={Math.round(selectedElement[field])}
+                      onChange={(e) => updateElement(selectedElement.id, { [field]: Number(e.target.value) })} />
+                  </div>
+                ))}
               </div>
             </div>
 
-            {showColorPicker && (
-              <div style={{ marginTop: 8 }}>
-                <input
-                  type="color"
-                  value={selectedElement.style.fill}
-                  onChange={(e) =>
-                    updateElement(selectedElement.id, {
-                      style: { ...selectedElement.style, fill: e.target.value }
-                    })
-                  }
-                  style={{
-                    width: "100%",
-                    height: 36,
-                    border: "none",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    background: "none",
-                  }}
-                />
+            <div className="inspector-section">
+              <div className="inspector-section-title"><Palette size={12} /><span>Appearance</span></div>
+              <ColorRow label="Fill" value={selectedElement.style.fill}
+                onChange={(v) => updateElementStyle(selectedElement.id, { fill: v })} />
+              <ColorRow label="Stroke" value={selectedElement.style.stroke}
+                onChange={(v) => updateElementStyle(selectedElement.id, { stroke: v })} />
+              <SliderRow label="Stroke width" value={selectedElement.style.strokeWidth}
+                min={0} max={20} display={`${selectedElement.style.strokeWidth}px`}
+                onChange={(v) => updateElementStyle(selectedElement.id, { strokeWidth: v })} />
+              <SliderRow label="Opacity" value={selectedElement.style.opacity}
+                min={0} max={1} step={0.01}
+                display={`${Math.round(selectedElement.style.opacity * 100)}%`}
+                onChange={(v) => updateElementStyle(selectedElement.id, { opacity: v })} />
+            </div>
 
-                {/* Quick color palette */}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                  {["#7c6cfc","#4caf82","#f59e0b","#e05555","#3b82f6","#ec4899","#ffffff","#1a1a1a"].map((color) => (
-                    <div
-                      key={color}
-                      onClick={() =>
-                        updateElement(selectedElement.id, {
-                          style: { ...selectedElement.style, fill: color }
-                        })
-                      }
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: 4,
-                        background: color,
-                        border: selectedElement.style.fill === color
-                          ? "2px solid white"
-                          : "1px solid var(--border)",
-                        cursor: "pointer",
-                      }}
-                      title={color}
-                    />
-                  ))}
+            {selectedElement.type === "text" && (
+              <div className="inspector-section">
+                <div className="inspector-section-title"><Type size={12} /><span>Text</span></div>
+                <SliderRow label="Font size" value={selectedElement.style.fontSize}
+                  min={8} max={72} display={`${selectedElement.style.fontSize}px`}
+                  onChange={(v) => updateElementStyle(selectedElement.id, { fontSize: v })} />
+                <div className="inspector-row inspector-row-col">
+                  <label className="inspector-label">Content</label>
+                  <textarea className="inspector-textarea" value={selectedElement.text ?? ""}
+                    onChange={(e) => updateElement(selectedElement.id, { text: e.target.value })}
+                    rows={3} />
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Opacity */}
-          <div className="inspector-section">
-            <div className="inspector-section-title">Opacity</div>
-            <div className="inspector-row">
-              <span className="inspector-label">{Math.round(selectedElement.style.opacity * 100)}%</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={selectedElement.style.opacity}
-                onChange={(e) =>
-                  updateElement(selectedElement.id, {
-                    style: { ...selectedElement.style, opacity: parseFloat(e.target.value) }
-                  })
-                }
-                style={{ flex: 1, accentColor: "var(--accent)" }}
-              />
-            </div>
-          </div>
-
-          {/* State */}
-          <div className="inspector-section">
-            <div className="inspector-section-title">State</div>
-            <div className="inspector-row">
-              <span className="inspector-label">Visibility</span>
-              <span className={`inspector-badge ${selectedElement.visible ? "visible" : "hidden"}`}>
-                {selectedElement.visible ? "👁 Visible" : "🙈 Hidden"}
-              </span>
-            </div>
-            <div className="inspector-row">
-              <span className="inspector-label">Lock</span>
-              <span className={`inspector-badge ${selectedElement.locked ? "locked" : "visible"}`}>
-                {selectedElement.locked ? "🔒 Locked" : "🔓 Unlocked"}
-              </span>
-            </div>
-          </div>
-        </>
-      )}
-    </aside>
+            {selectedElement.locked && (
+              <div className="inspector-lock-notice">
+                <Lock size={12} />
+                <span>Element is locked — unlock from layers to edit position</span>
+              </div>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div key="empty" className="inspector-empty"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <MousePointer2 size={28} className="inspector-empty-icon" />
+            <p>Select an element on the canvas to inspect and edit its properties.</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.aside>
   );
 }
