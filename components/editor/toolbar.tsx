@@ -6,13 +6,22 @@ import type { CanvasElementType } from "@/store/workspaceStore";
 import { useParticleBurst } from "@/components/editor/particle-burst";
 
 const shapes = [
-  { label: "Rect", icon: "⬜", action: "rectangle" as CanvasElementType, color: "#7c6cfc" },
-  { label: "Circle", icon: "⭕", action: "circle" as CanvasElementType, color: "#4caf82" },
-  { label: "Triangle", icon: "△", action: "triangle" as CanvasElementType, color: "#c4b5fd" },
+  { label: "Rect", icon: "⬜", action: "rectangle" as CanvasElementType, color: "#2563eb" },
+  { label: "Circle", icon: "⭕", action: "circle" as CanvasElementType, color: "#10b981" },
+  { label: "Triangle", icon: "△", action: "triangle" as CanvasElementType, color: "#7c3aed" },
   { label: "Star", icon: "★", action: "star" as CanvasElementType, color: "#f59e0b" },
   { label: "Arrow", icon: "→", action: "arrow" as CanvasElementType, color: "#0891b2" },
-  { label: "Diamond", icon: "◇", action: "diamond" as CanvasElementType, color: "#e05555" },
+  { label: "Diamond", icon: "◇", action: "diamond" as CanvasElementType, color: "#ef4444" },
   { label: "Text", icon: "T", action: "text" as CanvasElementType, color: "#fde68a" },
+];
+
+const actionTools = [
+  { label: "Edit", icon: "✏️" },
+  { label: "BG Remove", icon: "🎭" },
+  { label: "Eraser", icon: "🧹" },
+  { label: "Flip", icon: "↔️" },
+  { label: "Animate", icon: "🎬" },
+  { label: "Position", icon: "📍" },
 ];
 
 export function Toolbar() {
@@ -23,7 +32,6 @@ export function Toolbar() {
   const saveSnapshot = useWorkspaceStore((s) => s.saveSnapshot);
   const restoreSnapshot = useWorkspaceStore((s) => s.restoreSnapshot);
   const snapshots = useWorkspaceStore((s) => s.snapshots);
-  const imageInputRef = useRef<HTMLInputElement>(null);
   const { burst } = useParticleBurst();
 
   function handleAdd(type: CanvasElementType, e: React.MouseEvent) {
@@ -50,92 +58,58 @@ export function Toolbar() {
     restoreSnapshot(snapshots[0].id);
   }
 
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const imageUrl = ev.target?.result as string;
-      saveSnapshot();
-      addElement("image");
-      setTimeout(() => {
-        const { elements, updateElement } = useWorkspaceStore.getState();
-        const last = elements[elements.length - 1];
-        if (last) updateElement(last.id, { imageUrl });
-      }, 50);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  }
-
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "2px", flexWrap: "wrap" }}>
-      {shapes.map((s) => (
-        <button
-          key={s.action}
-          className="toolbar-btn"
-          onClick={(e) => handleAdd(s.action, e)}
-          title={`Add ${s.label}`}
-          style={{ gap: "6px" }}
-        >
-          <span style={{ fontSize: 14, color: s.color }}>{s.icon}</span>
-          <span style={{ fontSize: 12 }}>{s.label}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+
+      {/* Action tools - Canva style */}
+      {actionTools.map((tool) => (
+        <button key={tool.label} className="toolbar-btn" title={tool.label} style={{
+          gap: 4, padding: "4px 10px",
+          color: selectedElementId ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)",
+        }}>
+          <span style={{ fontSize: 13 }}>{tool.icon}</span>
+          <span style={{ fontSize: 11 }}>{tool.label}</span>
         </button>
       ))}
 
-      {/* Image upload */}
-      <button
-        className="toolbar-btn"
-        onClick={() => imageInputRef.current?.click()}
-        title="Upload Image"
-        style={{ gap: "6px" }}
-      >
-        <span style={{ fontSize: 14, color: "#a78bfa" }}>🖼</span>
-        <span style={{ fontSize: 12 }}>Image</span>
-      </button>
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: "none" }}
-        onChange={handleImageUpload}
-      />
+      <div style={{ width: 1, height: 16, background: "rgba(37,99,235,0.2)", margin: "0 4px" }} />
 
-      <div style={{ width: 1, height: 18, background: "var(--border)", margin: "0 6px" }} />
+      {/* Shape tools */}
+      {shapes.map((s) => (
+        <button key={s.action} className="toolbar-btn"
+          onClick={(e) => handleAdd(s.action, e)}
+          title={`Add ${s.label}`} style={{ gap: 4, padding: "4px 10px" }}>
+          <span style={{ fontSize: 13, color: s.color }}>{s.icon}</span>
+          <span style={{ fontSize: 11 }}>{s.label}</span>
+        </button>
+      ))}
 
-      <button
-        className="toolbar-btn"
+      <div style={{ width: 1, height: 16, background: "rgba(37,99,235,0.2)", margin: "0 4px" }} />
+
+      {/* Edit actions */}
+      <button className="toolbar-btn"
         onClick={(e) => handleDuplicate(e)}
         disabled={!selectedElementId}
-        title="Duplicate (Ctrl+D)"
-        style={{ gap: "6px" }}
-      >
-        <span style={{ fontSize: 14 }}>⧉</span>
-        <span style={{ fontSize: 12 }}>Duplicate</span>
+        title="Duplicate (Ctrl+D)" style={{ gap: 4, padding: "4px 10px" }}>
+        <span style={{ fontSize: 13 }}>⧉</span>
+        <span style={{ fontSize: 11 }}>Duplicate</span>
       </button>
 
-      <button
-        className="toolbar-btn"
+      <button className="toolbar-btn"
         onClick={handleDelete}
         disabled={!selectedElementId}
         title="Delete (Del)"
-        style={{ gap: "6px", color: selectedElementId ? "var(--danger)" : undefined }}
-      >
-        <span style={{ fontSize: 14 }}>✕</span>
-        <span style={{ fontSize: 12 }}>Delete</span>
+        style={{ gap: 4, padding: "4px 10px", color: selectedElementId ? "#ef4444" : undefined }}>
+        <span style={{ fontSize: 13 }}>✕</span>
+        <span style={{ fontSize: 11 }}>Delete</span>
       </button>
 
-      <div style={{ width: 1, height: 18, background: "var(--border)", margin: "0 6px" }} />
-
-      <button
-        className="toolbar-btn"
+      <button className="toolbar-btn"
         onClick={handleUndo}
         disabled={snapshots.length === 0}
-        title="Undo (Ctrl+Z)"
-        style={{ gap: "6px" }}
-      >
-        <span style={{ fontSize: 14 }}>↩</span>
-        <span style={{ fontSize: 12 }}>Undo {snapshots.length > 0 ? `(${snapshots.length})` : ""}</span>
+        title="Undo (Ctrl+Z)" style={{ gap: 4, padding: "4px 10px" }}>
+        <span style={{ fontSize: 13 }}>↩</span>
+        <span style={{ fontSize: 11 }}>Undo {snapshots.length > 0 ? `(${snapshots.length})` : ""}</span>
       </button>
     </div>
   );
