@@ -37,7 +37,7 @@ export default function Sidebar({
   const showCreateButton = active === "my-projects";
 
   return (
-    <aside className="flex h-full w-48 flex-col bg-[#121212] px-4 py-4 font-inter border-r border-white/10">
+    <aside className="flex h-full w-56 flex-col bg-[#121212] px-4 py-4 font-inter border-r border-white/10">
       <div className="mb-6">
         <div className="flex items-center gap-1">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-md">
@@ -100,13 +100,13 @@ export default function Sidebar({
           <button
             onClick={onCreateProject}
             disabled={creatingProject}
-            className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-[#66b2ff]/40 bg-gradient-to-br from-[#1c6dff]/45 via-[#2894ff]/35 to-[#5bb8ff]/35 px-3 py-3 text-[11px] font-medium text-white shadow-[0_10px_24px_rgba(10,55,130,0.45)] backdrop-blur-md transition-all hover:border-[#9fd0ff]/60 hover:from-[#247bff]/50 hover:to-[#6bc1ff]/40"
+            className="group relative flex w-full items-center gap-2 overflow-hidden rounded-[18px] border border-[#66b2ff]/40 bg-gradient-to-br from-[#1c6dff]/45 via-[#2894ff]/35 to-[#5bb8ff]/35 px-3 py-3 font-medium text-white shadow-[0_10px_24px_rgba(10,55,130,0.45)] backdrop-blur-md transition-all hover:border-[#9fd0ff]/60 hover:from-[#247bff]/50 hover:to-[#6bc1ff]/40"
             type="button"
           >
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#66b2ff]/30 text-sm leading-none text-white transition-colors group-hover:bg-[#7fc0ff]/40">
+            <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#66b2ff]/30 text-lg font-bold leading-none text-white transition-colors group-hover:bg-[#7fc0ff]/40">
               +
             </span>
-            <span className="whitespace-nowrap">{creatingProject ? "Creating..." : "Create New Project"}</span>
+            <span className="truncate text-sm">{creatingProject ? "Creating..." : "Create New Project"}</span>
             <span className="pointer-events-none absolute inset-0 rounded-[18px] bg-[radial-gradient(circle_at_25%_0%,rgba(255,255,255,0.24),transparent_55%)]" />
           </button>
         </div>

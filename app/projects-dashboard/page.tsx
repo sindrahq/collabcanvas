@@ -766,7 +766,7 @@ export default function ProjectsDashboard() {
           }}
         />
         {/* Main Content Area */}
-        <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-background">
+        <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-[#121212]">
           <section className="flex flex-1 flex-col px-8 py-7">
             <div className="flex w-full flex-1 flex-col">
               <h1 className="text-4xl font-semibold tracking-tight text-white">{currentCopy.heading}</h1>
