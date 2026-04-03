@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from "react";
 export function LandingHero() {
   const [typed, setTyped] = useState("");
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isMobile, setIsMobile] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullText = "Collaborative Canvas Editor";
 
@@ -32,6 +33,13 @@ export function LandingHero() {
 
   // Particle stars
   useEffect(() => {
+    const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
+    updateIsMobile();
+    window.addEventListener("resize", updateIsMobile);
+    return () => window.removeEventListener("resize", updateIsMobile);
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -45,7 +53,7 @@ export function LandingHero() {
     resize();
     window.addEventListener("resize", resize);
 
-    const stars = Array.from({ length: 120 }, () => ({
+    const stars = Array.from({ length: isMobile ? 70 : 120 }, () => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
       size: Math.random() * 2.5 + 0.5,
@@ -90,7 +98,7 @@ export function LandingHero() {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [isMobile]);
 
   return (
     <main style={{
@@ -146,7 +154,7 @@ export function LandingHero() {
       <div style={{
         flex: 1, display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
-        padding: "60px 24px", position: "relative", zIndex: 2, textAlign: "center",
+        padding: isMobile ? "36px 16px" : "60px 24px", position: "relative", zIndex: 2, textAlign: "center",
       }}>
 
         {/* Logo */}
@@ -155,7 +163,7 @@ export function LandingHero() {
           textTransform: "uppercase",
           background: "linear-gradient(135deg, #60a5fa, #2563eb, #7c3aed)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          backgroundClip: "text", marginBottom: 32,
+          backgroundClip: "text", marginBottom: isMobile ? 22 : 32,
         }}>CollabCanvas</div>
 
         {/* Live badge */}
@@ -164,7 +172,7 @@ export function LandingHero() {
           padding: "5px 14px", borderRadius: 20,
           background: "rgba(37,99,235,0.1)",
           border: "1px solid rgba(37,99,235,0.25)",
-          fontSize: 11, color: "#60a5fa", marginBottom: 28, fontWeight: 500,
+          fontSize: 11, color: "#60a5fa", marginBottom: isMobile ? 20 : 28, fontWeight: 500,
         }}>
           <span style={{
             width: 6, height: 6, borderRadius: "50%",
@@ -196,8 +204,8 @@ export function LandingHero() {
 
         {/* Subtext */}
         <p style={{
-          color: "rgba(255,255,255,0.38)", lineHeight: 1.8, fontSize: 16,
-          maxWidth: 480, marginBottom: 48,
+          color: "rgba(255,255,255,0.38)", lineHeight: 1.8, fontSize: isMobile ? 14 : 16,
+          maxWidth: 480, marginBottom: isMobile ? 30 : 48,
         }}>
           A modern Figma/Canva-style editor with real-time collaboration,
           shared state management, and cloud-powered persistence.
@@ -205,12 +213,12 @@ export function LandingHero() {
 
         {/* CTA Button */}
         <Link href="/projects" style={{
-  padding: "14px 44px", borderRadius: 12, fontWeight: 700, fontSize: 16,
+  padding: isMobile ? "12px 28px" : "14px 44px", borderRadius: 12, fontWeight: 700, fontSize: isMobile ? 14 : 16,
   background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
   color: "#fff",
   boxShadow: "0 0 50px rgba(37,99,235,0.5)",
   transition: "all 200ms", textDecoration: "none",
-  display: "inline-block", marginBottom: 64,
+  display: "inline-block", marginBottom: isMobile ? 42 : 64,
   outline: "2px solid transparent",
   animation: "neon-border 2s ease-in-out infinite",
 }}
@@ -229,7 +237,7 @@ export function LandingHero() {
         {/* Scrolling Marquee */}
         <div style={{
           width: "100%", overflow: "hidden",
-          marginBottom: 64,
+          marginBottom: isMobile ? 36 : 64,
           maskImage: "linear-gradient(90deg, transparent, black 10%, black 90%, transparent)",
           WebkitMaskImage: "linear-gradient(90deg, transparent, black 10%, black 90%, transparent)",
         }}>
@@ -273,8 +281,8 @@ export function LandingHero() {
         {/* Feature cards */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 16, maxWidth: 780, width: "100%",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12, maxWidth: 900, width: "100%",
         }}>
           {[
             { icon: "🎨", title: "Live Canvas", desc: "Real-time Konva-powered rendering with drag, resize and transform", color: "#2563eb" },
@@ -320,7 +328,7 @@ export function LandingHero() {
 
         {/* Bottom tagline */}
         <p style={{
-          marginTop: 48, fontSize: 12,
+          marginTop: isMobile ? 30 : 48, fontSize: 12,
           color: "rgba(255,255,255,0.15)",
           letterSpacing: "0.05em",
         }}>

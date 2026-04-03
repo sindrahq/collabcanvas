@@ -334,6 +334,7 @@ export default function ProjectsDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     setCurrentUserId(getLocalOwnerId());
@@ -749,18 +750,23 @@ export default function ProjectsDashboard() {
 
   return (
     <div
-      className="flex h-screen flex-col overflow-hidden"
+      className="flex h-[100dvh] flex-col overflow-hidden"
       onClick={() => {
         setOpenMenuProjectId(null);
         setFilterMenuOpen(false);
         setViewMenuOpen(false);
+        setMobileNavOpen(false);
       }}
     >
       {/* Top Menu Bar */}
-      <nav className="bg-[#121212] text-white flex items-center justify-between px-6 py-3 w-full border-b border-white/10">
+      <nav className="flex w-full flex-wrap items-center gap-2 border-b border-white/10 bg-[#121212] px-3 py-3 text-white sm:px-6">
         <div className="font-bold text-lg">CollabCanvas</div>
-        <div className="flex-1 flex justify-center px-4">
-          <div className="relative w-full max-w-md">
+        <button className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10" aria-label="Account" type="button">
+          <img src="/account.png" alt="Account" className="h-5 w-5 object-contain" />
+        </button>
+        <div className="order-3 w-full sm:order-2 sm:flex-1 sm:px-4">
+          <div className="flex items-center gap-2 sm:block">
+            <div className="relative w-full sm:max-w-md sm:mx-auto">
             <span className="pointer-events-none absolute left-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-white/15 bg-[#2f2f34] text-[#bcd8ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
               <svg
                 className="h-3.5 w-3.5"
@@ -783,36 +789,85 @@ export default function ProjectsDashboard() {
               onChange={(event) => setSearchQuery(event.target.value)}
               className="h-10 w-full rounded-xl border border-white/15 bg-[#232327] py-2 pl-10 pr-4 text-sm text-white placeholder:text-white/95 shadow-[0_8px_20px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 focus:border-[#4ea1ff]/70 focus:outline-none focus:ring-2 focus:ring-[#4ea1ff]/45"
             />
+            </div>
+            <div className="relative md:hidden" onClick={(event) => event.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen((prev) => !prev)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-[#232327] text-white/85 transition-colors hover:bg-[#2b2b31]"
+                aria-label="Open sections"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+
+              {mobileNavOpen ? (
+                <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/15 bg-[#1b1b1b] shadow-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSection("my-projects");
+                      setMobileNavOpen(false);
+                    }}
+                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${activeSection === "my-projects" ? "text-[#8ec5ff]" : "text-white/85"}`}
+                  >
+                    My Projects
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSection("shared");
+                      setMobileNavOpen(false);
+                    }}
+                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${activeSection === "shared" ? "text-[#8ec5ff]" : "text-white/85"}`}
+                  >
+                    Shared with me
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSection("trash");
+                      setMobileNavOpen(false);
+                    }}
+                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${activeSection === "trash" ? "text-[#8ec5ff]" : "text-white/85"}`}
+                  >
+                    Trash
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-        <button className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10" aria-label="Account" type="button">
-          <img src="/account.png" alt="Account" className="h-5 w-5 object-contain" />
-        </button>
       </nav>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Sidebar */}
-        <Sidebar
-          active={activeSection}
-          onSectionChange={setActiveSection}
-          onCreateProject={handleCreateProject}
-          creatingProject={creatingProject}
-          icons={{
-            designStudio: "/design_studio.png",
-            myProjects: "/my_projects.png",
-            shared: "/shared_with_me.png",
-            templates: "/templates.png",
-            trash: "/trash.png",
-            layers: "/layers.png"
-          }}
-        />
+        <div className="hidden md:block">
+          <Sidebar
+            active={activeSection}
+            onSectionChange={setActiveSection}
+            onCreateProject={handleCreateProject}
+            creatingProject={creatingProject}
+            icons={{
+              designStudio: "/design_studio.png",
+              myProjects: "/my_projects.png",
+              shared: "/shared_with_me.png",
+              templates: "/templates.png",
+              trash: "/trash.png",
+              layers: "/layers.png"
+            }}
+          />
+        </div>
         {/* Main Content Area */}
-        <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-[#121212]">
-          <section className="flex flex-1 flex-col px-8 py-7">
+        <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-[#121212] pb-16 md:pb-0">
+          <section className="flex flex-1 flex-col px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
             <div className="flex w-full flex-1 flex-col">
-              <h1 className="text-4xl font-semibold tracking-tight text-white">{currentCopy.heading}</h1>
-              <div className="mt-2 flex items-center justify-between gap-4">
-                <p className="text-base text-white/70">{currentCopy.subheading}</p>
-                <div className="relative ml-auto flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+              <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">{currentCopy.heading}</h1>
+              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <p className="text-sm text-white/70 sm:text-base">{currentCopy.subheading}</p>
+                <div className="relative flex w-full items-center justify-end gap-2 sm:ml-auto sm:w-auto" onClick={(event) => event.stopPropagation()}>
                   <div className="relative">
                     <button
                       type="button"
@@ -920,7 +975,7 @@ export default function ProjectsDashboard() {
                     </p>
                   )
                 ) : (
-                  <div className={viewMode === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(18rem,18rem))] justify-between items-start gap-3" : "space-y-2"}>
+                    <div className={viewMode === "grid" ? "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(18rem,18rem))] xl:justify-between" : "space-y-2"}>
                       {activeSection === "my-projects" && viewMode === "grid" ? (
                         <button
                           type="button"
@@ -1090,7 +1145,7 @@ export default function ProjectsDashboard() {
                 </section>
               </div>
             </section>
-            <footer className="w-full flex flex-col md:flex-row items-center justify-between px-6 py-4 bg-[#121212] border-t border-white/10">
+            <footer className="w-full flex flex-col md:flex-row items-center justify-between px-4 sm:px-6 py-4 bg-[#121212] border-t border-white/10">
               <div className="mb-2 md:mb-0 text-center md:text-left">
                 <div className="font-manrope font-bold text-white text-base">CollabCanvas</div>
                 <div className="text-xs text-white/65">© 2026 CollabCanvas</div>
@@ -1132,30 +1187,6 @@ export default function ProjectsDashboard() {
           </div>
         ) : null}
 
-        {/* Mobile Navigation (BottomNavBar) */}
-        <nav className="md:hidden fixed bottom-0 left-0 w-full glass-panel flex justify-around items-center h-12 px-2 z-50">
-          <a className="flex flex-col items-center gap-0.5 text-[#c0c1ff]" href="#">
-            <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: 'FILL 1' }}>folder_shared</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Projects</span>
-          </a>
-          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
-            <span className="material-symbols-outlined text-base">group</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Shared</span>
-          </a>
-          <div className="relative -top-4">
-            <button className="bg-primary-container text-on-primary-container h-8 w-8 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-              <span className="material-symbols-outlined text-lg">add</span>
-            </button>
-          </div>
-          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
-            <span className="material-symbols-outlined text-base">auto_awesome_motion</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Templates</span>
-          </a>
-          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
-            <span className="material-symbols-outlined text-base">settings</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Settings</span>
-          </a>
-        </nav>
       </div>
     );
   }

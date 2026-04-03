@@ -7,6 +7,14 @@ export const metadata: Metadata = {
   description: "Collaborative canvas editor assignment project"
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover"
+};
+
 type RootLayoutProps = Readonly<{
   children: React.ReactNode;
 }>;

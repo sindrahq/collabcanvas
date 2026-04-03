@@ -37,8 +37,8 @@ export default function Sidebar({
   const showCreateButton = active === "my-projects";
 
   return (
-    <aside className="flex h-full w-56 flex-col bg-[#121212] px-4 py-4 font-inter border-r border-white/10">
-      <div className="mb-6">
+    <aside className="flex w-full shrink-0 flex-col border-b border-white/10 bg-[#121212] px-3 py-3 font-inter md:h-full md:w-56 md:border-b-0 md:border-r md:px-4 md:py-4">
+      <div className="mb-3 md:mb-6">
         <div className="flex items-center gap-1">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-md">
             <img
@@ -53,7 +53,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      <nav className="flex flex-col gap-1.5">
+      <nav className="flex gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
         {NAV_ITEMS.map((item) => {
           const isActive = active === item.key;
           const isCompactPrimary = item.key === "my-projects" || item.key === "shared";
@@ -65,7 +65,7 @@ export default function Sidebar({
               type="button"
               onClick={() => onSectionChange?.(item.key as "my-projects" | "shared" | "trash")}
               className={clsx(
-                "flex items-center px-2 w-full h-11 rounded-xl transition-colors",
+                "flex h-10 shrink-0 items-center rounded-xl px-2 transition-colors md:h-11 md:w-full",
                 isCompactPrimary ? "gap-1" : "gap-2",
                 isActive
                   ? "bg-[#17315c] text-[#9fd0ff]"
@@ -96,11 +96,11 @@ export default function Sidebar({
       </nav>
 
       {showCreateButton ? (
-        <div className="mt-auto pt-5">
+        <div className="mt-3 md:mt-auto md:pt-5">
           <button
             onClick={onCreateProject}
             disabled={creatingProject}
-            className="group relative flex w-full items-center gap-2 overflow-hidden rounded-[18px] border border-[#66b2ff]/40 bg-gradient-to-br from-[#1c6dff]/45 via-[#2894ff]/35 to-[#5bb8ff]/35 px-3 py-3 font-medium text-white shadow-[0_10px_24px_rgba(10,55,130,0.45)] backdrop-blur-md transition-all hover:border-[#9fd0ff]/60 hover:from-[#247bff]/50 hover:to-[#6bc1ff]/40"
+            className="group relative flex w-full items-center gap-2 overflow-hidden rounded-[18px] border border-[#66b2ff]/40 bg-gradient-to-br from-[#1c6dff]/45 via-[#2894ff]/35 to-[#5bb8ff]/35 px-3 py-2.5 font-medium text-white shadow-[0_10px_24px_rgba(10,55,130,0.45)] backdrop-blur-md transition-all hover:border-[#9fd0ff]/60 hover:from-[#247bff]/50 hover:to-[#6bc1ff]/40 md:py-3"
             type="button"
           >
             <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#66b2ff]/30 text-lg font-bold leading-none text-white transition-colors group-hover:bg-[#7fc0ff]/40">
