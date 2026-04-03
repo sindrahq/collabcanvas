@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { supabase } from "@/lib/supabaseClient";
+import { loadAllLocalWorkspaceSnapshots } from "@/lib/localWorkspacePersistence";
 import "../globals.css";
 
 type ProjectRow = {
@@ -105,6 +106,38 @@ function buildPreviewMap(elements: CanvasPreviewElement[]): Record<string, Canva
   });
 
   return grouped;
+}
+
+function buildLocalPreviewMap(workspaceIds: string[]): Record<string, CanvasPreviewElement[]> {
+  const snapshots = loadAllLocalWorkspaceSnapshots();
+  const result: Record<string, CanvasPreviewElement[]> = {};
+
+  workspaceIds.forEach((workspaceId) => {
+    const snapshot = snapshots[workspaceId];
+    if (!snapshot?.elements?.length) return;
+
+    result[workspaceId] = snapshot.elements.slice(0, 20).map((element) => ({
+      id: element.id,
+      workspace_id: workspaceId,
+      type: element.type,
+      position: {
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+      },
+      style: {
+        fill: element.style.fill,
+        stroke: element.style.stroke,
+        strokeWidth: element.style.strokeWidth,
+        opacity: element.style.opacity,
+        fontSize: element.style.fontSize,
+      },
+      layer_order: element.layerOrder,
+    }));
+  });
+
+  return result;
 }
 
 function getLocalOwnerId(): string {
@@ -325,7 +358,7 @@ export default function ProjectsDashboard() {
         const localShared = loadLocalSharedProjects(currentUserId);
         setMyProjects(localMy);
         setSharedProjects(localShared);
-        setPreviewMap({});
+        setPreviewMap(buildLocalPreviewMap([...localMy, ...localShared].map((project) => project.id)));
         setUsingLocalMode(true);
         setUsingLocalTrashMode(true);
         setErrorMessage(null);
@@ -334,7 +367,12 @@ export default function ProjectsDashboard() {
       }
 
       const myRows = (data || []) as ProjectRow[];
-      setMyProjects(myRows.map((project) => ({ ...project, storage: "remote" as const })));
+      const remoteMy = myRows.map((project) => ({ ...project, storage: "remote" as const }));
+      const localMy = loadLocalProjects(currentUserId);
+      const myMerged = Array.from(
+        new Map([...localMy, ...remoteMy].map((project) => [project.id, project])).values()
+      );
+      setMyProjects(myMerged);
 
       // Shared-with-me fetch: fallback to local storage if sharing table is unavailable.
       let sharedRows: ProjectRow[] = [];
@@ -383,7 +421,7 @@ export default function ProjectsDashboard() {
         setUsingLocalTrashMode(false);
       }
 
-      const workspaceIds = [...myRows, ...sharedRows].map((project) => project.id);
+      const workspaceIds = [...myMerged, ...sharedRows].map((project) => project.id);
       if (!workspaceIds.length) {
         setPreviewMap({});
         setLoadingProjects(false);
@@ -397,9 +435,11 @@ export default function ProjectsDashboard() {
         .order("layer_order", { ascending: true });
 
       if (canvasError) {
-        setPreviewMap({});
+        setPreviewMap(buildLocalPreviewMap(workspaceIds));
       } else {
-        setPreviewMap(buildPreviewMap((canvasData || []) as CanvasPreviewElement[]));
+        const remotePreviewMap = buildPreviewMap((canvasData || []) as CanvasPreviewElement[]);
+        const localPreviewMap = buildLocalPreviewMap(workspaceIds);
+        setPreviewMap({ ...localPreviewMap, ...remotePreviewMap });
       }
 
       setLoadingProjects(false);

@@ -1,6 +1,7 @@
  "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, LoaderCircle } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
@@ -21,6 +22,14 @@ import {
   saveWorkspaceHistorySnapshot,
   type WorkspaceHistorySnapshot
 } from "@/lib/history";
+import { loadWorkspace } from "@/lib/workspaceLoader";
+import {
+  getLocalOwnerId,
+  getLocalProjectName,
+  loadLocalWorkspaceSnapshot,
+  saveLocalWorkspaceSnapshot,
+  touchLocalProject,
+} from "@/lib/localWorkspacePersistence";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
 function isEditableTarget(target: EventTarget | null) {
@@ -91,6 +100,7 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
 }
 
 export function EditorShell() {
+  const searchParams = useSearchParams();
   const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
   const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
   const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
@@ -106,10 +116,37 @@ export function EditorShell() {
   const [historySnapshots, setHistorySnapshots] = useState<WorkspaceHistorySnapshot[]>([]);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
   const currentUserMeta = useMemo(() => buildLocalPresenceMeta(), []);
+  const workspaceIdFromUrl = searchParams.get("workspaceId") ?? "";
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const historyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastSavedHashRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!workspaceIdFromUrl) return;
+
+    const store = useWorkspaceStore.getState();
+    const localSnapshot = loadLocalWorkspaceSnapshot(workspaceIdFromUrl);
+    const fallbackName = getLocalProjectName(workspaceIdFromUrl) || "Untitled Project";
+
+    store.setWorkspace({
+      id: workspaceIdFromUrl,
+      name: localSnapshot?.workspaceName || fallbackName,
+      owner_id: getLocalOwnerId(),
+    });
+
+    if (localSnapshot) {
+      store.setElements(localSnapshot.elements);
+      store.setSelectedElementId(localSnapshot.selectedElementId);
+    } else {
+      store.setElements([]);
+      store.setSelectedElementId(null);
+    }
+
+    if (!workspaceIdFromUrl.startsWith("local-")) {
+      void loadWorkspace(workspaceIdFromUrl);
+    }
+  }, [workspaceIdFromUrl]);
 
   useEffect(() => {
     if (!workspace?.id) return;
@@ -160,10 +197,25 @@ export function EditorShell() {
 
   useEffect(() => {
     const unsubscribe = useWorkspaceStore.subscribe((state, prev) => {
-      if (state.elements !== prev.elements) {
+      if (
+        state.elements !== prev.elements ||
+        state.selectedElementId !== prev.selectedElementId ||
+        state.workspaceName !== prev.workspaceName
+      ) {
         setSaveStatus("saving");
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => setSaveStatus("saved"), 700);
+
+        if (state.workspace?.id) {
+          saveLocalWorkspaceSnapshot({
+            workspaceId: state.workspace.id,
+            workspaceName: state.workspaceName,
+            elements: state.elements,
+            selectedElementId: state.selectedElementId,
+            updatedAt: new Date().toISOString(),
+          });
+          touchLocalProject(state.workspace.id, state.workspaceName);
+        }
 
         if (workspace?.id) {
           clearTimeout(historyTimerRef.current);
