@@ -3,6 +3,13 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { ZoomIn, ZoomOut, Maximize2, Palette } from "lucide-react";
+import { RemoteCursors } from "@/components/presence/RemoteCursors";
+import {
+  broadcastCursor,
+  normalizeCoords,
+  updatePresence,
+  type PresenceMeta
+} from "@/lib/collaboration";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
 const KonvaStageWorkspace = dynamic(
@@ -21,7 +28,13 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.15;
 
-export function CanvasWorkspace() {
+type CanvasWorkspaceProps = {
+  currentUserId: string;
+  presences: Record<string, PresenceMeta>;
+  remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
+};
+
+export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
   const elementCount      = useWorkspaceStore((s) => s.elements.length);
   const canvasBackground  = useWorkspaceStore((s) => s.canvasBackground);
   const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
@@ -86,8 +99,24 @@ export function CanvasWorkspace() {
       </div>
 
       <div className="canvas-viewport">
-        <div className="konva-shell" style={{ transition: "transform 0.2s ease", transformOrigin: "center top" }}>
+        <div
+          className="konva-shell konva-stage-wrap"
+          style={{ transition: "transform 0.2s ease", transformOrigin: "center top" }}
+          onMouseMove={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const normalized = normalizeCoords(event.clientX, event.clientY, rect);
+            const x = Math.min(Math.max(normalized.x, 0), 1);
+            const y = Math.min(Math.max(normalized.y, 0), 1);
+            updatePresence({ cursor: { x, y } });
+            broadcastCursor(currentUserId, x, y);
+          }}
+        >
           <KonvaStageWorkspace zoom={zoom} />
+          <RemoteCursors
+            cursors={remoteCursors}
+            presences={presences}
+            currentUserId={currentUserId}
+          />
         </div>
       </div>
     </section>
