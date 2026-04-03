@@ -4,8 +4,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
   Bold, Circle, Copy, Italic, Minus, Redo2,
-  RectangleHorizontal, Star, Trash2, Triangle, Type, Undo2, Baseline,
+  RectangleHorizontal, Star, Trash2, Triangle, Type, Undo2, Baseline, Download, Sparkles,
 } from "lucide-react";
+import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
 
 const FONTS = [
@@ -32,7 +33,7 @@ const ALIGNMENTS = [
   { align: "right"  as const, icon: AlignRight },
 ];
 
-export function Toolbar() {
+export function Toolbar({ workspaceName }: { workspaceName: string }) {
   const selectedElementId        = useWorkspaceStore((s) => s.selectedElementId);
   const elements                 = useWorkspaceStore((s) => s.elements);
   const addElement               = useWorkspaceStore((s) => s.addElement);
@@ -58,6 +59,61 @@ export function Toolbar() {
     const current = selectedElement.style[field];
     updateElementStyle(selectedElement.id, { [field]: current === on ? off : on } as Partial<CanvasElementStyle>);
   }
+
+  function slugify(value: string) {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "workspace";
+  }
+
+  function get3DStylePreset(type: "rectangle" | "text", currentStyle: CanvasElementStyle): Partial<CanvasElementStyle> {
+    // Keep original colors; only add stronger depth treatment.
+    if (type === "text") {
+      return {
+        fontWeight: "bold",
+        stroke: currentStyle.stroke === "transparent" ? currentStyle.fill : currentStyle.stroke,
+        strokeWidth: Math.max(1.4, currentStyle.strokeWidth || 0),
+        shadowEnabled: true,
+        shadowColor: "rgba(10, 16, 28, 0.72)",
+        shadowBlur: 20,
+        shadowOffsetX: 7,
+        shadowOffsetY: 10
+      };
+    }
+
+    return {
+      strokeWidth: Math.max(3.8, currentStyle.strokeWidth || 0),
+      shadowEnabled: true,
+      shadowColor: "rgba(8, 14, 26, 0.68)",
+      shadowBlur: 28,
+      shadowOffsetX: 13,
+      shadowOffsetY: 16
+    };
+  }
+
+  function apply3DToSelected() {
+    if (!selectedElement) return;
+    const type = selectedElement.type === "text" ? "text" : "rectangle";
+    updateElementStyle(selectedElement.id, get3DStylePreset(type, selectedElement.style));
+  }
+
+  function remove3DFromSelected() {
+    if (!selectedElement) return;
+    const reset: Partial<CanvasElementStyle> = {
+      shadowEnabled: false,
+      shadowBlur: 16,
+      shadowColor: "rgba(20,32,28,0.3)",
+      shadowOffsetX: 0,
+      shadowOffsetY: 6,
+    };
+    if (selectedElement.type === "text") {
+      reset.stroke = "transparent";
+      reset.strokeWidth = 0;
+      reset.fontWeight = "normal";
+    }
+    updateElementStyle(selectedElement.id, reset);
+  }
+
+  const fileBase = slugify(workspaceName);
 
   return (
     <motion.div
@@ -110,6 +166,45 @@ export function Toolbar() {
             </motion.button>
           );
         })}
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-group">
+        <span className="toolbar-label">Export</span>
+        <motion.button
+          type="button"
+          className="toolbar-button"
+          onClick={() => { void exportWorkspaceAsPng(`${fileBase}.png`); }}
+          title="Export PNG"
+          whileHover={{ y: -2, scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <Download size={14} />
+          <span>PNG</span>
+        </motion.button>
+        <motion.button
+          type="button"
+          className="toolbar-button"
+          onClick={() => { void exportWorkspaceAsJpeg(`${fileBase}.jpeg`); }}
+          title="Export JPEG"
+          whileHover={{ y: -2, scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <Copy size={14} />
+          <span>JPEG</span>
+        </motion.button>
+        <motion.button
+          type="button"
+          className="toolbar-button"
+          onClick={() => { void exportWorkspaceAsPdf(`${fileBase}.pdf`); }}
+          title="Export PDF"
+          whileHover={{ y: -2, scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <Trash2 size={14} />
+          <span>PDF</span>
+        </motion.button>
       </div>
 
       {/* Text formatting context bar */}
@@ -199,6 +294,24 @@ export function Toolbar() {
           <div className="toolbar-divider" />
           <div className="toolbar-group">
             <span className="toolbar-label">Edit</span>
+            <motion.button
+              type="button" className="toolbar-button"
+              onClick={apply3DToSelected}
+              title="Apply 3D to selected element"
+              whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
+            >
+              <Sparkles size={14} />
+              <span>Apply 3D</span>
+            </motion.button>
+            <motion.button
+              type="button" className="toolbar-button"
+              onClick={remove3DFromSelected}
+              title="Remove 3D from selected element"
+              whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
+            >
+              <Type size={14} />
+              <span>Remove 3D</span>
+            </motion.button>
             <motion.button
               type="button" className="toolbar-button"
               onClick={duplicateSelectedElement} title="Duplicate (Ctrl+D)"
