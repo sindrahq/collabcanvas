@@ -340,6 +340,11 @@ button, input, textarea, select { font: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(125, 170, 255, 0.12);
+  box-shadow: none;
+  background: linear-gradient(180deg, #11203b 0%, #0f1b32 100%);
 }
 
 .dark-select-value {
@@ -690,7 +695,6 @@ button, input, textarea, select { font: inherit; }
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .history-item-copy span {
