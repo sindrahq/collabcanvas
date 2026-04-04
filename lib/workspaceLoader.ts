@@ -40,11 +40,10 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
   };
 }
 
-export async function loadWorkspace(workspaceId: string, redirect404?: () => void): Promise<void> {
+export async function loadWorkspace(workspaceId: string, redirect404?: () => void): Promise<boolean> {
   const store = useWorkspaceStore.getState();
 
   store.setLoading(true);
-  store.clear();
 
   try {
     const { data: workspace, error: workspaceError } = await supabase
@@ -58,7 +57,7 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
         redirect404();
       }
 
-      return;
+      return false;
     }
 
     store.setWorkspace(workspace as WorkspaceMeta);
@@ -71,14 +70,15 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
 
     if (elementsError) {
       store.setElements([]);
-      return;
+      store.setSelectedElementId(null);
+      return false;
     }
 
     store.setElements(((elements as DbCanvasElement[] | null) ?? []).map(mapDbElement));
     store.setSelectedElementId(null);
+    return true;
   } catch {
-    store.setWorkspace(null);
-    store.setElements([]);
+    return false;
   } finally {
     store.setLoading(false);
   }
