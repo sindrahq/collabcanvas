@@ -191,7 +191,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
           whileHover={{ y: -2, scale: 1.03 }}
           whileTap={{ scale: 0.96 }}
         >
-          <Copy size={14} />
+          <Download size={14} />
           <span>JPEG</span>
         </motion.button>
         <motion.button
@@ -202,7 +202,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
           whileHover={{ y: -2, scale: 1.03 }}
           whileTap={{ scale: 0.96 }}
         >
-          <Trash2 size={14} />
+          <Download size={14} />
           <span>PDF</span>
         </motion.button>
       </div>
