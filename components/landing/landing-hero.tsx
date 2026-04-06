@@ -1,10 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function LandingHero() {
   const [typed, setTyped] = useState("");
+  const [activeFeature, setActiveFeature] = useState<number | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const profileRef = useRef<HTMLDivElement | null>(null);
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const fullText = "Design Without Limits";
 
   useEffect(() => {
@@ -18,12 +32,135 @@ export function LandingHero() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!supabase) return;
+
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserEmail(data.user?.email ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    function handleDocumentClick(event: MouseEvent) {
+      if (!profileRef.current) return;
+      if (!profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentClick);
+    return () => document.removeEventListener("mousedown", handleDocumentClick);
+  }, []);
+
+  const resetAuthFeedback = () => {
+    setAuthError("");
+    setAuthMessage("");
+  };
+
+  async function handleAuthSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    resetAuthFeedback();
+
+    if (!supabase) {
+      setAuthError("Authentication is unavailable. Please configure Supabase keys.");
+      return;
+    }
+
+    setAuthLoading(true);
+
+    if (authMode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: fullName || undefined,
+          },
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message);
+      } else if (data.session) {
+        setAuthMessage("Signup successful. You are now logged in.");
+        setAuthModalOpen(false);
+      } else {
+        setAuthMessage("Signup successful. Please verify your email before login.");
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setAuthError(error.message);
+      } else {
+        setAuthMessage("Login successful.");
+        setAuthModalOpen(false);
+      }
+    }
+
+    setAuthLoading(false);
+  }
+
+  async function handleSignOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setProfileOpen(false);
+  }
+
   const templates = [
     { img: "/template-invitation.jpg", label: "Invitation" },
     { img: "/template-business.jpg", label: "Business" },
     { img: "/template-poster.jpg", label: "Poster" },
     { img: "/template-presentation.jpg", label: "Presentation" },
     { img: "/template-social.jpg", label: "Social Media" },
+  ];
+
+  const featureCards = [
+    {
+      title: "Realtime Presence",
+      desc: "Collaborate with live cursors, teammate activity, and instant updates while everyone edits together.",
+      details:
+        "Presence indicators keep your team aligned in real time with cursor trails, active-user signals, and awareness states that reduce collisions during fast-moving sessions.",
+      tone: "#B78C5A",
+      img: "/real_time.png",
+      fallbackImg: "/hero-image.jpg",
+    },
+    {
+      title: "Shared Workspaces",
+      desc: "Access projects shared with you and collaborate across teams from one dashboard.",
+      details:
+        "The projects dashboard includes a dedicated Shared With Me flow backed by workspace share records, so collaborators can open and continue work instantly.",
+      tone: "#9B734E",
+      img: "/shared_workspaces.png",
+      fallbackImg: "/shared_with_me.png",
+    },
+    {
+      title: "Smart Layers",
+      desc: "Manage complex scenes with groups, hierarchy controls, locking, and selective visibility.",
+      details:
+        "Layer tools are built for dense canvases: quickly isolate objects, reorder structure with precision, and maintain clean composition while collaborating.",
+      tone: "#D2A267",
+      img: "/smart_layer.png",
+      fallbackImg: "/template-poster.jpg",
+    },
+    {
+      title: "Export Studio",
+      desc: "Deliver polished outputs in PNG, JPEG, and PDF with production-ready quality.",
+      details:
+        "Export workflows support fast handoff from ideation to delivery, helping your team package assets and present design outcomes without friction.",
+      tone: "#A58055",
+      img: "/export.png",
+      fallbackImg: "/design_studio.png",
+    },
   ];
 
   return (
@@ -44,26 +181,91 @@ export function LandingHero() {
         backdropFilter: "blur(12px)",
         borderBottom: "1px solid #e8e4df",
       }}>
-        {/* Left nav links */}
-        <div style={{ display: "flex", gap: 32, fontSize: 14, color: "#6b6560" }}>
-          {["Features", "Templates", "About"].map((item) => (
-            <span key={item} style={{ cursor: "pointer", transition: "color 150ms" }}
-              onMouseEnter={(e) => e.currentTarget.style.color = "#1a1a1a"}
-              onMouseLeave={(e) => e.currentTarget.style.color = "#6b6560"}
-            >{item}</span>
-          ))}
-        </div>
-
-        {/* Center logo */}
-        <div style={{
+        <Link href="/" style={{
           fontSize: 22, fontWeight: 700, color: "#1a1a1a",
           letterSpacing: "-0.02em",
-          position: "absolute", left: "50%", transform: "translateX(-50%)",
           fontStyle: "italic",
-        }}>CollabCanvas</div>
+          textDecoration: "none",
+        }}>
+          CollabCanvas
+        </Link>
 
-        {/* Empty right side to balance navbar */}
-        <div style={{ width: 120 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 24, color: "#6b6560" }}>
+          <span
+            style={{ cursor: "pointer", transition: "color 150ms", fontSize: 14 }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "#1a1a1a"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "#6b6560"}
+          >
+            Templates
+          </span>
+          <span
+            style={{ cursor: "pointer", transition: "color 150ms", fontSize: 14 }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "#1a1a1a"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "#6b6560"}
+          >
+            About
+          </span>
+
+          <div ref={profileRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setProfileOpen((value) => !value)}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                border: "1px solid #d7d0c8",
+                background: "#fff",
+                padding: 0,
+                overflow: "hidden",
+                cursor: "pointer",
+              }}
+              aria-label="Open profile menu"
+            >
+              <img src="/account.png" alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </button>
+
+            {profileOpen && (
+              <div className="cc-profile-menu">
+                {currentUserEmail ? (
+                  <>
+                    <p className="cc-profile-user">{currentUserEmail}</p>
+                    <button type="button" className="cc-profile-action" onClick={() => void handleSignOut()}>
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="cc-profile-action"
+                      onClick={() => {
+                        setAuthMode("login");
+                        setAuthModalOpen(true);
+                        setProfileOpen(false);
+                        resetAuthFeedback();
+                      }}
+                    >
+                      Login
+                    </button>
+                    <button
+                      type="button"
+                      className="cc-profile-action cc-profile-primary"
+                      onClick={() => {
+                        setAuthMode("signup");
+                        setAuthModalOpen(true);
+                        setProfileOpen(false);
+                        resetAuthFeedback();
+                      }}
+                    >
+                      Signup
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </nav>
 
       {/* ── HERO SECTION ── */}
@@ -79,19 +281,6 @@ export function LandingHero() {
           display: "flex", flexDirection: "column",
           justifyContent: "center",
         }}>
-          {/* Badge */}
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "5px 14px", borderRadius: 20,
-            background: "#f0ede8", border: "1px solid #e0dbd4",
-            fontSize: 12, color: "#7c7268", marginBottom: 28,
-            width: "fit-content",
-            fontFamily: "'Helvetica Neue', sans-serif",
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf82", display: "inline-block" }} />
-            Real-time Collaboration · Supabase Powered
-          </div>
-
           {/* Title */}
           <h1 style={{
             fontSize: "clamp(2.8rem, 5vw, 4rem)", fontWeight: 700,
@@ -143,20 +332,151 @@ export function LandingHero() {
             alt="Designer working"
             style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
           />
-          <div style={{
-            position: "absolute", top: 32, right: 32,
-            background: "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(12px)", borderRadius: 20,
-            padding: "8px 16px",
-            display: "flex", alignItems: "center", gap: 6,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-            fontSize: 12, color: "#3d3833",
-            fontFamily: "'Helvetica Neue', sans-serif",
-          }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4caf82", display: "inline-block" }} />
-            All changes saved
-          </div>
         </div>
+      </section>
+
+      {/* ── UTILITIES FLASHCARDS ── */}
+      <section style={{
+        padding: "56px 80px 28px",
+        background: "#fafaf8",
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          marginBottom: 20,
+        }}>
+          <h3 style={{
+            margin: 0,
+            fontSize: 30,
+            fontWeight: 700,
+            letterSpacing: "-0.03em",
+            color: "#1f1a16",
+          }}>
+            Why CollabCanvas?
+          </h3>
+        </div>
+
+        <div className="cc-utility-grid">
+          {featureCards.map((card, idx) => (
+            <article
+              className="cc-utility-card"
+              key={card.title}
+              style={{ borderColor: `${card.tone}4d` }}
+              onClick={() => setActiveFeature(idx)}
+            >
+              <div className="cc-utility-thumb-wrap">
+                <img
+                  src={card.img}
+                  alt={card.title}
+                  className="cc-utility-thumb"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (img.src.includes(card.fallbackImg)) return;
+                    img.src = card.fallbackImg;
+                  }}
+                />
+                <span className="cc-utility-thumb-glow" style={{ background: `${card.tone}66` }} />
+              </div>
+              <div className="cc-utility-content">
+                <span className="cc-utility-dot" style={{ background: card.tone }} />
+                <h4>{card.title}</h4>
+                <p>{card.desc}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {activeFeature !== null && (
+          <div className="cc-popup-overlay" onClick={() => setActiveFeature(null)}>
+            <article className="cc-popup-card" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="cc-popup-close"
+                onClick={() => setActiveFeature(null)}
+                aria-label="Close card details"
+              >
+                ×
+              </button>
+              <img
+                src={featureCards[activeFeature].img}
+                alt={featureCards[activeFeature].title}
+                className="cc-popup-image"
+              />
+              <div className="cc-popup-content">
+                <h4>{featureCards[activeFeature].title}</h4>
+                <p>{featureCards[activeFeature].details}</p>
+              </div>
+            </article>
+          </div>
+        )}
+
+        {authModalOpen && (
+          <div className="cc-auth-overlay" onClick={() => setAuthModalOpen(false)}>
+            <article className="cc-auth-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="cc-auth-tabs">
+                <button
+                  type="button"
+                  className={`cc-auth-tab ${authMode === "login" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setAuthMode("login");
+                    resetAuthFeedback();
+                  }}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  className={`cc-auth-tab ${authMode === "signup" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setAuthMode("signup");
+                    resetAuthFeedback();
+                  }}
+                >
+                  Signup
+                </button>
+              </div>
+
+              <form className="cc-auth-form" onSubmit={(e) => void handleAuthSubmit(e)}>
+                {authMode === "signup" && (
+                  <input
+                    className="cc-auth-input"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Full name"
+                    autoComplete="name"
+                  />
+                )}
+                <input
+                  className="cc-auth-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  autoComplete="email"
+                  required
+                />
+                <input
+                  className="cc-auth-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                  minLength={6}
+                  required
+                />
+
+                {authError && <p className="cc-auth-error">{authError}</p>}
+                {!authError && authMessage && <p className="cc-auth-message">{authMessage}</p>}
+
+                <button className="cc-auth-submit" type="submit" disabled={authLoading}>
+                  {authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create account"}
+                </button>
+              </form>
+            </article>
+          </div>
+        )}
       </section>
 
       {/* ── TEMPLATES SECTION ── */}
@@ -271,6 +591,342 @@ export function LandingHero() {
         @keyframes blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
+        }
+
+        .cc-profile-menu {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          min-width: 180px;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #e4ddd4;
+          border-radius: 12px;
+          box-shadow: 0 16px 32px rgba(0, 0, 0, 0.14);
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          z-index: 130;
+        }
+
+        .cc-profile-user {
+          margin: 0;
+          padding: 10px 10px 8px;
+          font-size: 12px;
+          color: #6b6560;
+          font-family: 'Helvetica Neue', sans-serif;
+          border-bottom: 1px solid #efe9e1;
+          word-break: break-all;
+        }
+
+        .cc-profile-action {
+          border: 0;
+          background: #f7f3ee;
+          color: #2d2823;
+          padding: 10px 12px;
+          border-radius: 8px;
+          text-align: left;
+          cursor: pointer;
+          font-size: 13px;
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-profile-primary {
+          background: #1a1a1a;
+          color: #fff;
+        }
+
+        .cc-auth-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(17, 14, 11, 0.55);
+          backdrop-filter: blur(6px);
+          display: grid;
+          place-items: center;
+          z-index: 220;
+          padding: 20px;
+        }
+
+        .cc-auth-modal {
+          width: min(430px, 100%);
+          border-radius: 18px;
+          border: 1px solid #d6c7b4;
+          background: linear-gradient(165deg, #fff, #f5f1eb);
+          padding: 18px;
+          box-shadow: 0 24px 42px rgba(0, 0, 0, 0.24);
+        }
+
+        .cc-auth-tabs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 14px;
+        }
+
+        .cc-auth-tab {
+          border: 1px solid #dbd1c6;
+          border-radius: 10px;
+          background: #fff;
+          padding: 9px 12px;
+          cursor: pointer;
+          font-size: 13px;
+          font-family: 'Helvetica Neue', sans-serif;
+          color: #4b443d;
+        }
+
+        .cc-auth-tab.is-active {
+          background: #1a1a1a;
+          border-color: #1a1a1a;
+          color: #fff;
+        }
+
+        .cc-auth-form {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .cc-auth-input {
+          width: 100%;
+          border: 1px solid #ddd2c5;
+          border-radius: 10px;
+          padding: 11px 12px;
+          background: #fff;
+          color: #211d1a;
+          font-size: 14px;
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-auth-error {
+          margin: 2px 0;
+          color: #b13e3e;
+          font-size: 12px;
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-auth-message {
+          margin: 2px 0;
+          color: #2f6e4f;
+          font-size: 12px;
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-auth-submit {
+          border: 0;
+          border-radius: 10px;
+          background: #1a1a1a;
+          color: #fff;
+          padding: 11px 14px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-auth-submit:disabled {
+          opacity: 0.7;
+          cursor: default;
+        }
+
+        .cc-utility-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .cc-utility-card {
+          cursor: pointer;
+          position: relative;
+          width: 100%;
+          min-height: 312px;
+          border-radius: 20px;
+          border: 1px solid #ccb18f5e;
+          background: #0b0b0b;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -28px 40px rgba(0,0,0,0.18), 0 18px 34px rgba(27,20,15,0.18);
+          overflow: hidden;
+          transition: transform 260ms ease, box-shadow 260ms ease;
+        }
+
+        .cc-utility-card:hover {
+          transform: translateY(-4px) scale(1.02);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -30px 44px rgba(0,0,0,0.22), 0 24px 42px rgba(27,20,15,0.24);
+        }
+
+        .cc-utility-thumb-wrap {
+          position: relative;
+          height: 168px;
+          overflow: hidden;
+        }
+
+        .cc-utility-thumb {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transform: scale(1.01);
+          transition: transform 280ms ease;
+        }
+
+        .cc-utility-card:hover .cc-utility-thumb {
+          transform: scale(1.06);
+        }
+
+        .cc-utility-thumb-glow {
+          position: absolute;
+          inset: auto -30% -36% -30%;
+          height: 130px;
+          filter: blur(24px);
+          pointer-events: none;
+        }
+
+        .cc-utility-content {
+          padding: 16px 16px 18px;
+          text-align: left;
+          background: #090909;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .cc-utility-content h4 {
+          margin: 0;
+          font-size: 16px;
+          font-family: 'Helvetica Neue', sans-serif;
+          color: #f8ecda;
+          letter-spacing: 0;
+        }
+
+        .cc-utility-content p {
+          margin: 10px 0 0;
+          font-size: 13px;
+          line-height: 1.6;
+          font-family: 'Helvetica Neue', sans-serif;
+          color: rgba(243,231,214,0.8);
+        }
+
+        .cc-utility-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          display: inline-block;
+          margin-bottom: 10px;
+          box-shadow: 0 0 16px rgba(255,255,255,0.4);
+        }
+
+        .cc-popup-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(16, 13, 10, 0.52);
+          backdrop-filter: blur(6px);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 24px;
+          z-index: 180;
+          animation: ccFadeIn 240ms ease;
+        }
+
+        .cc-popup-card {
+          position: relative;
+          width: min(760px, 100%);
+          border-radius: 22px;
+          overflow: hidden;
+          background: linear-gradient(165deg, rgba(255,255,255,0.28), rgba(255,255,255,0.1) 30%, rgba(20,16,13,0.94) 100%);
+          border: 1px solid rgba(219,187,146,0.34);
+          box-shadow: 0 34px 58px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.24);
+          animation: ccPopIn 300ms cubic-bezier(.2,.75,.2,1);
+          transform-origin: center;
+        }
+
+        .cc-popup-close {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          width: 34px;
+          height: 34px;
+          border: 0;
+          border-radius: 999px;
+          background: rgba(26,21,16,0.66);
+          color: #efe3d1;
+          font-size: 22px;
+          line-height: 1;
+          cursor: pointer;
+          z-index: 1;
+        }
+
+        .cc-popup-image {
+          width: 100%;
+          height: 280px;
+          object-fit: cover;
+          display: block;
+        }
+
+        .cc-popup-content {
+          padding: 24px 24px 28px;
+        }
+
+        .cc-popup-content h4 {
+          margin: 0 0 10px;
+          font-size: 26px;
+          font-weight: 700;
+          color: #f6e9d8;
+          letter-spacing: -0.02em;
+        }
+
+        .cc-popup-content p {
+          margin: 0;
+          font-size: 15px;
+          line-height: 1.8;
+          color: rgba(242,230,214,0.86);
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        @keyframes ccFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes ccPopIn {
+          from {
+            opacity: 0;
+            transform: scale(0.94) translateY(14px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        @media (max-width: 980px) {
+          nav {
+            padding: 14px 20px !important;
+          }
+
+          .cc-utility-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .cc-popup-image {
+            height: 220px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          nav {
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 10px;
+          }
+
+          .cc-utility-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .cc-utility-card {
+            min-height: 294px;
+          }
+
+          .cc-popup-content h4 {
+            font-size: 22px;
+          }
         }
       `}</style>
     </main>
