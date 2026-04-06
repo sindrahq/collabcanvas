@@ -222,6 +222,34 @@ button, input, textarea, select { font: inherit; }
   align-items: start;
 }
 
+.editor-mobile-layout { display: none; }
+
+.editor-mobile-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.editor-mobile-tab {
+  border: 1px solid rgba(125, 170, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(125, 170, 255, 0.08);
+  color: #d7e7ff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+.editor-mobile-tab.active {
+  background: rgba(125, 170, 255, 0.22);
+  border-color: rgba(125, 170, 255, 0.32);
+  color: #ffffff;
+}
+
+.editor-mobile-panel { min-height: 62vh; }
+.editor-mobile-panel-inner { display: grid; gap: 10px; }
+
 .editor-column { min-width: 0; }
 .editor-column-main { display: grid; gap: 12px; align-content: start; }
 .editor-column-right { display: grid; gap: 12px; align-content: start; }
@@ -1080,7 +1108,8 @@ button, input, textarea, select { font: inherit; }
 @media (max-width: 720px) {
   .editor-page { padding: 10px; }
   .editor-shell { padding: 12px; border-radius: 22px; }
-  .editor-grid { grid-template-columns: 1fr; }
+  .editor-grid { display: none; }
+  .editor-mobile-layout { display: block; }
   .editor-topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
   .canvas-header { flex-direction: column; align-items: flex-start; }
   .konva-frame, .konva-shell { width: 100% !important; }

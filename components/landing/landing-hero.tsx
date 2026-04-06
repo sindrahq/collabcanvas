@@ -68,7 +68,7 @@ export function LandingHero() {
         ctx.save();
         ctx.globalAlpha = s.opacity;
         ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = "#60a5fa";
+        ctx.shadowColor = "#c4a77b";
         ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
@@ -97,7 +97,7 @@ export function LandingHero() {
       minHeight: "100vh",
       display: "flex",
       flexDirection: "column",
-      background: "radial-gradient(ellipse at 20% 30%, #0a0a2e 0%, #050508 40%, #000000 100%)",
+      background: "radial-gradient(ellipse at 20% 30%, #2b2319 0%, #14110e 42%, #080706 100%)",
       position: "relative",
       overflow: "hidden",
     }}>
@@ -115,7 +115,7 @@ export function LandingHero() {
         top: mousePos.y - 200,
         width: 400, height: 400,
         borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%)",
+        background: "radial-gradient(circle, rgba(196,167,123,0.12) 0%, transparent 70%)",
         pointerEvents: "none",
         zIndex: 1,
         transition: "left 0.1s ease, top 0.1s ease",
@@ -124,13 +124,13 @@ export function LandingHero() {
       {/* Glow blobs */}
       <div style={{
         position: "absolute", width: 700, height: 700, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%)",
+        background: "radial-gradient(circle, rgba(196,167,123,0.16) 0%, transparent 70%)",
         top: "-20%", left: "-5%", pointerEvents: "none", zIndex: 0,
         animation: "blob-float 8s ease-in-out infinite",
       }} />
       <div style={{
         position: "absolute", width: 600, height: 600, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(124,58,237,0.1) 0%, transparent 70%)",
+        background: "radial-gradient(circle, rgba(140,116,84,0.18) 0%, transparent 70%)",
         bottom: "-15%", right: "-5%", pointerEvents: "none", zIndex: 0,
         animation: "blob-float 10s ease-in-out infinite reverse",
       }} />
@@ -138,7 +138,7 @@ export function LandingHero() {
       {/* Subtle grid */}
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-        backgroundImage: "linear-gradient(rgba(37,99,235,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.03) 1px, transparent 1px)",
+        backgroundImage: "linear-gradient(rgba(196,167,123,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(196,167,123,0.045) 1px, transparent 1px)",
         backgroundSize: "40px 40px",
       }} />
 
@@ -153,33 +153,16 @@ export function LandingHero() {
         <div style={{
           fontSize: 15, fontWeight: 800, letterSpacing: "0.15em",
           textTransform: "uppercase",
-          background: "linear-gradient(135deg, #60a5fa, #2563eb, #7c3aed)",
+          background: "linear-gradient(135deg, #f1ddbe, #c8a676, #8b6e4a)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           backgroundClip: "text", marginBottom: 32,
         }}>CollabCanvas</div>
-
-        {/* Live badge */}
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "5px 14px", borderRadius: 20,
-          background: "rgba(37,99,235,0.1)",
-          border: "1px solid rgba(37,99,235,0.25)",
-          fontSize: 11, color: "#60a5fa", marginBottom: 28, fontWeight: 500,
-        }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: "50%",
-            background: "#10b981", display: "inline-block",
-            boxShadow: "0 0 8px #10b981",
-            animation: "pulse-glow 2s ease-in-out infinite",
-          }} />
-          Now Live — Internship Project 2026
-        </div>
 
         {/* Typewriter title */}
         <h1 style={{
           fontSize: "clamp(2.5rem, 6vw, 4.5rem)",
           fontWeight: 900,
-          background: "linear-gradient(135deg, #ffffff 0%, #93c5fd 40%, #60a5fa 100%)",
+          background: "linear-gradient(135deg, #fff7ea 0%, #e5ccaa 45%, #b99266 100%)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           backgroundClip: "text",
           letterSpacing: "-0.04em", lineHeight: 1.1,
@@ -189,7 +172,7 @@ export function LandingHero() {
           {typed}
           <span style={{
             display: "inline-block", width: 3, height: "0.85em",
-            background: "#2563eb", marginLeft: 3, verticalAlign: "middle",
+            background: "#c8a676", marginLeft: 3, verticalAlign: "middle",
             animation: "blink 1s step-end infinite",
           }} />
         </h1>
@@ -206,9 +189,10 @@ export function LandingHero() {
         {/* CTA Button */}
         <Link href="/projects" style={{
   padding: "14px 44px", borderRadius: 12, fontWeight: 700, fontSize: 16,
-  background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-  color: "#fff",
-  boxShadow: "0 0 50px rgba(37,99,235,0.5)",
+  background: "linear-gradient(145deg, #1b1713, #2a2218)",
+  color: "#f4e6cf",
+  border: "1px solid rgba(200,166,118,0.45)",
+  boxShadow: "0 0 42px rgba(200,166,118,0.26)",
   transition: "all 200ms", textDecoration: "none",
   display: "inline-block", marginBottom: 64,
   outline: "2px solid transparent",
@@ -216,11 +200,11 @@ export function LandingHero() {
 }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-3px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 0 80px rgba(37,99,235,0.75)";
+            e.currentTarget.style.boxShadow = "0 0 72px rgba(200,166,118,0.42)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "translateY(0) scale(1)";
-            e.currentTarget.style.boxShadow = "0 0 50px rgba(37,99,235,0.5)";
+            e.currentTarget.style.boxShadow = "0 0 42px rgba(200,166,118,0.26)";
           }}
         >
           Open Dashboard →
@@ -259,8 +243,8 @@ export function LandingHero() {
                   }}>
                     <span style={{
                       width: 5, height: 5, borderRadius: "50%",
-                      background: "#2563eb", display: "inline-block",
-                      boxShadow: "0 0 6px #2563eb",
+                      background: "#c8a676", display: "inline-block",
+                      boxShadow: "0 0 6px #c8a676",
                     }} />
                     {text}
                   </div>
@@ -270,6 +254,61 @@ export function LandingHero() {
           </div>
         </div>
 
+        {/* Utilities flashcards */}
+        <section style={{ width: "100%", maxWidth: 980, marginBottom: 56 }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+            color: "rgba(255,255,255,0.78)",
+            fontSize: 13,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}>
+            <span>CanvasCollab Utilities</span>
+            <span style={{ color: "rgba(255,255,255,0.45)", fontWeight: 500 }}>Hover to reveal</span>
+          </div>
+
+          <div className="cc-flashcards-grid">
+            {[
+              {
+                front: "Realtime Presence",
+                back: "See collaborators live with cursor and activity signals across the same board.",
+                tone: "#c8a676",
+              },
+              {
+                front: "Version History",
+                back: "Jump between snapshots and recover ideas without breaking current progress.",
+                tone: "#a88961",
+              },
+              {
+                front: "Smart Layers",
+                back: "Reorder, lock, hide, and organize complex scenes with precision controls.",
+                tone: "#d0a46a",
+              },
+              {
+                front: "Export Studio",
+                back: "Ship boards as PNG, JPEG, or PDF with sharp fidelity and clean layout.",
+                tone: "#8f7450",
+              },
+            ].map((card) => (
+              <article className="cc-flashcard" key={card.front}>
+                <div className="cc-flashcard-inner">
+                  <div className="cc-flashcard-face cc-flashcard-front" style={{ borderColor: `${card.tone}45` }}>
+                    <span className="cc-flashcard-dot" style={{ background: card.tone }} />
+                    <h3>{card.front}</h3>
+                  </div>
+                  <div className="cc-flashcard-face cc-flashcard-back" style={{ borderColor: `${card.tone}60` }}>
+                    <p>{card.back}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
         {/* Feature cards */}
         <div style={{
           display: "grid",
@@ -277,12 +316,12 @@ export function LandingHero() {
           gap: 16, maxWidth: 780, width: "100%",
         }}>
           {[
-            { icon: "🎨", title: "Live Canvas", desc: "Real-time Konva-powered rendering with drag, resize and transform", color: "#2563eb" },
-            { icon: "⚡", title: "Instant Sync", desc: "Supabase-powered autosave keeps your work safe in the cloud", color: "#7c3aed" },
-            { icon: "🤝", title: "Collaborate", desc: "Work together with your team in real-time on the same canvas", color: "#10b981" },
-            { icon: "🔷", title: "8 Shape Types", desc: "Rectangle, Circle, Star, Arrow, Diamond, Triangle and more", color: "#f59e0b" },
-            { icon: "🔍", title: "Inspector Panel", desc: "Fine-tune colors, opacity, position and size of every element", color: "#60a5fa" },
-            { icon: "📋", title: "Layer System", desc: "Manage, reorder, lock and toggle visibility of all your layers", color: "#a78bfa" },
+            { icon: "🎨", title: "Live Canvas", desc: "Real-time Konva-powered rendering with drag, resize and transform", color: "#b08a5a" },
+            { icon: "⚡", title: "Instant Sync", desc: "Supabase-powered autosave keeps your work safe in the cloud", color: "#8f7450" },
+            { icon: "🤝", title: "Collaborate", desc: "Work together with your team in real-time on the same canvas", color: "#d0a46a" },
+            { icon: "🔷", title: "8 Shape Types", desc: "Rectangle, Circle, Star, Arrow, Diamond, Triangle and more", color: "#a88961" },
+            { icon: "🔍", title: "Inspector Panel", desc: "Fine-tune colors, opacity, position and size of every element", color: "#c8a676" },
+            { icon: "📋", title: "Layer System", desc: "Manage, reorder, lock and toggle visibility of all your layers", color: "#937757" },
           ].map((card) => (
             <div key={card.title} style={{
               background: "rgba(8, 8, 20, 0.7)",
@@ -347,12 +386,95 @@ export function LandingHero() {
         }
           @keyframes neon-border {
   0%, 100% {
-    box-shadow: 0 0 50px rgba(37,99,235,0.5), 0 0 0 2px #2563eb, 0 0 20px #2563eb, 0 0 40px #7c3aed;
+    box-shadow: 0 0 40px rgba(200,166,118,0.35), 0 0 0 2px #c8a676, 0 0 16px #c8a676, 0 0 34px #8b6e4a;
   }
   50% {
-    box-shadow: 0 0 80px rgba(124,58,237,0.7), 0 0 0 2px #7c3aed, 0 0 30px #7c3aed, 0 0 60px #2563eb;
+    box-shadow: 0 0 62px rgba(139,110,74,0.45), 0 0 0 2px #8b6e4a, 0 0 24px #8b6e4a, 0 0 46px #c8a676;
   }
 }
+
+        .cc-flashcards-grid {
+          display: grid;
+          gap: 14px;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .cc-flashcard {
+          perspective: 1200px;
+          min-height: 136px;
+        }
+
+        .cc-flashcard-inner {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          min-height: 136px;
+          transform-style: preserve-3d;
+          transition: transform 360ms ease;
+        }
+
+        .cc-flashcard:hover .cc-flashcard-inner {
+          transform: rotateY(180deg) translateY(-2px);
+        }
+
+        .cc-flashcard-face {
+          position: absolute;
+          inset: 0;
+          border-radius: 14px;
+          border: 1px solid rgba(200, 166, 118, 0.38);
+          background: linear-gradient(145deg, rgba(26, 21, 16, 0.82), rgba(16, 13, 10, 0.84));
+          backdrop-filter: blur(12px);
+          padding: 14px 14px 12px;
+          backface-visibility: hidden;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 28px rgba(0,0,0,0.24);
+          text-align: left;
+        }
+
+        .cc-flashcard-front {
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .cc-flashcard-front h3 {
+          margin: 0;
+          font-size: 14px;
+          color: rgba(255,255,255,0.92);
+          letter-spacing: 0.02em;
+        }
+
+        .cc-flashcard-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          box-shadow: 0 0 12px currentColor;
+        }
+
+        .cc-flashcard-back {
+          transform: rotateY(180deg);
+          display: flex;
+          align-items: center;
+        }
+
+        .cc-flashcard-back p {
+          margin: 0;
+          font-size: 12px;
+          line-height: 1.55;
+          color: rgba(255,255,255,0.72);
+        }
+
+        @media (max-width: 980px) {
+          .cc-flashcards-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 640px) {
+          .cc-flashcards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
     </main>
   );

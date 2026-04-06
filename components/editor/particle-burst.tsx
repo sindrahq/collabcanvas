@@ -66,7 +66,9 @@ ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     animate();
 
     return () => {
-      canvas.remove();
+      if (canvas.parentNode) {
+        canvas.parentNode.removeChild(canvas);
+      }
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
   }, []);

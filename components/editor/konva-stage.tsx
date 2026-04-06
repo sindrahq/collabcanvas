@@ -356,7 +356,9 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                       if (!editingRef.current) return;
                       updateElement(element.id, { text: textarea.value.trim() || "Text element" });
                       editingRef.current = null;
-                      textarea.remove();
+                      if (textarea.parentNode) {
+                        textarea.parentNode.removeChild(textarea);
+                      }
                     }
                     textarea.addEventListener("blur", finish);
                     textarea.addEventListener("keydown", (e) => {
