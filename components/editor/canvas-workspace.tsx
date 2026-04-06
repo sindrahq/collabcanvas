@@ -42,6 +42,7 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
   const elementCount      = useWorkspaceStore((s) => s.elements.length);
   const canvasBackground  = useWorkspaceStore((s) => s.canvasBackground);
   const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
+  const canEdit           = useWorkspaceStore((s) => s.canEdit);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [autoFitEnabled, setAutoFitEnabled] = useState(true);
@@ -159,6 +160,7 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
               type="color"
               value={canvasBackground}
               onChange={(e) => setCanvasBackground(e.target.value)}
+              disabled={!canEdit}
               title="Canvas background"
             />
           </div>

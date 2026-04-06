@@ -36,6 +36,7 @@ const ALIGNMENTS = [
 export function Toolbar({ workspaceName }: { workspaceName: string }) {
   const selectedElementId        = useWorkspaceStore((s) => s.selectedElementId);
   const elements                 = useWorkspaceStore((s) => s.elements);
+  const canEdit                  = useWorkspaceStore((s) => s.canEdit);
   const addElement               = useWorkspaceStore((s) => s.addElement);
   const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
   const deleteSelectedElement    = useWorkspaceStore((s) => s.deleteSelectedElement);
@@ -154,6 +155,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               key={item.label}
               type="button" className="toolbar-button"
               onClick={() => addElement(item.action)}
+              disabled={!canEdit}
               title={`Add ${item.label}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -224,6 +226,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               className="toolbar-select"
               value={selectedElement.style.fontFamily}
               onChange={(e) => updateElementStyle(selectedElement.id, { fontFamily: e.target.value })}
+              disabled={!canEdit}
               title="Font Family"
             >
               {FONTS.map((f) => (
@@ -235,6 +238,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               className="toolbar-select toolbar-select-sm"
               value={selectedElement.style.fontSize}
               onChange={(e) => updateElementStyle(selectedElement.id, { fontSize: Number(e.target.value) })}
+              disabled={!canEdit}
               title="Font Size"
             >
               {FONT_SIZES.map((s) => (
@@ -246,6 +250,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               type="button"
               className={`toolbar-icon-btn${selectedElement.style.fontWeight === "bold" ? " active" : ""}`}
               onClick={() => toggleStyle("fontWeight", "bold", "normal")}
+              disabled={!canEdit}
               title="Bold"
             >
               <Bold size={14} />
@@ -255,6 +260,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               type="button"
               className={`toolbar-icon-btn${selectedElement.style.fontStyle === "italic" ? " active" : ""}`}
               onClick={() => toggleStyle("fontStyle", "italic", "normal")}
+              disabled={!canEdit}
               title="Italic"
             >
               <Italic size={14} />
@@ -267,6 +273,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
                 type="color"
                 value={selectedElement.style.fill}
                 onChange={(e) => updateElementStyle(selectedElement.id, { fill: e.target.value })}
+                disabled={!canEdit}
                 title="Text Color"
               />
             </div>
@@ -279,6 +286,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
                 type="button"
                 className={`toolbar-icon-btn${selectedElement.style.textAlign === align ? " active" : ""}`}
                 onClick={() => updateElementStyle(selectedElement.id, { textAlign: align })}
+                disabled={!canEdit}
                 title={`Align ${align}`}
               >
                 <Icon size={14} />
@@ -297,6 +305,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
             <motion.button
               type="button" className="toolbar-button"
               onClick={apply3DToSelected}
+              disabled={!canEdit}
               title="Apply 3D to selected element"
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
             >
@@ -306,6 +315,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
             <motion.button
               type="button" className="toolbar-button"
               onClick={remove3DFromSelected}
+              disabled={!canEdit}
               title="Remove 3D from selected element"
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
             >
@@ -315,6 +325,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
             <motion.button
               type="button" className="toolbar-button"
               onClick={duplicateSelectedElement} title="Duplicate (Ctrl+D)"
+              disabled={!canEdit}
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
             >
               <Copy size={14} />
@@ -323,6 +334,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
             <motion.button
               type="button" className="toolbar-button toolbar-button-danger"
               onClick={deleteSelectedElement} title="Delete (Del)"
+              disabled={!canEdit}
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
             >
               <Trash2 size={14} />

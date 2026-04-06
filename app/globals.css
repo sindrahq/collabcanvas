@@ -1038,6 +1038,110 @@ button, input, textarea, select { font: inherit; }
 .inspector-select option { background: #1e2a38; color: #d4e4f7; }
 .inspector-select-wrap { width: 100%; }
 
+.comments-panel {
+  padding-top: 14px;
+  border-top: 1px solid rgba(125, 170, 255, 0.12);
+}
+
+.comments-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #9fb0d1;
+  font-size: 0.78rem;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.comment-readonly-note {
+  color: #9fb0d1;
+  font-size: 0.76rem;
+}
+
+.comment-list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.comment-card {
+  padding: 10px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(125, 170, 255, 0.12);
+  background: rgba(79, 140, 255, 0.06);
+}
+
+.comment-card.mine {
+  border-color: rgba(125, 170, 255, 0.24);
+  background: rgba(79, 140, 255, 0.12);
+}
+
+.comment-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.comment-card-top strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #f3f4f6;
+}
+
+.comment-card-top span {
+  display: block;
+  margin-top: 2px;
+  color: #9fb0d1;
+  font-size: 0.72rem;
+}
+
+.comment-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #9fb0d1;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.comment-message {
+  margin: 0 0 8px;
+  color: #f3f4f6;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.comment-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #9fb0d1;
+  font-size: 0.72rem;
+}
+
+.comment-empty-state {
+  padding: 14px 12px;
+  border-radius: 14px;
+  border: 1px dashed rgba(125, 170, 255, 0.16);
+  background: rgba(79, 140, 255, 0.04);
+  color: #9fb0d1;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .inspector-toggle-group {
   display: flex;
   align-items: center;

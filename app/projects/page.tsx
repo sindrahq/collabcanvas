@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import { supabase } from "@/lib/supabaseClient";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import "../globals.css";
 
 type ProjectRow = {
@@ -367,6 +368,8 @@ export default function ProjectsDashboard() {
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [previewMap, setPreviewMap] = useState<Record<string, CanvasPreviewElement[]>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
@@ -382,13 +385,56 @@ export default function ProjectsDashboard() {
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
 
   useEffect(() => {
-    setCurrentUserId(getLocalOwnerId());
-    setTrashEntries(loadTrashEntries());
-  }, []);
+    const browserClient = createSupabaseBrowserClient();
+    if (!browserClient) {
+      setErrorMessage("Authentication is unavailable. Missing Supabase environment variables.");
+      setLoadingProjects(false);
+      return;
+    }
+
+    let active = true;
+
+    void browserClient.auth.getUser().then(({ data }) => {
+      if (!active) return;
+
+      if (!data.user) {
+        router.replace("/auth?next=%2Fprojects");
+        return;
+      }
+
+      setCurrentUserId(data.user.id);
+      setCurrentUserEmail(data.user.email?.trim().toLowerCase() ?? null);
+      setTrashEntries(loadTrashEntries());
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = browserClient.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+
+      if (!session?.user) {
+        setCurrentUserId(null);
+        setCurrentUserEmail(null);
+        setAuthReady(false);
+        router.replace("/auth?next=%2Fprojects");
+        return;
+      }
+
+      setCurrentUserId(session.user.id);
+      setCurrentUserEmail(session.user.email?.trim().toLowerCase() ?? null);
+      setAuthReady(true);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   useEffect(() => {
     async function fetchProjects() {
-      if (!currentUserId) return;
+      if (!authReady || !currentUserId) return;
 
       setLoadingProjects(true);
       setErrorMessage(null);
@@ -417,17 +463,33 @@ export default function ProjectsDashboard() {
 
       // Shared-with-me fetch: fallback to local storage if sharing table is unavailable.
       let sharedRows: ProjectRow[] = [];
-      const { data: shareData, error: shareError } = await supabase
+      const sharedIds = new Set<string>();
+
+      const { data: idShareData, error: idShareError } = await supabase
         .from("workspace_shares")
         .select("workspace_id")
         .eq("shared_with_id", currentUserId);
 
-      if (!shareError && shareData?.length) {
-        const sharedIds = shareData.map((row: { workspace_id: string }) => row.workspace_id);
+      if (!idShareError && idShareData?.length) {
+        idShareData.forEach((row: { workspace_id: string }) => sharedIds.add(row.workspace_id));
+      }
+
+      if (currentUserEmail) {
+        const { data: emailShareData, error: emailShareError } = await supabase
+          .from("workspace_shares")
+          .select("workspace_id")
+          .eq("shared_with_email", currentUserEmail);
+
+        if (!emailShareError && emailShareData?.length) {
+          emailShareData.forEach((row: { workspace_id: string }) => sharedIds.add(row.workspace_id));
+        }
+      }
+
+      if (sharedIds.size) {
         const { data: sharedWorkspaceData, error: sharedWorkspaceError } = await supabase
           .from("workspaces")
           .select("*")
-          .in("id", sharedIds)
+          .in("id", [...sharedIds])
           .order("updated_at", { ascending: false });
 
         if (!sharedWorkspaceError) {
@@ -528,7 +590,7 @@ export default function ProjectsDashboard() {
     }
 
     fetchProjects();
-  }, [currentUserId]);
+  }, [authReady, currentUserEmail, currentUserId]);
 
   const visibleProjects = useMemo(() => {
     const trashedIds = new Set(trashEntries.map((entry) => entry.id));
@@ -573,6 +635,14 @@ export default function ProjectsDashboard() {
   }, [visibleProjects, searchQuery, dateFilter, sortBy]);
 
   const currentCopy = SECTION_COPY[activeSection];
+
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FAF9F6] text-sm text-[#645C52]">
+        Checking authentication...
+      </div>
+    );
+  }
 
   async function handleCreateProject() {
     if (!currentUserId) {

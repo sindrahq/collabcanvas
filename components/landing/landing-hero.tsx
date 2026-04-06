@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, setSupabaseSessionPersistence } from "@/lib/supabase/client";
 
 export function LandingHero() {
   const [typed, setTyped] = useState("");
@@ -10,9 +10,12 @@ export function LandingHero() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
@@ -20,6 +23,36 @@ export function LandingHero() {
   const profileRef = useRef<HTMLDivElement | null>(null);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const fullText = "Design Without Limits";
+  const startCreatingHref = currentUserEmail ? "/projects" : "/auth?next=%2Fprojects";
+
+  function mapAuthError(raw: string | undefined) {
+    const normalized = (raw || "").toLowerCase();
+
+    if (normalized.includes("email rate limit exceeded") || normalized.includes("over_email_send_rate_limit")) {
+      return "Too many verification emails were requested. Please wait a few minutes before trying again, or log in with an existing account.";
+    }
+
+    if (normalized.includes("invalid login credentials")) {
+      return "Invalid email or password.";
+    }
+
+    return raw || "Authentication failed. Please try again.";
+  }
+
+  function validatePassword(value: string) {
+    const rules = [
+      { ok: value.length >= 8, message: "at least 8 characters" },
+      { ok: /[a-z]/.test(value), message: "one lowercase letter" },
+      { ok: /[A-Z]/.test(value), message: "one uppercase letter" },
+      { ok: /\d/.test(value), message: "one number" },
+      { ok: /[^A-Za-z0-9]/.test(value), message: "one special character" },
+    ];
+
+    return {
+      ok: rules.every((rule) => rule.ok),
+      missing: rules.filter((rule) => !rule.ok).map((rule) => rule.message),
+    };
+  }
 
   useEffect(() => {
     let i = 0;
@@ -76,32 +109,79 @@ export function LandingHero() {
       return;
     }
 
+    if (authMode === "signup") {
+      const passwordCheck = validatePassword(password);
+      if (!firstName.trim() || !lastName.trim()) {
+        setAuthError("Please enter both first name and last name.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setAuthError("Passwords do not match.");
+        return;
+      }
+      if (!passwordCheck.ok) {
+        setAuthError(`Password must contain ${passwordCheck.missing.join(", ")}.`);
+        return;
+      }
+    }
+
+    setSupabaseSessionPersistence(rememberMe);
     setAuthLoading(true);
 
     if (authMode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: fullName || undefined,
-          },
+      const signUpResponse = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          password,
+        }),
       });
 
-      if (error) {
-        setAuthError(error.message);
-      } else if (data.session) {
+      const signUpPayload = (await signUpResponse.json()) as {
+        error?: string;
+        session?: { access_token: string; refresh_token: string } | null;
+        requiresEmailVerification?: boolean;
+      };
+
+      if (!signUpResponse.ok) {
+        setAuthError(mapAuthError(signUpPayload.error || "Could not create account."));
+      } else if (signUpPayload.session) {
+        await supabase.auth.setSession(signUpPayload.session);
         setAuthMessage("Signup successful. You are now logged in.");
         setAuthModalOpen(false);
-      } else {
+      } else if (signUpPayload.requiresEmailVerification) {
         setAuthMessage("Signup successful. Please verify your email before login.");
+      } else {
+        setAuthMessage("Signup successful.");
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setAuthError(error.message);
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const loginPayload = (await loginResponse.json()) as {
+        error?: string;
+        session?: { access_token: string; refresh_token: string } | null;
+      };
+
+      if (!loginResponse.ok) {
+        setAuthError(mapAuthError(loginPayload.error || "Could not log in."));
       } else {
+        if (loginPayload.session) {
+          await supabase.auth.setSession(loginPayload.session);
+        }
         setAuthMessage("Login successful.");
         setAuthModalOpen(false);
       }
@@ -230,6 +310,9 @@ export function LandingHero() {
                 {currentUserEmail ? (
                   <>
                     <p className="cc-profile-user">{currentUserEmail}</p>
+                    <Link href="/profile" className="cc-profile-action" onClick={() => setProfileOpen(false)}>
+                      Profile
+                    </Link>
                     <button type="button" className="cc-profile-action" onClick={() => void handleSignOut()}>
                       Logout
                     </button>
@@ -310,7 +393,7 @@ export function LandingHero() {
 
           {/* Single CTA button */}
           <div>
-            <Link href="/projects" style={{
+            <Link href={startCreatingHref} style={{
               padding: "14px 32px", borderRadius: 10,
               fontWeight: 600, fontSize: 15, background: "#1a1a1a",
               color: "#fff", textDecoration: "none",
@@ -438,14 +521,24 @@ export function LandingHero() {
 
               <form className="cc-auth-form" onSubmit={(e) => void handleAuthSubmit(e)}>
                 {authMode === "signup" && (
-                  <input
-                    className="cc-auth-input"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Full name"
-                    autoComplete="name"
-                  />
+                  <div className="cc-auth-name-grid">
+                    <input
+                      className="cc-auth-input"
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="First name"
+                      autoComplete="given-name"
+                    />
+                    <input
+                      className="cc-auth-input"
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Last name"
+                      autoComplete="family-name"
+                    />
+                  </div>
                 )}
                 <input
                   className="cc-auth-input"
@@ -463,9 +556,44 @@ export function LandingHero() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
                   autoComplete={authMode === "login" ? "current-password" : "new-password"}
-                  minLength={6}
+                  minLength={8}
                   required
                 />
+
+                {authMode === "signup" && (
+                  <input
+                    className="cc-auth-input"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                )}
+
+                {authMode === "signup" && (
+                  <div className="cc-auth-rules">
+                    <p className="cc-auth-rules-title">Password requirements</p>
+                    <ul className="cc-auth-rules-list">
+                      <li>At least 8 characters</li>
+                      <li>One uppercase letter</li>
+                      <li>One lowercase letter</li>
+                      <li>One number</li>
+                      <li>One special character</li>
+                    </ul>
+                  </div>
+                )}
+
+                <label className="cc-auth-remember">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  Remember me
+                </label>
 
                 {authError && <p className="cc-auth-error">{authError}</p>}
                 {!authError && authMessage && <p className="cc-auth-message">{authMessage}</p>}
@@ -473,6 +601,7 @@ export function LandingHero() {
                 <button className="cc-auth-submit" type="submit" disabled={authLoading}>
                   {authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create account"}
                 </button>
+
               </form>
             </article>
           </div>
@@ -562,7 +691,7 @@ export function LandingHero() {
             Join your team on CollabCanvas today.
           </p>
         </div>
-        <Link href="/projects" style={{
+        <Link href={startCreatingHref} style={{
           padding: "14px 36px", borderRadius: 12, fontWeight: 600, fontSize: 15,
           background: "#fff", color: "#1a1a1a", textDecoration: "none",
           fontFamily: "'Helvetica Neue', sans-serif", transition: "all 200ms", whiteSpace: "nowrap",
@@ -686,6 +815,12 @@ export function LandingHero() {
           gap: 10px;
         }
 
+        .cc-auth-name-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
         .cc-auth-input {
           width: 100%;
           border: 1px solid #ddd2c5;
@@ -704,11 +839,55 @@ export function LandingHero() {
           font-family: 'Helvetica Neue', sans-serif;
         }
 
+        .cc-auth-remember {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: #4b443d;
+          font-size: 12px;
+          font-family: 'Helvetica Neue', sans-serif;
+          margin-top: 2px;
+        }
+
+        .cc-auth-remember input {
+          width: 14px;
+          height: 14px;
+          accent-color: #1a1a1a;
+        }
+
         .cc-auth-message {
           margin: 2px 0;
           color: #2f6e4f;
           font-size: 12px;
           font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-auth-rules {
+          border-radius: 10px;
+          border: 1px solid #e3d7c7;
+          background: #faf6f1;
+          color: #6a6257;
+          padding: 10px 12px;
+          font-size: 12px;
+          line-height: 1.6;
+          font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .cc-auth-rules-title {
+          margin: 0 0 4px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #4f453b;
+        }
+
+        .cc-auth-rules-list {
+          margin: 0;
+          padding-left: 16px;
+          list-style: disc;
+        }
+
+        .cc-auth-rules-list li {
+          margin: 0;
         }
 
         .cc-auth-submit {

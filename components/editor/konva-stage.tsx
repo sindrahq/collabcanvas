@@ -81,6 +81,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const selectElement     = useWorkspaceStore((s) => s.selectElement);
   const updateElement     = useWorkspaceStore((s) => s.updateElement);
   const canvasBackground  = useWorkspaceStore((s) => s.canvasBackground);
+  const canEdit           = useWorkspaceStore((s) => s.canEdit);
 
   const orderedElements = useMemo(
     () => [...elements].sort((a, b) => a.layerOrder - b.layerOrder),
@@ -94,11 +95,11 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   useEffect(() => {
     const tr = transformerRef.current;
     if (!tr) return;
-    if (!selectedElementId) { tr.nodes([]); tr.getLayer()?.batchDraw(); return; }
+    if (!canEdit || !selectedElementId) { tr.nodes([]); tr.getLayer()?.batchDraw(); return; }
     const node = nodeRefs.current[selectedElementId];
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [selectedElementId, orderedElements]);
+  }, [canEdit, selectedElementId, orderedElements]);
 
   return (
     <>
@@ -128,13 +129,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               const cy   = element.y / STAGE_SCALE + eh / 2;
               const common = {
                 rotation: element.rotation,
-                draggable: !element.locked,
+                draggable: canEdit && !element.locked,
                 visible: element.visible,
                 opacity: element.style.opacity,
                 onClick: () => selectElement(element.id),
                 onTap:   () => selectElement(element.id),
                 onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
-                  updateElement(element.id, {
+                    if (!canEdit) return;
+                    updateElement(element.id, {
                     x: e.target.x() * STAGE_SCALE,
                     y: e.target.y() * STAGE_SCALE,
                   });
@@ -142,13 +144,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               };
               const centerDrag = {
                 rotation: element.rotation,
-                draggable: !element.locked,
+                draggable: canEdit && !element.locked,
                 visible: element.visible,
                 opacity: element.style.opacity,
                 onClick: () => selectElement(element.id),
                 onTap:   () => selectElement(element.id),
                 onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
-                  updateElement(element.id, {
+                    if (!canEdit) return;
+                    updateElement(element.id, {
                     x: (e.target.x() - ew / 2) * STAGE_SCALE,
                     y: (e.target.y() - eh / 2) * STAGE_SCALE,
                   });
@@ -238,7 +241,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     pointerLength={12 / STAGE_SCALE}
                     pointerWidth={10 / STAGE_SCALE}
                     rotation={element.rotation}
-                    draggable={!element.locked}
+                    draggable={canEdit && !element.locked}
                     visible={element.visible}
                     opacity={element.style.opacity}
                     hitStrokeWidth={16}
@@ -246,12 +249,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     onClick={() => selectElement(element.id)}
                     onTap={() => selectElement(element.id)}
                     onDragEnd={(e) => {
+                      if (!canEdit) return;
                       updateElement(element.id, {
                         x: e.target.x() * STAGE_SCALE,
                         y: (e.target.y() - eh / 2) * STAGE_SCALE,
                       });
                     }}
                     onTransformEnd={(e) => {
+                      if (!canEdit) return;
                       const node = e.target;
                       const sx = node.scaleX();
                       node.scaleX(1);
@@ -277,7 +282,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     lineCap="round"
                     lineJoin="round"
                     rotation={element.rotation}
-                    draggable={!element.locked}
+                    draggable={canEdit && !element.locked}
                     visible={element.visible}
                     opacity={element.style.opacity}
                     hitStrokeWidth={16}
@@ -285,12 +290,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     onClick={() => selectElement(element.id)}
                     onTap={() => selectElement(element.id)}
                     onDragEnd={(e) => {
+                      if (!canEdit) return;
                       updateElement(element.id, {
                         x: e.target.x() * STAGE_SCALE,
                         y: (e.target.y() - eh / 2) * STAGE_SCALE,
                       });
                     }}
                     onTransformEnd={(e) => {
+                      if (!canEdit) return;
                       const node = e.target;
                       const sx = node.scaleX();
                       node.scaleX(1);
@@ -321,8 +328,9 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     x: clamp(pos.x, 0, STAGE_WIDTH - ew),
                     y: clamp(pos.y, 0, STAGE_HEIGHT - eh),
                   })}
-                  onTransformEnd={(e) => updateFromTransform(element, e.target as Konva.Text, updateElement)}
+                  onTransformEnd={(e) => { if (!canEdit) return; updateFromTransform(element, e.target as Konva.Text, updateElement); }}
                   onDblClick={() => {
+                    if (!canEdit) return;
                     const node = nodeRefs.current[element.id] as Konva.Text;
                     if (!node) return;
                     const stageBox = node.getStage()!.container().getBoundingClientRect();
