@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ZoomIn, ZoomOut, Maximize2, Palette } from "lucide-react";
+import { Maximize2, Palette, ZoomIn, ZoomOut } from "lucide-react";
 import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
   broadcastCursor,
@@ -28,7 +28,7 @@ const KonvaStageWorkspace = dynamic(
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.15;
-const MOBILE_BREAKPOINT = 900;
+const MOBILE_BREAKPOINT = 860;
 const STAGE_RENDER_WIDTH = CANVAS_DIMENSIONS.width / 1.6;
 const STAGE_RENDER_HEIGHT = CANVAS_DIMENSIONS.height / 1.6;
 
@@ -89,11 +89,32 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
     }
   }, [autoFitEnabled, fitZoom, isMobileViewport]);
 
-  function getTouchDistance(touches: React.TouchList) {
-    if (touches.length < 2) return 0;
-    const [first, second] = touches;
-    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
-  }
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return;
+
+    function handleWheel(event: WheelEvent) {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      setAutoFitEnabled(false);
+      setZoom((currentZoom) => {
+        const multiplier = event.deltaY < 0 ? 1.08 : 0.92;
+        const nextZoom = currentZoom * multiplier;
+        return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, parseFloat(nextZoom.toFixed(2))));
+      });
+    }
+
+    node.addEventListener("wheel", handleWheel, { passive: false });
+    return () => node.removeEventListener("wheel", handleWheel);
+  }, []);
+
+function getTouchDistance(touches: React.TouchList) {
+  if (touches.length < 2) return 0;
+  const first = touches.item(0);
+  const second = touches.item(1);
+  if (!first || !second) return 0;
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+}
 
   function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
     if (event.touches.length === 2) {
@@ -143,12 +164,12 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
 
   return (
     <section className="canvas-stage-shell">
-      <div className="canvas-header">
-        <div>
-          <p className="eyebrow">Canvas</p>
-          <h2 className="canvas-title">Editor Surface</h2>
+      <div className="canvas-toolbar-row">
+        <div className="canvas-toolbar-copy">
+          <p className="eyebrow">Workspace Surface</p>
+          <h2 className="canvas-title">Canvas</h2>
         </div>
-        <div className="canvas-header-right">
+        <div className="canvas-toolbar-actions">
           <div className="canvas-badge">
             <strong>{elementCount}</strong>
             <span>{elementCount === 1 ? "element" : "elements"}</span>
@@ -198,9 +219,11 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
           className="konva-shell konva-stage-wrap"
           style={{
             transformOrigin: "center top",
+            transform: `scale(${zoom})`,
             touchAction: isMobileViewport ? "pan-x" : "none",
-            width: isMobileViewport ? "max-content" : "100%",
-            minWidth: isMobileViewport ? "max-content" : undefined,
+            width: `${STAGE_RENDER_WIDTH}px`,
+            minWidth: `${STAGE_RENDER_WIDTH}px`,
+            height: `${STAGE_RENDER_HEIGHT}px`,
           }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
