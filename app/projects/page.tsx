@@ -4,8 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
+import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { supabase } from "@/lib/supabaseClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getDisplayNameFromMetadata } from "@/lib/profile";
 import "../globals.css";
 
 type ProjectRow = {
@@ -369,6 +371,8 @@ export default function ProjectsDashboard() {
   const [previewMap, setPreviewMap] = useState<Record<string, CanvasPreviewElement[]>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -383,9 +387,9 @@ export default function ProjectsDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
 
   useEffect(() => {
-    const browserClient = createSupabaseBrowserClient();
     if (!browserClient) {
       setErrorMessage("Authentication is unavailable. Missing Supabase environment variables.");
       setLoadingProjects(false);
@@ -394,16 +398,21 @@ export default function ProjectsDashboard() {
 
     let active = true;
 
-    void browserClient.auth.getUser().then(({ data }) => {
+    void browserClient.auth.getSession().then(({ data }) => {
       if (!active) return;
 
-      if (!data.user) {
+      if (!data.session?.user) {
         router.replace("/auth?next=%2Fprojects");
         return;
       }
 
-      setCurrentUserId(data.user.id);
-      setCurrentUserEmail(data.user.email?.trim().toLowerCase() ?? null);
+      const user = data.session.user;
+      const metadata = user.user_metadata || {};
+
+      setCurrentUserId(user.id);
+      setCurrentUserEmail(user.email?.trim().toLowerCase() ?? null);
+      setCurrentUserDisplayName(getDisplayNameFromMetadata(metadata, user.email));
+      setCurrentUserAvatarUrl(typeof metadata.avatar_url === "string" ? metadata.avatar_url : null);
       setTrashEntries(loadTrashEntries());
       setAuthReady(true);
     });
@@ -416,13 +425,19 @@ export default function ProjectsDashboard() {
       if (!session?.user) {
         setCurrentUserId(null);
         setCurrentUserEmail(null);
+        setCurrentUserDisplayName(null);
+        setCurrentUserAvatarUrl(null);
         setAuthReady(false);
         router.replace("/auth?next=%2Fprojects");
         return;
       }
 
+      const metadata = session.user.user_metadata || {};
+
       setCurrentUserId(session.user.id);
       setCurrentUserEmail(session.user.email?.trim().toLowerCase() ?? null);
+      setCurrentUserDisplayName(getDisplayNameFromMetadata(metadata, session.user.email));
+      setCurrentUserAvatarUrl(typeof metadata.avatar_url === "string" ? metadata.avatar_url : null);
       setAuthReady(true);
     });
 
@@ -949,9 +964,16 @@ export default function ProjectsDashboard() {
             />
           </div>
         </div>
-        <button className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] hover:bg-[#ede6db]" aria-label="Account" type="button">
-          <img src="/account.png" alt="Account" className="h-5 w-5 object-contain" />
-        </button>
+        <ProfileMenu
+          displayName={currentUserDisplayName}
+          email={currentUserEmail}
+          avatarUrl={currentUserAvatarUrl}
+          onLogout={async () => {
+            if (!browserClient) return;
+            await browserClient.auth.signOut();
+            router.replace("/");
+          }}
+        />
       </nav>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Sidebar */}

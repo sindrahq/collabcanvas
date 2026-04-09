@@ -7,6 +7,7 @@ import { Check, LoaderCircle, Share2 } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
+import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { RightSidebar } from "@/components/editor/right-sidebar";
 import { ShareDialog } from "@/components/editor/share-dialog";
 import { Toolbar } from "@/components/editor/toolbar";
@@ -20,6 +21,7 @@ import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
+import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
 
 function isEditableTarget(target: EventTarget | null) {
@@ -33,8 +35,36 @@ function isShareAccessLevel(value: unknown): value is WorkspaceAccessLevel {
 }
 
 type AutoSaveStatus = "saved" | "saving";
+const LOCAL_COMMENTS_STORAGE_PREFIX = "collabcanvas_workspace_comments_";
 
 const PRESENCE_COLORS = ["#0b6e66", "#b35c1c", "#1f6fd6", "#7a3eb3", "#a03a58", "#3d6f2f"];
+
+function extractMissingColumnFromMessage(message?: string | null): string | null {
+  if (!message) return null;
+  const quoted = message.match(/Could not find the '([^']+)' column/i);
+  if (quoted?.[1]) return quoted[1];
+  const generic = message.match(/column\s+"([^"]+)"\s+does not exist/i);
+  if (generic?.[1]) return generic[1];
+  return null;
+}
+
+function removeColumnFromRows<T extends Record<string, unknown>>(rows: T[], column: string): T[] {
+  return rows.map((row) => {
+    if (!(column in row)) return row;
+    const next = { ...row };
+    delete next[column];
+    return next;
+  });
+}
+
+function isUuidValue(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isUuidSyntaxErrorMessage(message?: string | null): boolean {
+  if (!message) return false;
+  return /invalid input syntax for type uuid/i.test(message);
+}
 
 function buildLocalPresenceMeta(): PresenceMeta {
   if (typeof window === "undefined") {
@@ -138,11 +168,12 @@ export function EditorShell() {
 
     const metadata = authUser.user_metadata || {};
     const fullName = typeof metadata.full_name === "string" ? metadata.full_name : "";
+    const displayName = getDisplayNameFromMetadata(metadata, authUser.email);
     const avatarUrl = typeof metadata.avatar_url === "string" ? metadata.avatar_url : "";
 
     return {
       user_id: authUser.id,
-      name: fullName || authUser.email?.split("@")[0] || "User",
+      name: fullName || displayName,
       color: PRESENCE_COLORS[Math.abs(authUser.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % PRESENCE_COLORS.length],
       avatarUrl,
       cursor: { x: 0.5, y: 0.5 },
@@ -160,16 +191,16 @@ export function EditorShell() {
 
     let active = true;
 
-    void browserClient.auth.getUser().then(({ data }) => {
+    void browserClient.auth.getSession().then(({ data }) => {
       if (!active) return;
 
-      if (!data.user) {
+      if (!data.session?.user) {
         setAuthChecked(true);
         router.replace(`/auth?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
-      setAuthUser(data.user);
+      setAuthUser(data.session.user);
       setAuthChecked(true);
     });
 
@@ -264,6 +295,25 @@ export function EditorShell() {
       return;
     }
 
+    if (workspace.id.startsWith("local-")) {
+      setCommentsLoading(true);
+      setCommentsError(null);
+
+      try {
+        const raw = typeof window !== "undefined"
+          ? window.localStorage.getItem(`${LOCAL_COMMENTS_STORAGE_PREFIX}${workspace.id}`)
+          : null;
+        const parsed = raw ? (JSON.parse(raw) as WorkspaceComment[]) : [];
+        setComments(parsed);
+      } catch {
+        setCommentsError("Could not load local comments.");
+      } finally {
+        setCommentsLoading(false);
+      }
+
+      return;
+    }
+
     const client = browserClient;
     if (!client) return;
 
@@ -273,10 +323,14 @@ export function EditorShell() {
       setCommentsLoading(true);
       setCommentsError(null);
 
-      const nextComments = await loadWorkspaceComments(workspace.id);
+      const { comments: nextComments, error } = await loadWorkspaceComments(workspace.id);
       if (!active) return;
 
-      setComments(nextComments);
+      if (error) {
+        setCommentsError(error);
+      } else {
+        setComments(nextComments);
+      }
       setCommentsLoading(false);
     };
 
@@ -304,11 +358,38 @@ export function EditorShell() {
       return;
     }
 
+    setCommentsError(null);
+
     const metadata = authUser.user_metadata || {};
     const fullName = typeof metadata.full_name === "string" ? metadata.full_name : "";
     const authorName = fullName || authUser.email?.split("@")[0] || "User";
 
-    const createdComment = await createWorkspaceComment(
+    if (workspace.id.startsWith("local-")) {
+      const nextComment: WorkspaceComment = {
+        id: `local-comment-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        workspaceId: workspace.id,
+        authorId: authUser.id,
+        authorName,
+        authorEmail: authUser.email ?? null,
+        message: message.trim(),
+        targetElementId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        resolved: false,
+        resolvedAt: null,
+      };
+
+      setComments((previous) => {
+        const next = [...previous, nextComment];
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(`${LOCAL_COMMENTS_STORAGE_PREFIX}${workspace.id}`, JSON.stringify(next));
+        }
+        return next;
+      });
+      return;
+    }
+
+    const { comment: createdComment, error } = await createWorkspaceComment(
       workspace.id,
       {
         id: authUser.id,
@@ -319,9 +400,88 @@ export function EditorShell() {
       targetElementId
     );
 
+    if (error) {
+      setCommentsError(error);
+      return;
+    }
+
     if (createdComment) {
       setComments((previous) => [...previous, createdComment]);
     }
+  }
+
+  async function syncLocalWorkspaceToSupabase(): Promise<{ workspaceId: string | null; error: string | null }> {
+    if (!workspace?.id || !workspace.id.startsWith("local-") || !authUser || !browserClient) {
+      return { workspaceId: workspace?.id ?? null, error: null };
+    }
+
+    const localCommentsKey = `${LOCAL_COMMENTS_STORAGE_PREFIX}${workspace.id}`;
+    const localComments = typeof window !== "undefined"
+      ? (() => {
+          const raw = window.localStorage.getItem(localCommentsKey);
+          if (!raw) return [] as WorkspaceComment[];
+          try {
+            return JSON.parse(raw) as WorkspaceComment[];
+          } catch {
+            return [] as WorkspaceComment[];
+          }
+        })()
+      : [];
+
+    const response = await fetch("/api/workspaces/sync-local", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workspaceName,
+        elements: elements.map((element) => ({
+          id: element.id,
+          type: element.type,
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+          rotation: element.rotation,
+          text: element.text ?? null,
+          layerOrder: element.layerOrder,
+          visible: element.visible,
+          locked: element.locked,
+          style: element.style,
+        })),
+        comments: localComments,
+      }),
+    });
+
+    const payload = (await response.json()) as {
+      error?: string;
+      workspace?: { id: string; name: string; owner_id: string };
+    };
+
+    if (!response.ok || !payload.workspace) {
+      const errorMessage = payload.error || "Could not create cloud workspace.";
+      setCommentsError(errorMessage);
+      return { workspaceId: null, error: errorMessage };
+    }
+
+    const createdWorkspace = payload.workspace;
+
+    if (typeof window !== "undefined" && localComments.length) {
+      window.localStorage.removeItem(localCommentsKey);
+    }
+
+    useWorkspaceStore.getState().setWorkspace({
+      id: createdWorkspace.id,
+      name: createdWorkspace.name,
+      owner_id: createdWorkspace.owner_id,
+    });
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("workspaceId", createdWorkspace.id);
+    params.delete("projectId");
+    params.delete("id");
+    params.delete("workspace");
+    router.replace(`/workspace-editor?${params.toString()}`);
+
+    return { workspaceId: createdWorkspace.id, error: null };
   }
 
   useEffect(() => {
@@ -452,9 +612,41 @@ export function EditorShell() {
           }
 
           if (elementsPayload.length) {
-            const insertResult = await client.from("canvas_elements").insert(elementsPayload);
-            if (insertResult.error) {
-              throw insertResult.error;
+            let candidatePayload = elementsPayload as Record<string, unknown>[];
+            let inserted = false;
+
+            for (let attempt = 0; attempt < 8; attempt += 1) {
+              const insertResult = await client.from("canvas_elements").insert(candidatePayload);
+              if (!insertResult.error) {
+                inserted = true;
+                break;
+              }
+
+              if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
+                const hasInvalidId = candidatePayload.some(
+                  (row) => typeof row.id === "string" && !isUuidValue(row.id)
+                );
+                if (hasInvalidId) {
+                  candidatePayload = removeColumnFromRows(candidatePayload, "id");
+                  continue;
+                }
+              }
+
+              const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
+              if (!missingColumn) {
+                throw insertResult.error;
+              }
+
+              const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
+              if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
+                throw insertResult.error;
+              }
+
+              candidatePayload = nextPayload;
+            }
+
+            if (!inserted) {
+              throw new Error("Could not save workspace elements due to schema mismatch.");
             }
           }
 
@@ -586,21 +778,31 @@ export function EditorShell() {
 
           <div className="editor-topbar-right">
             <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-            {workspace?.owner_id === authUser.id ? (
-              <button
-                type="button"
-                className="toolbar-button editor-share-button"
-                onClick={() => setShareDialogOpen(true)}
-              >
-                <Share2 size={14} />
-                <span>Share</span>
-              </button>
-            ) : (
+            <button
+              type="button"
+              className="toolbar-button editor-share-button"
+              onClick={() => setShareDialogOpen(true)}
+              title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
+            >
+              <Share2 size={14} />
+              <span>Share</span>
+            </button>
+            {workspace?.owner_id !== authUser.id ? (
               <span className="toolbar-label editor-access-badge">
                 {accessLevel === "comment" ? "Can comment" : canEdit ? "Can edit" : "Read only"}
               </span>
-            )}
+            ) : null}
             <AutoSaveBadge status={saveStatus} />
+            <ProfileMenu
+              displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
+              email={authUser.email ?? null}
+              avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
+              onLogout={async () => {
+                if (!browserClient) return;
+                await browserClient.auth.signOut();
+                router.replace("/");
+              }}
+            />
           </div>
         </motion.header>
 
@@ -700,6 +902,7 @@ export function EditorShell() {
             workspaceId={workspace.id}
             workspaceName={workspaceName}
             open={shareDialogOpen}
+            onSyncLocalWorkspace={syncLocalWorkspaceToSupabase}
             onClose={() => setShareDialogOpen(false)}
           />
         ) : null}

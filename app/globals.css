@@ -673,6 +673,13 @@ button, input, textarea, select { font: inherit; }
   font-weight: 700;
 }
 
+.avatar-chip-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .avatar-count {
   font-size: 0.76rem;
   color: var(--muted);

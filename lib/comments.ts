@@ -54,20 +54,33 @@ function mapCommentRow(row: WorkspaceCommentRow): WorkspaceComment | null {
 	};
 }
 
-export async function loadWorkspaceComments(workspaceId: string): Promise<WorkspaceComment[]> {
+export async function loadWorkspaceComments(workspaceId: string): Promise<{ comments: WorkspaceComment[]; error: string | null }> {
 	const { data, error } = await supabase
 		.from("workspace_comments")
 		.select("id, workspace_id, author_id, author_name, author_email, message, target_element_id, created_at, updated_at, resolved, resolved_at")
 		.eq("workspace_id", workspaceId)
 		.order("created_at", { ascending: true });
 
-	if (error || !data) {
-		return [];
+	if (error) {
+		return {
+			comments: [],
+			error: error.message,
+		};
 	}
 
-	return (data as WorkspaceCommentRow[])
+	if (!data) {
+		return {
+			comments: [],
+			error: "No comment data returned.",
+		};
+	}
+
+	return {
+		comments: (data as WorkspaceCommentRow[])
 		.map(mapCommentRow)
-		.filter((comment): comment is WorkspaceComment => Boolean(comment));
+		.filter((comment): comment is WorkspaceComment => Boolean(comment)),
+		error: null,
+	};
 }
 
 export async function createWorkspaceComment(
@@ -75,7 +88,7 @@ export async function createWorkspaceComment(
 	author: CommentAuthor,
 	message: string,
 	targetElementId: string | null
-): Promise<WorkspaceComment | null> {
+): Promise<{ comment: WorkspaceComment | null; error: string | null }> {
 	const { data, error } = await supabase
 		.from("workspace_comments")
 		.insert({
@@ -91,8 +104,14 @@ export async function createWorkspaceComment(
 		.single();
 
 	if (error || !data) {
-		return null;
+		return {
+			comment: null,
+			error: error?.message ?? "Unable to create comment.",
+		};
 	}
 
-	return mapCommentRow(data as WorkspaceCommentRow);
+	return {
+		comment: mapCommentRow(data as WorkspaceCommentRow),
+		error: null,
+	};
 }

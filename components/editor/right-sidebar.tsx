@@ -138,9 +138,7 @@ export function RightSidebar({
   const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   useEffect(() => {
-    if (selectedElementId) {
-      setCommentTargetId((currentTarget) => currentTarget ?? selectedElementId);
-    }
+    setCommentTargetId(selectedElementId ?? null);
   }, [selectedElementId]);
 
   useEffect(() => {
@@ -156,6 +154,11 @@ export function RightSidebar({
 
     return elements.find((element) => element.id === commentTargetId)?.name ?? "Workspace";
   }, [commentTargetId, elements]);
+
+  const visibleComments = useMemo(
+    () => comments.filter((comment) => (comment.targetElementId ?? null) === (commentTargetId ?? null)),
+    [commentTargetId, comments]
+  );
 
   async function handleSubmitComment() {
     const message = commentDraft.trim();
@@ -437,7 +440,11 @@ export function RightSidebar({
             disabled={!workspaceId}
           >
             <option value="workspace">Workspace</option>
-            {selectedElement && <option value={selectedElement.id}>{selectedElement.name}</option>}
+            {elements.map((element) => (
+              <option key={element.id} value={element.id}>
+                {element.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -471,12 +478,12 @@ export function RightSidebar({
         </div>
 
         {commentsError ? (
-          <div className="comment-empty-state">Unable to load comments right now.</div>
+          <div className="comment-empty-state">{commentsError}</div>
         ) : commentsLoading ? (
           <div className="comment-empty-state">Loading comments...</div>
-        ) : comments.length > 0 ? (
+        ) : visibleComments.length > 0 ? (
           <div className="comment-list">
-            {comments.map((comment) => {
+            {visibleComments.map((comment) => {
               const targetLabel = comment.targetElementId
                 ? elements.find((element) => element.id === comment.targetElementId)?.name ?? "Element"
                 : "Workspace";
@@ -492,7 +499,7 @@ export function RightSidebar({
             })}
           </div>
         ) : (
-          <div className="comment-empty-state">No comments yet. Start the thread.</div>
+          <div className="comment-empty-state">No comments in this thread yet. Start the thread.</div>
         )}
       </div>
     </motion.aside>

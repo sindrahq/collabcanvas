@@ -55,8 +55,8 @@ export default function AuthPage() {
   useEffect(() => {
     if (!supabase) return;
 
-    void supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+    void supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
         router.replace(nextPath);
       }
     });
@@ -118,6 +118,7 @@ export default function AuthPage() {
           if (supabase) {
             await supabase.auth.setSession(signUpPayload.session);
           }
+          void router.prefetch(nextPath);
           router.replace(nextPath);
         } else if (signUpPayload.requiresEmailVerification) {
           setMessage("Sign up successful. Please verify your email to complete login.");
@@ -147,6 +148,7 @@ export default function AuthPage() {
           if (supabase && loginPayload.session) {
             await supabase.auth.setSession(loginPayload.session);
           }
+          void router.prefetch(nextPath);
           router.replace(nextPath);
         }
       }

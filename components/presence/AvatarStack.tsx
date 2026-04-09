@@ -19,6 +19,7 @@ export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 					const rawName = typeof presence.name === "string" ? presence.name.trim() : "";
 					const displayName = rawName || "Guest";
 					const initial = displayName.slice(0, 1).toUpperCase();
+					const avatarUrl = typeof presence.avatarUrl === "string" ? presence.avatarUrl.trim() : "";
 
 					return (
 						<div
@@ -27,7 +28,11 @@ export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 							style={{ background: presence.color || "#8b7355" }}
 							title={displayName}
 						>
-							{initial}
+							{avatarUrl ? (
+								<img src={avatarUrl} alt={displayName} className="avatar-chip-image" />
+							) : (
+								initial
+							)}
 						</div>
 					);
 				})}

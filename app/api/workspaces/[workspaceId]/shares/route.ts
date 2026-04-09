@@ -22,6 +22,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
 
   const { workspaceId } = await context.params;
 
+  if (workspaceId.startsWith("local-")) {
+    return NextResponse.json(
+      { error: "This workspace is local-only and cannot be shared until it is synced to Supabase." },
+      { status: 400 }
+    );
+  }
+
   let body: ShareRequestBody;
   try {
     body = (await request.json()) as ShareRequestBody;
@@ -55,10 +62,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     .from("workspaces")
     .select("id, owner_id, name")
     .eq("id", workspaceId)
-    .single();
+    .maybeSingle();
 
-  if (workspaceError || !workspace) {
-    return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
+  if (workspaceError) {
+    return NextResponse.json({ error: workspaceError.message }, { status: 400 });
+  }
+
+  if (!workspace) {
+    return NextResponse.json(
+      { error: "Workspace not found, or you do not have access to share it." },
+      { status: 404 }
+    );
   }
 
   if (workspace.owner_id !== userData.user.id) {
