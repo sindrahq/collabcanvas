@@ -76,6 +76,8 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
         sharedWithEmail?: string;
         shareLink?: string;
         accessLevel?: WorkspaceAccessLevel;
+        emailSent?: boolean;
+        emailWarning?: string;
       };
 
       if (!response.ok) {
@@ -85,9 +87,25 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
 
       if (payload.shareLink) {
         setShareLink(payload.shareLink);
-        setMessage(`Share link created for ${workspaceName}.`);
+        const emailStatus =
+          typeof payload.emailSent === "boolean" && !payload.emailSent
+            ? payload.emailWarning || "Invite saved, but email could not be sent."
+            : "";
+        setMessage(
+          emailStatus
+            ? `Share saved for ${workspaceName}. ${emailStatus}`
+            : `Share saved for ${workspaceName}.`
+        );
       } else if (payload.sharedWithEmail) {
-        setMessage(`Shared with ${payload.sharedWithEmail}.`);
+        const emailStatus =
+          typeof payload.emailSent === "boolean" && !payload.emailSent
+            ? payload.emailWarning || "Invite saved, but email could not be sent."
+            : "";
+        setMessage(
+          emailStatus
+            ? `Shared with ${payload.sharedWithEmail}. ${emailStatus}`
+            : `Shared with ${payload.sharedWithEmail}.`
+        );
         setEmail("");
       }
     } catch (submitError) {

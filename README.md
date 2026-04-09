@@ -15,15 +15,19 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+RESEND_API_KEY=your-resend-api-key
+RESEND_FROM_EMAIL=your-verified-sender@yourdomain.com
 ```
 
-3. Start the development server:
+3. To enable workspace email invites, create a Resend account, verify a sender address, and set the two email variables above.
+
+4. Start the development server:
 
 ```bash
 npm run dev
 ```
 
-4. Open `http://localhost:3000`.
+5. Open `http://localhost:3000`.
 
 ## Included Modules
 
