@@ -4,7 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
+import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { supabase } from "@/lib/supabaseClient";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getDisplayNameFromMetadata } from "@/lib/profile";
 import "../globals.css";
 
 type ProjectRow = {
@@ -367,6 +370,10 @@ export default function ProjectsDashboard() {
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [previewMap, setPreviewMap] = useState<Record<string, CanvasPreviewElement[]>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
@@ -380,15 +387,69 @@ export default function ProjectsDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
 
   useEffect(() => {
-    setCurrentUserId(getLocalOwnerId());
-    setTrashEntries(loadTrashEntries());
-  }, []);
+    if (!browserClient) {
+      setErrorMessage("Authentication is unavailable. Missing Supabase environment variables.");
+      setLoadingProjects(false);
+      return;
+    }
+
+    let active = true;
+
+    void browserClient.auth.getSession().then(({ data }) => {
+      if (!active) return;
+
+      if (!data.session?.user) {
+        router.replace("/auth?next=%2Fprojects");
+        return;
+      }
+
+      const user = data.session.user;
+      const metadata = user.user_metadata || {};
+
+      setCurrentUserId(user.id);
+      setCurrentUserEmail(user.email?.trim().toLowerCase() ?? null);
+      setCurrentUserDisplayName(getDisplayNameFromMetadata(metadata, user.email));
+      setCurrentUserAvatarUrl(typeof metadata.avatar_url === "string" ? metadata.avatar_url : null);
+      setTrashEntries(loadTrashEntries());
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = browserClient.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+
+      if (!session?.user) {
+        setCurrentUserId(null);
+        setCurrentUserEmail(null);
+        setCurrentUserDisplayName(null);
+        setCurrentUserAvatarUrl(null);
+        setAuthReady(false);
+        router.replace("/auth?next=%2Fprojects");
+        return;
+      }
+
+      const metadata = session.user.user_metadata || {};
+
+      setCurrentUserId(session.user.id);
+      setCurrentUserEmail(session.user.email?.trim().toLowerCase() ?? null);
+      setCurrentUserDisplayName(getDisplayNameFromMetadata(metadata, session.user.email));
+      setCurrentUserAvatarUrl(typeof metadata.avatar_url === "string" ? metadata.avatar_url : null);
+      setAuthReady(true);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   useEffect(() => {
     async function fetchProjects() {
-      if (!currentUserId) return;
+      if (!authReady || !currentUserId) return;
 
       setLoadingProjects(true);
       setErrorMessage(null);
@@ -417,17 +478,33 @@ export default function ProjectsDashboard() {
 
       // Shared-with-me fetch: fallback to local storage if sharing table is unavailable.
       let sharedRows: ProjectRow[] = [];
-      const { data: shareData, error: shareError } = await supabase
+      const sharedIds = new Set<string>();
+
+      const { data: idShareData, error: idShareError } = await supabase
         .from("workspace_shares")
         .select("workspace_id")
         .eq("shared_with_id", currentUserId);
 
-      if (!shareError && shareData?.length) {
-        const sharedIds = shareData.map((row: { workspace_id: string }) => row.workspace_id);
+      if (!idShareError && idShareData?.length) {
+        idShareData.forEach((row: { workspace_id: string }) => sharedIds.add(row.workspace_id));
+      }
+
+      if (currentUserEmail) {
+        const { data: emailShareData, error: emailShareError } = await supabase
+          .from("workspace_shares")
+          .select("workspace_id")
+          .eq("shared_with_email", currentUserEmail);
+
+        if (!emailShareError && emailShareData?.length) {
+          emailShareData.forEach((row: { workspace_id: string }) => sharedIds.add(row.workspace_id));
+        }
+      }
+
+      if (sharedIds.size) {
         const { data: sharedWorkspaceData, error: sharedWorkspaceError } = await supabase
           .from("workspaces")
           .select("*")
-          .in("id", sharedIds)
+          .in("id", [...sharedIds])
           .order("updated_at", { ascending: false });
 
         if (!sharedWorkspaceError) {
@@ -528,7 +605,7 @@ export default function ProjectsDashboard() {
     }
 
     fetchProjects();
-  }, [currentUserId]);
+  }, [authReady, currentUserEmail, currentUserId]);
 
   const visibleProjects = useMemo(() => {
     const trashedIds = new Set(trashEntries.map((entry) => entry.id));
@@ -573,6 +650,14 @@ export default function ProjectsDashboard() {
   }, [visibleProjects, searchQuery, dateFilter, sortBy]);
 
   const currentCopy = SECTION_COPY[activeSection];
+
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FAF9F6] text-sm text-[#645C52]">
+        Checking authentication...
+      </div>
+    );
+  }
 
   async function handleCreateProject() {
     if (!currentUserId) {
@@ -879,9 +964,16 @@ export default function ProjectsDashboard() {
             />
           </div>
         </div>
-        <button className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] hover:bg-[#ede6db]" aria-label="Account" type="button">
-          <img src="/account.png" alt="Account" className="h-5 w-5 object-contain" />
-        </button>
+        <ProfileMenu
+          displayName={currentUserDisplayName}
+          email={currentUserEmail}
+          avatarUrl={currentUserAvatarUrl}
+          onLogout={async () => {
+            if (!browserClient) return;
+            await browserClient.auth.signOut();
+            router.replace("/");
+          }}
+        />
       </nav>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Sidebar */}

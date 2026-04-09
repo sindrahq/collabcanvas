@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function EditorRedirectPage() {
-  redirect("/workspace-editor");
+  redirect("/projects");
 }

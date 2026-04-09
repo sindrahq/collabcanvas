@@ -6,6 +6,7 @@ import { persist } from "zustand/middleware";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type WorkspaceMeta = { id: string; name: string; owner_id: string };
+export type WorkspaceAccessLevel = "view" | "comment" | "edit";
 
 export type CanvasElementType =
   | "rectangle" | "circle" | "text"
@@ -50,6 +51,8 @@ export type CanvasElement = {
 type WorkspaceState = {
   workspace: WorkspaceMeta | null;
   workspaceName: string;
+  accessLevel: WorkspaceAccessLevel;
+  canEdit: boolean;
   selectedElementId: string | null;
   elements: CanvasElement[];
   elementList: CanvasElement[];
@@ -60,6 +63,7 @@ type WorkspaceState = {
   selectElement: (elementId: string | null) => void;
   setSelectedElementId: (elementId: string | null) => void;
   setWorkspace: (workspace: WorkspaceMeta | null) => void;
+  setWorkspaceAccess: (accessLevel: WorkspaceAccessLevel) => void;
   setElements: (elements: CanvasElement[]) => void;
   setLoading: (loading: boolean) => void;
   clear: () => void;
@@ -210,6 +214,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     (set, get) => ({
       workspace: null,
       workspaceName: "My Workspace",
+      accessLevel: "edit",
+      canEdit: true,
       selectedElementId: starterElements[2]?.id ?? null,
       elements: starterElements,
       elementList: starterElements,
@@ -224,6 +230,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       setWorkspace: (workspace) =>
         set({ workspace, workspaceName: workspace?.name ?? get().workspaceName }),
 
+      setWorkspaceAccess: (accessLevel) =>
+        set({ accessLevel, canEdit: accessLevel === "edit" }),
+
       setElements: (elements) =>
         set((state) => {
           const next = normalizeElements(elements);
@@ -237,6 +246,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       clear: () =>
         set({
           workspace: null, workspaceName: "My Workspace",
+          accessLevel: "edit", canEdit: true,
           elements: [], elementList: [], selectedElementId: null,
           loading: false, history: [], historyIndex: -1,
         }),
