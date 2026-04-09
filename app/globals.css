@@ -283,6 +283,38 @@ button, input, textarea, select { font: inherit; }
 
 .toolbar-group { display: flex; align-items: center; gap: 6px; }
 .toolbar-divider { width: 1px; height: 24px; background: var(--line-strong); margin: 0 4px; }
+.toolbar-menu { position: relative; }
+.toolbar-menu-chevron { transition: transform var(--transition); }
+.toolbar-menu-chevron.open { transform: rotate(180deg); }
+.toolbar-menu-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 150px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 170, 255, 0.16);
+  background: #101c33;
+  box-shadow: 0 16px 40px rgba(1, 6, 18, 0.52);
+  z-index: 40;
+}
+.toolbar-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #f3f4f6;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.toolbar-menu-item:hover {
+  background: rgba(79, 140, 255, 0.14);
+}
 
 .toolbar-label {
   font-size: 0.7rem;
@@ -316,6 +348,7 @@ button, input, textarea, select { font: inherit; }
   box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.14);
   transform: translateY(-1px);
 }
+.toolbar-button-compact { padding: 8px 12px; }
 
 .toolbar-button:disabled { opacity: 0.38; cursor: not-allowed; }
 
@@ -354,6 +387,19 @@ button, input, textarea, select { font: inherit; }
   background: var(--accent-soft);
   border-color: var(--accent-soft-2);
   color: var(--accent);
+}
+.toolbar-shape-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(125, 170, 255, 0.12);
+  background: #162743;
+  color: #f3f4f6;
+}
+.toolbar-shape-btn:hover:not(:disabled) {
+  background: #1b3154;
+  border-color: rgba(125, 170, 255, 0.28);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.14);
 }
 
 .toolbar-icon-btn:disabled { opacity: 0.32; cursor: not-allowed; }
@@ -471,40 +517,43 @@ button, input, textarea, select { font: inherit; }
 
 /* ─── Canvas ─── */
 .canvas-stage-shell {
-  padding: 16px;
+  padding: 14px;
   min-height: 580px;
   border-radius: var(--radius-xl);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-lg);
-  background: var(--surface);
+  border: 1px solid rgba(125, 170, 255, 0.12);
+  box-shadow: none;
+  background: linear-gradient(180deg, #0f1930 0%, #0d172c 100%);
+  overflow: hidden;
 }
 
-.canvas-header {
+.canvas-toolbar-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   margin-bottom: 14px;
+  gap: 12px;
 }
+.canvas-toolbar-copy { display: grid; gap: 4px; }
+.canvas-toolbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .canvas-title {
   margin: 0;
   font-family: var(--display-font);
   font-size: 1.35rem;
   letter-spacing: -0.02em;
+  color: #f9fafb;
 }
 
 .canvas-badge {
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: #f9fafb;
+  border: 1px solid rgba(125, 170, 255, 0.14);
+  background: rgba(79, 140, 255, 0.08);
   text-align: center;
 }
 
-.canvas-badge strong { display: block; font-size: 1.4rem; line-height: 1; }
-.canvas-badge span { color: var(--muted); font-size: 0.75rem; }
-
-.canvas-header-right { display: flex; align-items: center; gap: 10px; }
+.canvas-badge strong { display: block; font-size: 1.4rem; line-height: 1; color: #f9fafb; }
+.canvas-badge span { color: #9fb0d1; font-size: 0.75rem; }
 
 .zoom-controls {
   display: flex;
@@ -512,8 +561,8 @@ button, input, textarea, select { font: inherit; }
   gap: 2px;
   padding: 4px 6px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(125, 170, 255, 0.14);
+  background: #162743;
 }
 
 .zoom-btn {
@@ -525,12 +574,12 @@ button, input, textarea, select { font: inherit; }
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: #9fb0d1;
   cursor: pointer;
   transition: background var(--transition), color var(--transition);
 }
 
-.zoom-btn:hover:not(:disabled) { background: rgba(20, 32, 28, 0.07); color: var(--ink); }
+.zoom-btn:hover:not(:disabled) { background: rgba(79, 140, 255, 0.14); color: #f9fafb; }
 .zoom-btn:disabled { opacity: 0.32; cursor: not-allowed; }
 
 .zoom-level {
@@ -538,7 +587,7 @@ button, input, textarea, select { font: inherit; }
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--ink);
+  color: #f9fafb;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -548,32 +597,23 @@ button, input, textarea, select { font: inherit; }
   text-align: center;
 }
 
-.zoom-level:hover { background: rgba(20, 32, 28, 0.06); }
+.zoom-level:hover { background: rgba(79, 140, 255, 0.14); }
 
 .canvas-viewport {
   display: grid;
   place-items: center;
   width: 100%;
   min-height: 480px;
-  padding: 12px;
-  overflow: auto;
+  padding: 10px;
+  overflow: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
-  animation: canvas-border-glow 5s ease-in-out infinite;
+  border: 1px solid rgba(125, 170, 255, 0.12);
+  background: linear-gradient(180deg, #091220 0%, #0b1426 100%);
   position: relative;
 }
-
-.canvas-viewport::before {
-  content: "";
-  position: absolute;
-  top: 8px; left: 8px; right: 8px; bottom: 8px;
-  border-radius: calc(var(--radius-lg) - 4px);
-  border: 1px solid rgba(17, 24, 39, 0.04);
-  pointer-events: none;
-}
-
-.konva-shell { width: 100%; max-width: 940px; }
+.konva-shell { width: fit-content; max-width: none; }
 
 .canvas-instructions {
   display: flex;
@@ -581,7 +621,7 @@ button, input, textarea, select { font: inherit; }
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
-  color: var(--muted);
+  color: #9fb0d1;
   font-size: 0.82rem;
 }
 
@@ -594,12 +634,10 @@ button, input, textarea, select { font: inherit; }
 }
 
 .konva-frame {
-  width: 100%;
-  max-width: 940px;
+  width: fit-content;
+  max-width: none;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(20, 32, 28, 0.1);
-  background: #fffdf8;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow-md);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -1216,12 +1254,49 @@ button, input, textarea, select { font: inherit; }
   .editor-column-right { grid-column: 1 / -1; }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 860px) {
+  .editor-shell { padding: 12px; }
+  .editor-grid { display: none; }
+  .editor-mobile-layout { display: block; }
+  .toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 12px;
+  }
+  .toolbar-group { flex-shrink: 0; }
+  .canvas-stage-shell { padding: 12px; min-height: 460px; }
+  .canvas-viewport { min-height: 360px; padding: 8px; }
+  .history-panel, .layers-panel, .inspector-panel { padding: 12px; }
+  .canvas-instructions { display: none; }
+}
+
+@media (max-width: 600px) {
   .editor-page { padding: 10px; }
   .editor-shell { padding: 12px; border-radius: 22px; }
   .editor-grid { display: none; }
   .editor-mobile-layout { display: block; }
   .editor-topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .canvas-header { flex-direction: column; align-items: flex-start; }
-  .konva-frame, .konva-shell { width: 100% !important; }
+  .editor-topbar-right { width: 100%; justify-content: space-between; }
+  .avatar-stack-wrap { max-width: calc(100vw - 64px); overflow-x: auto; }
+  .canvas-toolbar-row { flex-direction: column; align-items: flex-start; }
+  .canvas-toolbar-actions { width: 100%; justify-content: space-between; }
+  .zoom-controls { width: 100%; justify-content: center; }
+  .canvas-badge { width: 100%; }
+  .canvas-stage-shell { min-height: 0; }
+  .canvas-viewport {
+    min-height: 240px;
+    padding: 6px;
+    place-items: start;
+    align-items: start;
+    justify-items: start;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pan-x;
+  }
+  .konva-frame { width: fit-content !important; max-width: none !important; }
+  .konva-shell { width: fit-content !important; max-width: none !important; }
+  .canvas-instructions { font-size: 0.76rem; }
 }

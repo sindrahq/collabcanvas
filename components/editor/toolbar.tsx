@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
-  Bold, Circle, Copy, Italic, Minus, Redo2,
-  RectangleHorizontal, Star, Trash2, Triangle, Type, Undo2, Baseline, Download, Sparkles,
+  Baseline, Bold, ChevronDown, Circle, Copy, Download,
+  Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
+  Star, Trash2, Triangle, Type, Undo2,
 } from "lucide-react";
 import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
@@ -50,6 +52,19 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
   const isText = selectedElement?.type === "text";
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!exportMenuRef.current?.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
 
   function toggleStyle<K extends "fontWeight" | "fontStyle">(
     field: K,
@@ -153,7 +168,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
           return (
             <motion.button
               key={item.label}
-              type="button" className="toolbar-button"
+              type="button" className="toolbar-icon-btn toolbar-shape-btn"
               onClick={() => addElement(item.action)}
               disabled={!canEdit}
               title={`Add ${item.label}`}
@@ -164,7 +179,6 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               whileTap={{ scale: 0.96 }}
             >
               <Icon size={14} />
-              <span>{item.label}</span>
             </motion.button>
           );
         })}
@@ -174,39 +188,63 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
 
       <div className="toolbar-group">
         <span className="toolbar-label">Export</span>
-        <motion.button
-          type="button"
-          className="toolbar-button"
-          onClick={() => { void exportWorkspaceAsPng(`${fileBase}.png`); }}
-          title="Export PNG"
-          whileHover={{ y: -2, scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <Download size={14} />
-          <span>PNG</span>
-        </motion.button>
-        <motion.button
-          type="button"
-          className="toolbar-button"
-          onClick={() => { void exportWorkspaceAsJpeg(`${fileBase}.jpeg`); }}
-          title="Export JPEG"
-          whileHover={{ y: -2, scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <Download size={14} />
-          <span>JPEG</span>
-        </motion.button>
-        <motion.button
-          type="button"
-          className="toolbar-button"
-          onClick={() => { void exportWorkspaceAsPdf(`${fileBase}.pdf`); }}
-          title="Export PDF"
-          whileHover={{ y: -2, scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <Download size={14} />
-          <span>PDF</span>
-        </motion.button>
+        <div className="toolbar-menu" ref={exportMenuRef}>
+          <motion.button
+            type="button"
+            className="toolbar-button toolbar-button-compact"
+            onClick={() => setExportMenuOpen((open) => !open)}
+            title="Export workspace"
+            whileHover={{ y: -2, scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            <Download size={14} />
+            <span>Export</span>
+            <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+          </motion.button>
+
+          <AnimatePresence>
+            {exportMenuOpen ? (
+              <motion.div
+                className="toolbar-menu-list"
+                initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                transition={{ duration: 0.16 }}
+              >
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsPng(`${fileBase}.png`);
+                  }}
+                >
+                  PNG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                  }}
+                >
+                  JPEG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                  }}
+                >
+                  PDF
+                </button>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Text formatting context bar */}
@@ -297,33 +335,40 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
       </AnimatePresence>
 
       {/* Edit actions */}
-      {selectedElementId && (
-        <>
-          <div className="toolbar-divider" />
-          <div className="toolbar-group">
+      <AnimatePresence>
+        {selectedElementId ? (
+          <motion.div
+            className="toolbar-group"
+            initial={{ opacity: 0, scaleX: 0.85 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            exit={{ opacity: 0, scaleX: 0.85 }}
+            transition={{ duration: 0.18 }}
+            style={{ transformOrigin: "left" }}
+          >
+            <div className="toolbar-divider" />
             <span className="toolbar-label">Edit</span>
             <motion.button
-              type="button" className="toolbar-button"
+              type="button" className="toolbar-button toolbar-button-compact"
               onClick={apply3DToSelected}
               disabled={!canEdit}
               title="Apply 3D to selected element"
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
             >
               <Sparkles size={14} />
-              <span>Apply 3D</span>
+              <span>3D</span>
             </motion.button>
             <motion.button
-              type="button" className="toolbar-button"
+              type="button" className="toolbar-button toolbar-button-compact"
               onClick={remove3DFromSelected}
               disabled={!canEdit}
               title="Remove 3D from selected element"
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
             >
               <Type size={14} />
-              <span>Remove 3D</span>
+              <span>Reset</span>
             </motion.button>
             <motion.button
-              type="button" className="toolbar-button"
+              type="button" className="toolbar-button toolbar-button-compact"
               onClick={duplicateSelectedElement} title="Duplicate (Ctrl+D)"
               disabled={!canEdit}
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
@@ -332,7 +377,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               <span>Duplicate</span>
             </motion.button>
             <motion.button
-              type="button" className="toolbar-button toolbar-button-danger"
+              type="button" className="toolbar-button toolbar-button-danger toolbar-button-compact"
               onClick={deleteSelectedElement} title="Delete (Del)"
               disabled={!canEdit}
               whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
@@ -340,9 +385,9 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
               <Trash2 size={14} />
               <span>Delete</span>
             </motion.button>
-          </div>
-        </>
-      )}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   );
 }

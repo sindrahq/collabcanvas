@@ -1107,6 +1107,11 @@ export function LandingHero() {
             font-size: 22px;
           }
         }
+
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(15px, -15px); }
+        }
       `}</style>
     </main>
   );
