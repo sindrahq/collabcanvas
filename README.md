@@ -15,11 +15,10 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-RESEND_API_KEY=your-resend-api-key
-RESEND_FROM_EMAIL=your-verified-sender@yourdomain.com
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-3. To enable workspace email invites, create a Resend account, verify a sender address, and set the two email variables above.
+3. Run `docs/SUPABASE_USERNAMES_SETUP.sql` in Supabase SQL Editor to enable username-based workspace invites and mandatory username signup.
 
 4. Start the development server:
 

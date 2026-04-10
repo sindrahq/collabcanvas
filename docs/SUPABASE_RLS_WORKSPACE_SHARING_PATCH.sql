@@ -203,14 +203,20 @@ using (
     select 1
     from public.workspaces w
     where w.id = workspace_comments.workspace_id
-      and w.owner_id = auth.uid()
+      and w.owner_id::text = auth.uid()::text
   )
   or exists (
     select 1
     from public.workspace_shares s
     where s.workspace_id = workspace_comments.workspace_id
-      and s.shared_with_id = auth.uid()
       and s.active = true
+      and (
+        s.shared_with_id::text = auth.uid()::text
+        or (
+          s.shared_with_email is not null
+          and lower(s.shared_with_email) = lower(coalesce(auth.jwt() ->> 'email', auth.email(), ''))
+        )
+      )
   )
 );
 
@@ -219,19 +225,28 @@ on public.workspace_comments
 for insert
 to authenticated
 with check (
+  author_id::text = auth.uid()::text
+  and (
   exists (
     select 1
     from public.workspaces w
     where w.id = workspace_comments.workspace_id
-      and w.owner_id = auth.uid()
+      and w.owner_id::text = auth.uid()::text
   )
   or exists (
     select 1
     from public.workspace_shares s
     where s.workspace_id = workspace_comments.workspace_id
-      and s.shared_with_id = auth.uid()
       and s.active = true
       and s.access_level in ('comment', 'edit')
+      and (
+        s.shared_with_id::text = auth.uid()::text
+        or (
+          s.shared_with_email is not null
+          and lower(s.shared_with_email) = lower(coalesce(auth.jwt() ->> 'email', auth.email(), ''))
+        )
+      )
+  )
   )
 );
 
@@ -240,20 +255,20 @@ on public.workspace_comments
 for update
 to authenticated
 using (
-  author_id = auth.uid()
+  author_id::text = auth.uid()::text
   or exists (
     select 1
     from public.workspaces w
     where w.id = workspace_comments.workspace_id
-      and w.owner_id = auth.uid()
+      and w.owner_id::text = auth.uid()::text
   )
 )
 with check (
-  author_id = auth.uid()
+  author_id::text = auth.uid()::text
   or exists (
     select 1
     from public.workspaces w
     where w.id = workspace_comments.workspace_id
-      and w.owner_id = auth.uid()
+      and w.owner_id::text = auth.uid()::text
   )
 );

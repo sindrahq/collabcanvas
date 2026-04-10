@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Link2, Mail, X } from "lucide-react";
+import { AtSign, Copy, X } from "lucide-react";
 import { type WorkspaceAccessLevel } from "@/store/workspaceStore";
 
 type ShareDialogProps = {
@@ -13,23 +13,27 @@ type ShareDialogProps = {
 };
 
 export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncLocalWorkspace }: ShareDialogProps) {
-  const [mode, setMode] = useState<"email" | "link">("email");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"username" | "link">("username");
+  const [username, setUsername] = useState("");
   const [accessLevel, setAccessLevel] = useState<WorkspaceAccessLevel>("view");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [shareLink, setShareLink] = useState("");
+  const [syncedWorkspaceId, setSyncedWorkspaceId] = useState<string | null>(null);
+  const [linkCache, setLinkCache] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) {
-      setEmail("");
+      setUsername("");
       setAccessLevel("view");
       setLoading(false);
       setError("");
       setMessage("");
       setShareLink("");
-      setMode("email");
+      setSyncedWorkspaceId(null);
+      setLinkCache({});
+      setMode("username");
     }
   }, [open]);
 
@@ -37,9 +41,9 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
     setError("");
     setMessage("");
 
-    let targetWorkspaceId = workspaceId;
+    let targetWorkspaceId = syncedWorkspaceId ?? workspaceId;
 
-    if (workspaceId.startsWith("local-")) {
+    if (targetWorkspaceId.startsWith("local-")) {
       if (!onSyncLocalWorkspace) {
         setError("This workspace is local-only. Save it to Supabase first to generate share links.");
         return;
@@ -55,7 +59,15 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
       }
 
       targetWorkspaceId = syncResult.workspaceId;
+      setSyncedWorkspaceId(syncResult.workspaceId);
       setMessage("Workspace synced. You can now generate share links.");
+    }
+
+    const linkCacheKey = `${targetWorkspaceId}:${accessLevel}`;
+    if (mode === "link" && linkCache[linkCacheKey]) {
+      setShareLink(linkCache[linkCacheKey]);
+      setMessage("Share link ready.");
+      return;
     }
 
     setLoading(true);
@@ -66,18 +78,16 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode,
-          email,
+          username,
           accessLevel,
         }),
       });
 
       const payload = (await response.json()) as {
         error?: string;
-        sharedWithEmail?: string;
+        sharedWithUsername?: string;
         shareLink?: string;
         accessLevel?: WorkspaceAccessLevel;
-        emailSent?: boolean;
-        emailWarning?: string;
       };
 
       if (!response.ok) {
@@ -86,27 +96,16 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
       }
 
       if (payload.shareLink) {
-        setShareLink(payload.shareLink);
-        const emailStatus =
-          typeof payload.emailSent === "boolean" && !payload.emailSent
-            ? payload.emailWarning || "Invite saved, but email could not be sent."
-            : "";
-        setMessage(
-          emailStatus
-            ? `Share saved for ${workspaceName}. ${emailStatus}`
-            : `Share saved for ${workspaceName}.`
-        );
-      } else if (payload.sharedWithEmail) {
-        const emailStatus =
-          typeof payload.emailSent === "boolean" && !payload.emailSent
-            ? payload.emailWarning || "Invite saved, but email could not be sent."
-            : "";
-        setMessage(
-          emailStatus
-            ? `Shared with ${payload.sharedWithEmail}. ${emailStatus}`
-            : `Shared with ${payload.sharedWithEmail}.`
-        );
-        setEmail("");
+        const nextShareLink = payload.shareLink;
+        setShareLink(nextShareLink);
+        setLinkCache((previous) => ({
+          ...previous,
+          [linkCacheKey]: nextShareLink,
+        }));
+        setMessage(`Share link created for ${workspaceName}.`);
+      } else if (payload.sharedWithUsername) {
+        setMessage(`Shared with @${payload.sharedWithUsername}.`);
+        setUsername("");
       }
     } catch (submitError) {
       const messageText = submitError instanceof Error ? submitError.message : "Unknown error";
@@ -139,7 +138,7 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
 
         <div className="px-5 py-4">
           <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-[#f2ede6] p-1">
-            <button type="button" className={`rounded-lg px-3 py-2 text-sm font-medium transition ${mode === "email" ? "bg-[#1a1a1a] text-white" : "text-[#5f584e]"}`} onClick={() => setMode("email")}>Invite by email</button>
+            <button type="button" className={`rounded-lg px-3 py-2 text-sm font-medium transition ${mode === "username" ? "bg-[#1a1a1a] text-white" : "text-[#5f584e]"}`} onClick={() => setMode("username")}>Invite by username</button>
             <button type="button" className={`rounded-lg px-3 py-2 text-sm font-medium transition ${mode === "link" ? "bg-[#1a1a1a] text-white" : "text-[#5f584e]"}`} onClick={() => setMode("link")}>Share link</button>
           </div>
 
@@ -159,24 +158,24 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
             </div>
           </div>
 
-          {mode === "email" ? (
+          {mode === "username" ? (
             <div className="space-y-3">
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[#6a6257]">Recipient email</label>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[#6a6257]">Recipient username</label>
                 <div className="relative">
-                  <Mail size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8b7355]" />
+                  <AtSign size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8b7355]" />
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="name@example.com"
+                    type="text"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="username"
                     className="w-full rounded-xl border border-[#ddd4c9] bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#8b7355]"
                   />
                 </div>
               </div>
 
               <button type="button" onClick={() => void handleCreateShare()} disabled={loading} className="w-full rounded-xl bg-[#1a1a1a] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2c2c2c] disabled:opacity-70">
-                {loading ? "Sharing..." : "Send invite"}
+                {loading ? "Sharing..." : "Share with username"}
               </button>
             </div>
           ) : (
@@ -204,8 +203,8 @@ export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncL
           {!error && message ? <p className="mt-3 text-sm text-[#2f6f4f]">{message}</p> : null}
 
           <p className="mt-4 text-xs leading-6 text-[#6a6257]">
-            {mode === "email"
-              ? "The invited user will see this workspace in Shared with me after signing in with the invited email."
+            {mode === "username"
+              ? "The invited user will see this workspace in Shared with me after signing in with that username account."
               : "The share link opens the workspace after sign-in and carries the selected access level."}
           </p>
         </div>

@@ -15,6 +15,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -74,8 +75,17 @@ export default function AuthPage() {
 
     if (mode === "signup") {
       const passwordCheck = validatePassword(password);
+      const normalizedUsername = username.trim().replace(/^@+/, "").toLowerCase();
       if (!firstName.trim() || !lastName.trim()) {
         setError("Please enter both first name and last name.");
+        return;
+      }
+      if (!normalizedUsername) {
+        setError("Please choose a username.");
+        return;
+      }
+      if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
+        setError("Username must be 3-30 chars and only contain letters, numbers, or underscores.");
         return;
       }
       if (password !== confirmPassword) {
@@ -101,6 +111,7 @@ export default function AuthPage() {
           body: JSON.stringify({
             firstName,
             lastName,
+            username: username.trim().replace(/^@+/, "").toLowerCase(),
             email,
             password,
           }),
@@ -217,6 +228,18 @@ export default function AuthPage() {
                   className="w-full rounded-lg border border-[#ddd4c9] px-3 py-2 text-sm outline-none focus:border-[#8b7355]"
                 />
               </div>
+            ) : null}
+
+            {mode === "signup" ? (
+              <input
+                type="text"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="Username"
+                autoComplete="username"
+                required
+                className="w-full rounded-lg border border-[#ddd4c9] px-3 py-2 text-sm outline-none focus:border-[#8b7355]"
+              />
             ) : null}
 
             <input

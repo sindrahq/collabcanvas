@@ -228,13 +228,72 @@ export default function ProfilePage() {
       return;
     }
 
+    if (!userId) {
+      setError("You must be signed in to update your profile.");
+      setSaving(false);
+      return;
+    }
+
+    const normalizedUsername = profile.username.trim().toLowerCase();
+    if (normalizedUsername && !/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
+      setError("Username must be 3-30 chars and only contain letters, numbers, or underscores.");
+      setSaving(false);
+      return;
+    }
+
+    if (normalizedUsername) {
+      const { error: usernameDirectoryError } = await supabase.from("user_profiles").upsert(
+        {
+          user_id: userId,
+          username: normalizedUsername,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+
+      if (usernameDirectoryError) {
+        if (usernameDirectoryError.code === "23505") {
+          setError("That username is already taken. Please choose another username.");
+          setSaving(false);
+          return;
+        }
+
+        if (usernameDirectoryError.message.includes("Could not find the table 'public.user_profiles'")) {
+          setError("Username directory is missing. Run docs/SUPABASE_USERNAMES_SETUP.sql in Supabase SQL Editor.");
+          setSaving(false);
+          return;
+        }
+
+        setError(usernameDirectoryError.message);
+        setSaving(false);
+        return;
+      }
+    } else {
+      const { error: removeUsernameError } = await supabase
+        .from("user_profiles")
+        .delete()
+        .eq("user_id", userId);
+
+      if (removeUsernameError && !removeUsernameError.message.includes("Could not find the table 'public.user_profiles'")) {
+        setError(removeUsernameError.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    const nextProfile = {
+      ...profile,
+      username: normalizedUsername,
+    };
+
     const { error: updateError } = await supabase.auth.updateUser({
-      data: buildProfileMetadata(profile),
+      data: buildProfileMetadata(nextProfile),
     });
 
     if (updateError) {
       setError(updateError.message);
     } else {
+      setProfile(nextProfile);
       setMessage("Profile updated successfully.");
     }
 
