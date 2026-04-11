@@ -24,6 +24,7 @@ function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected:
   const reorderElement = useWorkspaceStore((state) => state.reorderElement);
   const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
   const toggleLock = useWorkspaceStore((state) => state.toggleLock);
+  const canEdit = useWorkspaceStore((state) => state.canEdit);
   const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
 
   return (
@@ -49,21 +50,23 @@ function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected:
 
       <div className="layer-row-actions">
         <button type="button" className="layer-icon-btn"
-          onClick={() => reorderElement(element.id, "forward")} title="Move up">
+          onClick={() => reorderElement(element.id, "forward")} disabled={!canEdit} title="Move up">
           <ArrowUp size={12} />
         </button>
         <button type="button" className="layer-icon-btn"
-          onClick={() => reorderElement(element.id, "backward")} title="Move down">
+          onClick={() => reorderElement(element.id, "backward")} disabled={!canEdit} title="Move down">
           <ArrowDown size={12} />
         </button>
         <button type="button" className="layer-icon-btn"
           onClick={() => toggleVisibility(element.id)}
+          disabled={!canEdit}
           title={element.visible ? "Hide" : "Show"}>
           {element.visible ? <Eye size={12} /> : <EyeOff size={12} />}
         </button>
         <button type="button"
           className={`layer-icon-btn${element.locked ? " active" : ""}`}
           onClick={() => toggleLock(element.id)}
+          disabled={!canEdit}
           title={element.locked ? "Unlock" : "Lock"}>
           {element.locked ? <Lock size={12} /> : <Unlock size={12} />}
         </button>

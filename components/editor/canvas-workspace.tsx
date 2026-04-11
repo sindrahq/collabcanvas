@@ -42,6 +42,7 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
   const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
   const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
   const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
+  const canEdit             = useWorkspaceStore((s) => s.canEdit);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -185,6 +186,7 @@ function getTouchDistance(touches: React.TouchList) {
               type="color"
               value={canvasBackground}
               onChange={(e) => setCanvasBackground(e.target.value)}
+              disabled={!canEdit}
               title="Canvas background"
             />
           </div>

@@ -104,6 +104,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const updateElement = useWorkspaceStore((state) => state.updateElement);
   const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
   const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
+  const canEdit = useWorkspaceStore((state) => state.canEdit);
 
   const STAGE_WIDTH  = canvasDimensions.width  / STAGE_SCALE;
   const STAGE_HEIGHT = canvasDimensions.height / STAGE_SCALE;
@@ -122,7 +123,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
     const transformer = transformerRef.current;
     if (!transformer) return;
 
-    if (!selectedElementId) {
+    if (!canEdit || !selectedElementId) {
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
       return;
@@ -131,7 +132,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
     const node = nodeRefs.current[selectedElementId];
     transformer.nodes(node ? [node] : []);
     transformer.getLayer()?.batchDraw();
-  }, [orderedElements, selectedElementId]);
+  }, [canEdit, orderedElements, selectedElementId]);
 
   return (
     <>
@@ -167,12 +168,13 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
 
               const commonProps = {
                 rotation: element.rotation,
-                draggable: !element.locked,
+                draggable: canEdit && !element.locked,
                 visible: element.visible,
                 opacity: element.style.opacity,
                 onClick: () => selectElement(element.id),
                 onTap: () => selectElement(element.id),
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
+                  if (!canEdit) return;
                   updateElement(element.id, {
                     x: event.target.x() * STAGE_SCALE,
                     y: event.target.y() * STAGE_SCALE,
@@ -182,12 +184,13 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
 
               const centerDragProps = {
                 rotation: element.rotation,
-                draggable: !element.locked,
+                draggable: canEdit && !element.locked,
                 visible: element.visible,
                 opacity: element.style.opacity,
                 onClick: () => selectElement(element.id),
                 onTap: () => selectElement(element.id),
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
+                  if (!canEdit) return;
                   updateElement(element.id, {
                     x: (event.target.x() - elementWidth / 2) * STAGE_SCALE,
                     y: (event.target.y() - elementHeight / 2) * STAGE_SCALE,
@@ -307,7 +310,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     pointerLength={12 / STAGE_SCALE}
                     pointerWidth={10 / STAGE_SCALE}
                     rotation={element.rotation}
-                    draggable={!element.locked}
+                    draggable={canEdit && !element.locked}
                     visible={element.visible}
                     opacity={element.style.opacity}
                     hitStrokeWidth={16}
@@ -317,12 +320,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     onClick={() => selectElement(element.id)}
                     onTap={() => selectElement(element.id)}
                     onDragEnd={(event) => {
+                      if (!canEdit) return;
                       updateElement(element.id, {
                         x: event.target.x() * STAGE_SCALE,
                         y: (event.target.y() - elementHeight / 2) * STAGE_SCALE,
                       });
                     }}
                     onTransformEnd={(event) => {
+                      if (!canEdit) return;
                       const node = event.target;
                       const scaleX = node.scaleX();
                       node.scaleX(1);
@@ -348,7 +353,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     lineCap="round"
                     lineJoin="round"
                     rotation={element.rotation}
-                    draggable={!element.locked}
+                    draggable={canEdit && !element.locked}
                     visible={element.visible}
                     opacity={element.style.opacity}
                     hitStrokeWidth={16}
@@ -358,12 +363,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     onClick={() => selectElement(element.id)}
                     onTap={() => selectElement(element.id)}
                     onDragEnd={(event) => {
+                      if (!canEdit) return;
                       updateElement(element.id, {
                         x: event.target.x() * STAGE_SCALE,
                         y: (event.target.y() - elementHeight / 2) * STAGE_SCALE,
                       });
                     }}
                     onTransformEnd={(event) => {
+                      if (!canEdit) return;
                       const node = event.target;
                       const scaleX = node.scaleX();
                       node.scaleX(1);
@@ -400,10 +407,12 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     x: clamp(position.x, 0, STAGE_WIDTH - elementWidth),
                     y: clamp(position.y, 0, STAGE_HEIGHT - elementHeight),
                   })}
-                  onTransformEnd={(event) =>
-                    updateFromTransform(element, event.target as Konva.Text, updateElement)
-                  }
+                  onTransformEnd={(event) => {
+                    if (!canEdit) return;
+                    updateFromTransform(element, event.target as Konva.Text, updateElement);
+                  }}
                   onDblClick={() => {
+                    if (!canEdit) return;
                     const node = nodeRefs.current[element.id] as Konva.Text;
                     if (!node) return;
 
