@@ -10,8 +10,8 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
-import { CANVAS_DIMENSIONS } from "@/lib/constants";
 import { useWorkspaceStore } from "@/store/workspaceStore";
+import { FramePicker } from "@/components/editor/frame-picker";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -29,8 +29,7 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.15;
 const MOBILE_BREAKPOINT = 860;
-const STAGE_RENDER_WIDTH = CANVAS_DIMENSIONS.width / 1.6;
-const STAGE_RENDER_HEIGHT = CANVAS_DIMENSIONS.height / 1.6;
+const STAGE_SCALE = 1.6;
 
 type CanvasWorkspaceProps = {
   currentUserId: string;
@@ -39,10 +38,15 @@ type CanvasWorkspaceProps = {
 };
 
 export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
-  const elementCount      = useWorkspaceStore((s) => s.elements.length);
-  const canvasBackground  = useWorkspaceStore((s) => s.canvasBackground);
+  const elementCount        = useWorkspaceStore((s) => s.elements.length);
+  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
   const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canEdit           = useWorkspaceStore((s) => s.canEdit);
+  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
+  const canEdit             = useWorkspaceStore((s) => s.canEdit);
+
+  const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
+  const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
+
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [autoFitEnabled, setAutoFitEnabled] = useState(true);
@@ -53,9 +57,9 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
   const fitZoom = useMemo(() => {
     const width = Math.max(1, viewportSize.width - 24);
     const height = Math.max(1, viewportSize.height - 24);
-    const nextZoom = Math.min(width / STAGE_RENDER_WIDTH, height / STAGE_RENDER_HEIGHT);
+    const nextZoom = Math.min(width / stageRenderWidth, height / stageRenderHeight);
     return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, parseFloat(nextZoom.toFixed(2))));
-  }, [viewportSize]);
+  }, [viewportSize, stageRenderWidth, stageRenderHeight]);
 
   const isMobileViewport = viewportSize.width > 0 && viewportSize.width < MOBILE_BREAKPOINT;
 
@@ -175,6 +179,7 @@ function getTouchDistance(touches: React.TouchList) {
             <strong>{elementCount}</strong>
             <span>{elementCount === 1 ? "element" : "elements"}</span>
           </div>
+          <FramePicker />
           <div className="canvas-bg-picker" title="Canvas background color">
             <Palette size={13} />
             <input
@@ -223,9 +228,9 @@ function getTouchDistance(touches: React.TouchList) {
             transformOrigin: "center top",
             transform: `scale(${zoom})`,
             touchAction: isMobileViewport ? "pan-x" : "none",
-            width: `${STAGE_RENDER_WIDTH}px`,
-            minWidth: `${STAGE_RENDER_WIDTH}px`,
-            height: `${STAGE_RENDER_HEIGHT}px`,
+            width: `${stageRenderWidth}px`,
+            minWidth: `${stageRenderWidth}px`,
+            height: `${stageRenderHeight}px`,
           }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
