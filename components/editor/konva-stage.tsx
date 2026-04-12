@@ -535,6 +535,5 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
           </Layer>
         </Stage>
       </div>
-    </>
   );
 }

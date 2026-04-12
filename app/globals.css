@@ -166,6 +166,7 @@ body.cc-workspace-theme .inspector-empty p {
 
 body.cc-workspace-theme .toolbar-button,
 body.cc-workspace-theme .toolbar-shape-btn,
+body.cc-workspace-theme .frame-picker-trigger,
 body.cc-workspace-theme .dark-select-menu,
 body.cc-workspace-theme .toolbar-menu-list,
 body.cc-workspace-theme .inspector-type-badge,
@@ -184,6 +185,58 @@ body.cc-workspace-theme .layers-count {
 body.cc-workspace-theme .toolbar-button:hover:not(:disabled),
 body.cc-workspace-theme .toolbar-shape-btn:hover:not(:disabled),
 body.cc-workspace-theme .toolbar-icon-btn:hover:not(:disabled),
+body.cc-workspace-theme .frame-picker-trigger:hover,
+body.cc-workspace-theme .frame-picker-trigger.active {
+  background: #f5efe7;
+  border-color: #d7cec2;
+  color: #2f2a24;
+}
+
+body.cc-workspace-theme .frame-picker-panel {
+  background: #ffffff;
+  border: 1px solid #e0d9d0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+body.cc-workspace-theme .frame-picker-heading {
+  color: #1a1a1a;
+}
+
+body.cc-workspace-theme .frame-category-toggle {
+  color: #2f2a24;
+}
+
+body.cc-workspace-theme .frame-category-toggle:hover {
+  background: #f5efe7;
+}
+
+body.cc-workspace-theme .frame-cat-icon {
+  color: #1a1a1a;
+}
+
+body.cc-workspace-theme .frame-preset-item {
+  color: #6a6257;
+}
+
+body.cc-workspace-theme .frame-preset-item:hover {
+  background: #f5efe7;
+  color: #2f2a24;
+}
+
+body.cc-workspace-theme .frame-preset-item.selected {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+body.cc-workspace-theme .frame-preset-item.selected .frame-preset-dims {
+  color: #aaa;
+  opacity: 1;
+}
+
+body.cc-workspace-theme .frame-preset-dims {
+  color: #b0a89e;
+}
+
 body.cc-workspace-theme .zoom-btn:hover:not(:disabled),
 body.cc-workspace-theme .layer-icon-btn:hover,
 body.cc-workspace-theme .layer-row:hover,

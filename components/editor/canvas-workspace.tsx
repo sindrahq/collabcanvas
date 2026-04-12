@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize2, Palette, ZoomIn, ZoomOut } from "lucide-react";
 import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
   broadcastCursor,

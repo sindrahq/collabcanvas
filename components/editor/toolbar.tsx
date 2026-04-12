@@ -8,6 +8,7 @@ import {
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
+import { FramePicker } from "@/components/editor/frame-picker";
 import React, { useRef, useState } from "react";
 
 
@@ -262,8 +263,15 @@ export function Toolbar({
 
           {/* Upload subheading and icon */}
           <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Upload</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 0 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
             <UploadPictureButton />
+          </div>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Frame subheading and picker */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Frame</span>
+          <div style={{ margin: '6px 0 0 0' }}>
+            <FramePicker />
           </div>
         </div>
       ) : null}
