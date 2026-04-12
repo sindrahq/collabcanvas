@@ -1,4 +1,31 @@
+
 "use client";
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function withCompatFields(element: CanvasElement): CanvasElement {
+  return {
+    ...element,
+    name: element.name ?? element.label,
+    label: element.label ?? element.name,
+    layerOrder: element.layerOrder ?? element.layer_order,
+    layer_order: element.layer_order ?? element.layerOrder,
+    style: {
+      ...element.style,
+      fill: (element.type === "text" && (!element.style.fill || element.style.fill === "#ffffff" || element.style.fill === "white"))
+        ? "#1e2523"
+        : (element.style.fill ?? "#cccccc"),
+      fontFamily: element.style.fontFamily ?? "Inter",
+      fontStyle: element.style.fontStyle ?? "normal",
+      fontWeight: element.style.fontWeight ?? "normal",
+      textAlign: element.style.textAlign ?? "left",
+      shadowEnabled: element.style.shadowEnabled ?? false,
+      shadowBlur: element.style.shadowBlur ?? 16,
+      shadowColor: element.style.shadowColor ?? "rgba(20,32,28,0.3)",
+      shadowOffsetX: element.style.shadowOffsetX ?? 0,
+      shadowOffsetY: element.style.shadowOffsetY ?? 6,
+    },
+  };
+}
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -10,7 +37,7 @@ export type WorkspaceAccessLevel = "view" | "comment" | "edit";
 
 export type CanvasElementType =
   | "rectangle" | "circle" | "text"
-  | "triangle" | "star" | "arrow" | "line";
+  | "triangle" | "star" | "arrow" | "line" | "image";
 
 export type CanvasElementStyle = {
   fill: string;
@@ -46,6 +73,7 @@ export type CanvasElement = {
   layer_order: number;
   text?: string;
   style: CanvasElementStyle;
+  imageUrl?: string; // Only for image elements
 };
 
 type WorkspaceState = {
@@ -67,7 +95,7 @@ type WorkspaceState = {
   setElements: (elements: CanvasElement[]) => void;
   setLoading: (loading: boolean) => void;
   clear: () => void;
-  addElement: (type: CanvasElementType) => void;
+  addElement: (type: CanvasElementType, extra?: Partial<CanvasElement>) => void;
   updateElement: (elementId: string, updates: Partial<CanvasElement>) => void;
   updateElementStyle: (elementId: string, style: Partial<CanvasElementStyle>) => void;
   reorderElement: (elementId: string, direction: "forward" | "backward") => void;
@@ -85,12 +113,9 @@ type WorkspaceState = {
 
 const BASE_FONT = {
   fontFamily: "Inter",
-  fontStyle: "normal" as const,
-  fontWeight: "normal" as const,
+  fontStyle: "normal",
+  fontWeight: "normal",
   textAlign: "left" as const,
-};
-
-const BASE_SHADOW = {
   shadowEnabled: false,
   shadowBlur: 16,
   shadowColor: "rgba(20,32,28,0.3)",
@@ -98,42 +123,24 @@ const BASE_SHADOW = {
   shadowOffsetY: 6,
 };
 
-const defaultElementStyle = {
-  rectangle: { fill: "#cfe1df", stroke: "#1f6f78", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  circle:    { fill: "#f0dcc3", stroke: "#b36a21", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  text:      { fill: "#1e2523", stroke: "transparent", strokeWidth: 0, opacity: 1, fontSize: 28, ...BASE_FONT, textAlign: "center" as const, ...BASE_SHADOW },
+const BASE_SHADOW = {
+  shadowEnabled: true,
+  shadowBlur: 16,
+  shadowColor: "rgba(20,32,28,0.3)",
+  shadowOffsetX: 0,
+  shadowOffsetY: 6,
+};
+
+const defaultElementStyle: Record<CanvasElementType, CanvasElementStyle> = {
+  rectangle: { fill: "#f7f2ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
+  circle:    { fill: "#e3f7ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
+  text:      { fill: "#1e2523", stroke: "#2f2f2f", strokeWidth: 0, opacity: 1, fontSize: 28, ...BASE_FONT },
   triangle:  { fill: "#d4c3f0", stroke: "#6b3fa0", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
   star:      { fill: "#f5e6a3", stroke: "#b89600", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
   arrow:     { fill: "#a8d4f0", stroke: "#1a6fa0", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
   line:      { fill: "transparent", stroke: "#637069", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
+  image:     { fill: "#fff", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
 } satisfies Record<CanvasElementType, CanvasElementStyle>;
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function withCompatFields(element: CanvasElement): CanvasElement {
-  return {
-    ...element,
-    name: element.name ?? element.label,
-    label: element.label ?? element.name,
-    layerOrder: element.layerOrder ?? element.layer_order,
-    layer_order: element.layer_order ?? element.layerOrder,
-    style: {
-      ...element.style,
-      fill: (element.type === "text" && (!element.style.fill || element.style.fill === "#ffffff" || element.style.fill === "white"))
-        ? "#1e2523"
-        : (element.style.fill ?? "#cccccc"),
-      fontFamily: element.style.fontFamily ?? "Inter",
-      fontStyle: element.style.fontStyle ?? "normal",
-      fontWeight: element.style.fontWeight ?? "normal",
-      textAlign: element.style.textAlign ?? "left",
-      shadowEnabled: element.style.shadowEnabled ?? false,
-      shadowBlur: element.style.shadowBlur ?? 16,
-      shadowColor: element.style.shadowColor ?? "rgba(20,32,28,0.3)",
-      shadowOffsetX: element.style.shadowOffsetX ?? 0,
-      shadowOffsetY: element.style.shadowOffsetY ?? 6,
-    },
-  };
-}
 
 function normalizeElements(elements: CanvasElement[]): CanvasElement[] {
   return elements.map((el, i) =>
@@ -151,7 +158,7 @@ function createId(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-function createElement(type: CanvasElementType, layerOrder: number): CanvasElement {
+function createElement(type: CanvasElementType, layerOrder: number, extra?: Partial<CanvasElement>): CanvasElement {
   const isText  = type === "text";
   const isLine  = type === "line" || type === "arrow";
   const label   = `${type[0].toUpperCase()}${type.slice(1)} ${layerOrder + 1}`;
@@ -166,6 +173,7 @@ function createElement(type: CanvasElementType, layerOrder: number): CanvasEleme
     layerOrder, layer_order: layerOrder,
     text: isText ? "New text block" : undefined,
     style: { ...defaultElementStyle[type] },
+    ...extra,
   });
 }
 
@@ -251,9 +259,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           loading: false, history: [], historyIndex: -1,
         }),
 
-      addElement: (type) =>
+      addElement: (type, extra) =>
         set((state) => {
-          const nextElement = createElement(type, state.elements.length);
+          const nextElement = createElement(type, state.elements.length, extra);
           const nextElements = [...state.elements, nextElement];
           return { ...withHistory(state, nextElements), selectedElementId: nextElement.id };
         }),

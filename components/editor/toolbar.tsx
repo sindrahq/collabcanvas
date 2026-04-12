@@ -5,9 +5,68 @@ import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
   Baseline, Bold, Circle, Copy,
   Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
-  Star, Trash2, Triangle, Type, Undo2,
+  Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
+import React, { useRef, useState } from "react";
+
+
+function UploadPictureButton() {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const addElement = useWorkspaceStore((s) => s.addElement);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      // Debug: log the uploaded image URL
+      console.log("Uploaded image URL:", data.url);
+      // Add image element to canvas
+      addElement("image", { imageUrl: data.url });
+    } catch (err: any) {
+      setUploadError(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div style={{ display: "inline-block", marginLeft: 8 }}>
+      <input
+        type="file"
+        accept="image/png, image/jpeg"
+        style={{ display: "none" }}
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        disabled={uploading}
+      />
+      <button
+        type="button"
+        className="toolbar-icon-btn toolbar-shape-btn"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        title="Upload Picture"
+        style={{ position: "relative" }}
+      >
+        <ImageIcon size={15} />
+      </button>
+      {uploadError && <div style={{ color: "#c00", fontSize: 11 }}>{uploadError}</div>}
+    </div>
+  );
+}
 
 const FONTS = [
   "Inter", "Roboto", "Montserrat", "Oswald",
@@ -136,55 +195,64 @@ export function Toolbar({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      {showHistoryActions ? (
-        <>
-          {/* Undo / Redo */}
-          <div className="toolbar-group">
+
+
+      {/* Add section with requested order and layout */}
+      {showAddActions ? (
+        <div className="toolbar-group toolbar-group-add" style={{ minWidth: 180 }}>
+          <span className="toolbar-label" style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Add</span>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Shapes subheading and grid */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Shapes</span>
+          <div className="toolbar-shapes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '6px 0 10px 0' }}>
+            {ADD_BUTTONS.filter(b => b.action !== 'text').map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <motion.button
+                  key={item.label}
+                  type="button" className="toolbar-icon-btn toolbar-shape-btn"
+                  onClick={() => addElement(item.action)}
+                  disabled={!canEdit}
+                  title={`Add ${item.label}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 * i, duration: 0.2 }}
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                >
+                  <Icon size={16} />
+                </motion.button>
+              );
+            })}
+          </div>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Text subheading and icon */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Text</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
             <motion.button
-              type="button" className="toolbar-icon-btn toolbar-undo-redo-btn"
-              onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
-              whileHover={canUndo ? { scale: 1.08 } : undefined}
-              whileTap={canUndo ? { scale: 0.94 } : undefined}
+              type="button"
+              className="toolbar-icon-btn toolbar-shape-btn"
+              onClick={() => addElement('text')}
+              disabled={!canEdit}
+              title="Add Text"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * ADD_BUTTONS.length, duration: 0.2 }}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
             >
-              <Undo2 size={15} />
-            </motion.button>
-            <motion.button
-              type="button" className="toolbar-icon-btn toolbar-undo-redo-btn"
-              onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
-              whileHover={canRedo ? { scale: 1.08 } : undefined}
-              whileTap={canRedo ? { scale: 0.94 } : undefined}
-            >
-              <Redo2 size={15} />
+              <Type size={16} />
             </motion.button>
           </div>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
 
-          <div className="toolbar-divider" />
-        </>
-      ) : null}
-
-      {/* Add shapes */}
-      {showAddActions ? (
-        <div className="toolbar-group toolbar-group-add">
-          <span className="toolbar-label">Add</span>
-          {ADD_BUTTONS.map((item, i) => {
-            const Icon = item.icon;
-            return (
-              <motion.button
-                key={item.label}
-                type="button" className="toolbar-icon-btn toolbar-shape-btn"
-                onClick={() => addElement(item.action)}
-                disabled={!canEdit}
-                title={`Add ${item.label}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 * i, duration: 0.2 }}
-                whileHover={{ y: -2, scale: 1.03 }}
-                whileTap={{ scale: 0.96 }}
-              >
-                <Icon size={14} />
-              </motion.button>
-            );
-          })}
+          {/* Upload subheading and icon */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Upload</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 0 0' }}>
+            <UploadPictureButton />
+          </div>
         </div>
       ) : null}
 
@@ -275,7 +343,7 @@ export function Toolbar({
         )}
       </AnimatePresence>
 
-      {/* Edit actions */}
+      {/* Edit actions + Opacity control */}
       <AnimatePresence>
         {showSelectionActions && selectedElementId ? (
           <motion.div
@@ -288,6 +356,26 @@ export function Toolbar({
           >
             <div className="toolbar-divider" />
             <span className="toolbar-label">Edit</span>
+
+            {/* Opacity slider for images, text, and shapes */}
+            {selectedElement && (selectedElement.type === "image" || selectedElement.type === "text" || ["rectangle","circle","triangle","star","arrow","line"].includes(selectedElement.type)) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 12px 0 0" }}>
+                <span style={{ fontSize: 13, color: "#444" }}>Opacity</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1}
+                  step={0.01}
+                  value={selectedElement.style.opacity}
+                  onChange={e => updateElementStyle(selectedElement.id, { opacity: parseFloat(e.target.value) })}
+                  style={{ width: 80 }}
+                  disabled={!canEdit}
+                  title="Opacity"
+                />
+                <span style={{ fontSize: 12, color: "#666", minWidth: 28, textAlign: "right" }}>{Math.round(selectedElement.style.opacity * 100)}%</span>
+              </div>
+            )}
+
             <motion.button
               type="button" className="toolbar-button toolbar-button-compact"
               onClick={apply3DToSelected}

@@ -856,6 +856,10 @@ export function EditorShell() {
       >
         <motion.header
           className="editor-topbar"
+          style={{
+            transition: 'margin-left 0.3s cubic-bezier(0.4,0,0.2,1)',
+            marginLeft: typeof window !== 'undefined' && document.body.classList.contains('sidebar-open') ? 220 : 0,
+          }}
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.06, duration: 0.24 }}

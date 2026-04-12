@@ -16,6 +16,7 @@ import {
 import type Konva from "konva";
 import { CANVAS_DIMENSIONS } from "@/lib/constants";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
+import { KonvaImage } from "./konva-image";
 
 const STAGE_SCALE = 1.6;
 const STAGE_WIDTH = CANVAS_DIMENSIONS.width / STAGE_SCALE;
@@ -197,6 +198,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 },
               };
 
+
               if (element.type === "rectangle") {
                 return (
                   <Rect
@@ -216,6 +218,26 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     {...sharedShadow}
                     onTransformEnd={(event) =>
                       updateFromTransform(element, event.target as Konva.Rect, updateElement)
+                    }
+                  />
+                );
+              }
+
+              if (element.type === "image" && (element as any).imageUrl) {
+                return (
+                  <KonvaImage
+                    key={element.id}
+                    {...commonProps}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    width={elementWidth}
+                    height={elementHeight}
+                    imageUrl={(element as any).imageUrl}
+                    ref={(node: any) => {
+                      nodeRefs.current[element.id] = node;
+                    }}
+                    onTransformEnd={(event: any) =>
+                      updateFromTransform(element, event.target, updateElement)
                     }
                   />
                 );
@@ -395,7 +417,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     nodeRefs.current[element.id] = node;
                   }}
                   text={element.text ?? "Text element"}
-                  fill={editingElementId === element.id ? "transparent" : element.style.fill}
+                  fill={element.style.fill}
                   opacity={editingElementId === element.id ? 0 : element.style.opacity}
                   fontSize={Math.max(10, element.style.fontSize / STAGE_SCALE)}
                   fontFamily={element.style.fontFamily ?? "Inter"}
@@ -433,15 +455,15 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                       font-weight: ${element.style.fontWeight ?? "normal"};
                       text-align: ${element.style.textAlign ?? "left"};
                       color: ${element.style.fill};
-                      background: rgba(11, 19, 36, 0.96);
-                      border: 2px solid #4f8cff;
-                      border-radius: 8px;
+                      background: transparent;
+                      border: none;
+                      border-radius: 0;
                       padding: 6px 8px;
                       resize: none;
                       outline: none;
                       z-index: 9999;
                       line-height: 1.5;
-                      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+                      box-shadow: none;
                       overflow: hidden;
                       caret-color: ${element.style.fill};
                     `;
@@ -452,15 +474,17 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
 
                     function finish() {
                       if (!editingRef.current) return;
-                      updateElement(element.id, {
-                        text: textarea.value.trim() || "Text element",
-                      });
                       editingRef.current = null;
                       setEditingElementId(null);
                       textarea.remove();
                     }
 
-                    textarea.addEventListener("input", () => resizeTextarea(textarea));
+                    textarea.addEventListener("input", () => {
+                      resizeTextarea(textarea);
+                      updateElement(element.id, {
+                        text: textarea.value,
+                      });
+                    });
                     textarea.addEventListener("blur", finish);
                     textarea.addEventListener("keydown", (event) => {
                       if (event.key === "Escape") {
