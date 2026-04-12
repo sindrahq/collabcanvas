@@ -94,7 +94,9 @@ export function LeftSidebar() {
       <div className="layers-header">
         <Layers size={14} className="layers-header-icon" />
         <span className="eyebrow" style={{ margin: 0 }}>Layers</span>
-        <span className="layers-count">{orderedElements.length}</span>
+        <span className="layers-count">
+          {orderedElements.length} {orderedElements.length === 1 ? "element" : "elements"}
+        </span>
       </div>
 
       <div className="layers-meta">

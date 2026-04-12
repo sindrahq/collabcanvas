@@ -109,6 +109,7 @@ export function RightSidebar({
   currentUserId,
   canComment = false,
   onAddComment,
+  mode = "full",
 }: {
   workspaceId?: string | null;
   comments: WorkspaceComment[];
@@ -117,11 +118,14 @@ export function RightSidebar({
   currentUserId?: string | null;
   canComment?: boolean;
   onAddComment: (message: string, targetElementId: string | null) => Promise<void>;
+  mode?: "full" | "inspector" | "comments";
 }) {
   const elements           = useWorkspaceStore((s) => s.elements);
   const selectedElementId  = useWorkspaceStore((s) => s.selectedElementId);
   const updateElementStyle = useWorkspaceStore((s) => s.updateElementStyle);
   const updateElement      = useWorkspaceStore((s) => s.updateElement);
+  const canvasBackground   = useWorkspaceStore((s) => s.canvasBackground);
+  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
   const canEdit            = useWorkspaceStore((s) => s.canEdit);
 
   const selectedElement = useMemo(
@@ -187,8 +191,20 @@ export function RightSidebar({
         <span className="eyebrow" style={{ margin: 0 }}>Inspector</span>
       </div>
 
+      {mode !== "comments" ? (
+        <div className="inspector-section">
+          <ColorRow
+            label="Background"
+            value={canvasBackground}
+            onChange={setCanvasBackground}
+            disabled={!canEdit}
+          />
+        </div>
+      ) : null}
+
       <AnimatePresence mode="wait">
-        {selectedElement ? (
+        {mode !== "comments" ? (
+          selectedElement ? (
           <motion.div
             key={selectedElement.id}
             initial={{ opacity: 0, y: 6 }}
@@ -401,7 +417,7 @@ export function RightSidebar({
               </div>
             )}
           </motion.div>
-        ) : (
+          ) : (
           <motion.div
             key="empty" className="inspector-empty"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -409,10 +425,12 @@ export function RightSidebar({
             <MousePointer2 size={28} className="inspector-empty-icon" />
             <p>Select an element on the canvas to inspect and edit its properties.</p>
           </motion.div>
-        )}
+          )
+        ) : null}
       </AnimatePresence>
 
-      <div className="inspector-section comments-panel">
+      {mode !== "inspector" ? (
+        <div className="inspector-section comments-panel">
         <div className="inspector-section-title">
           <MessageSquare size={12} />
           <span>Comments</span>
@@ -501,7 +519,8 @@ export function RightSidebar({
         ) : (
           <div className="comment-empty-state">No comments in this thread yet. Start the thread.</div>
         )}
-      </div>
+        </div>
+      ) : null}
     </motion.aside>
   );
 }

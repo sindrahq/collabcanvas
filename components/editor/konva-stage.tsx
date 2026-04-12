@@ -135,11 +135,6 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
 
   return (
     <>
-      <div className="canvas-instructions">
-        <span>Drag unlocked elements or use arrow keys to nudge them.</span>
-        <span>Click empty canvas to deselect. Double-click text to edit.</span>
-      </div>
-
       <div className="konva-frame">
         <Stage
           width={STAGE_WIDTH}

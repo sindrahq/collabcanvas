@@ -66,6 +66,13 @@ export function LandingHero() {
   }, []);
 
   useEffect(() => {
+    document.body.classList.add("cc-landing-theme");
+    return () => {
+      document.body.classList.remove("cc-landing-theme");
+    };
+  }, []);
+
+  useEffect(() => {
     if (!supabase) return;
 
     void supabase.auth.getUser().then(({ data }) => {
@@ -246,7 +253,7 @@ export function LandingHero() {
   return (
     <main style={{
       minHeight: "100vh",
-      background: "#fafaf8",
+      background: "#f7f4ef",
       fontFamily: "'Georgia', 'Times New Roman', serif",
       overflowX: "hidden",
     }}>
@@ -257,7 +264,7 @@ export function LandingHero() {
         display: "flex", alignItems: "center",
         justifyContent: "space-between",
         padding: "16px 64px",
-        background: "rgba(250,250,248,0.92)",
+        background: "rgba(247,244,239,0.92)",
         backdropFilter: "blur(12px)",
         borderBottom: "1px solid #e8e4df",
       }}>
@@ -421,7 +428,7 @@ export function LandingHero() {
       {/* ── UTILITIES FLASHCARDS ── */}
       <section style={{
         padding: "56px 80px 28px",
-        background: "#fafaf8",
+        background: "#f7f4ef",
       }}>
         <div style={{
           display: "flex",
@@ -609,7 +616,7 @@ export function LandingHero() {
       </section>
 
       {/* ── TEMPLATES SECTION ── */}
-      <section style={{ padding: "80px 80px 60px", background: "#fff" }}>
+      <section style={{ padding: "80px 80px 60px", background: "#f7f4ef" }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <h2 style={{
             fontSize: "2.5rem", fontWeight: 700,
@@ -648,7 +655,7 @@ export function LandingHero() {
               </div>
               {/* Label */}
               <div style={{
-                padding: "12px 14px", background: "#fff",
+                padding: "12px 14px", background: "#fbf8f3",
                 fontSize: 13, color: "#3d3833",
                 fontFamily: "'Helvetica Neue', sans-serif", fontWeight: 600,
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -668,10 +675,10 @@ export function LandingHero() {
             border: "1px solid #d4cfc9", color: "#3d3833",
             textDecoration: "none", fontSize: 14, fontWeight: 500,
             fontFamily: "'Helvetica Neue', sans-serif",
-            background: "#fff", transition: "all 150ms",
+            background: "#fbf8f3", transition: "all 150ms",
           }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "#f5f2ee"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#fbf8f3"; }}
           >Browse all templates →</Link>
         </div>
       </section>
@@ -705,7 +712,7 @@ export function LandingHero() {
       <footer style={{
         padding: "32px 80px", borderTop: "1px solid #e8e4df",
         display: "flex", justifyContent: "space-between",
-        alignItems: "center", background: "#fafaf8",
+        alignItems: "center", background: "#f7f4ef",
       }}>
         <div style={{ fontSize: 18, fontWeight: 700, fontStyle: "italic", color: "#1a1a1a" }}>CollabCanvas</div>
         <div style={{ display: "flex", gap: 24, fontSize: 13, color: "#9c9690", fontFamily: "'Helvetica Neue', sans-serif" }}>

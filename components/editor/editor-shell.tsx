@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { Check, LoaderCircle, Share2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, ChevronDown, Download, LoaderCircle, Pencil, Share2, X } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
 import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { RightSidebar } from "@/components/editor/right-sidebar";
 import { ShareDialog } from "@/components/editor/share-dialog";
+import { WorkspaceSidebar } from "@/components/editor/workspace-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
 import {
   initPresenceChannel,
@@ -18,6 +19,7 @@ import {
   type PresenceMeta,
 } from "@/lib/collaboration";
 import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } from "@/lib/comments";
+import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
@@ -32,6 +34,11 @@ function isEditableTarget(target: EventTarget | null) {
 
 function isShareAccessLevel(value: unknown): value is WorkspaceAccessLevel {
   return value === "view" || value === "comment" || value === "edit";
+}
+
+function slugify(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "workspace";
 }
 
 type AutoSaveStatus = "saved" | "saving";
@@ -146,9 +153,14 @@ export function EditorShell() {
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const [comments, setComments] = useState<WorkspaceComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState(workspaceName);
+  const [workspaceRenameSaving, setWorkspaceRenameSaving] = useState(false);
   const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
   const workspaceIdFromUrl =
     searchParams.get("workspaceId") ??
@@ -182,6 +194,88 @@ export function EditorShell() {
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPersistedSignatureRef = useRef<string>("");
+  const fileBase = slugify(workspaceName);
+
+  useEffect(() => {
+    if (!isRenamingWorkspace) {
+      setWorkspaceNameDraft(workspaceName);
+    }
+  }, [isRenamingWorkspace, workspaceName]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!exportMenuRef.current?.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  const canRenameWorkspace = canEdit;
+
+  async function handleWorkspaceRenameSubmit() {
+    if (!workspace || !authUser || !canRenameWorkspace || workspaceRenameSaving) return;
+
+    const nextName = workspaceNameDraft.trim();
+    if (!nextName) {
+      setWorkspaceNameDraft(workspaceName);
+      setIsRenamingWorkspace(false);
+      return;
+    }
+
+    if (nextName === workspaceName) {
+      setIsRenamingWorkspace(false);
+      return;
+    }
+
+    setWorkspaceRenameSaving(true);
+
+    try {
+      if (!workspace.id.startsWith("local-")) {
+        const response = await fetch(`/api/workspaces/${workspace.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: nextName }),
+        });
+
+        const payload = (await response.json()) as {
+          error?: string;
+          workspace?: { id: string; name: string; owner_id: string };
+        };
+
+        if (!response.ok || !payload.workspace) {
+          return;
+        }
+
+        useWorkspaceStore.getState().setWorkspace(payload.workspace);
+        setIsRenamingWorkspace(false);
+        return;
+      }
+
+      useWorkspaceStore.getState().setWorkspace({
+        id: workspace.id,
+        name: nextName,
+        owner_id: workspace.owner_id,
+      });
+      setIsRenamingWorkspace(false);
+    } finally {
+      setWorkspaceRenameSaving(false);
+    }
+  }
+
+  function handleWorkspaceRenameCancel() {
+    setWorkspaceNameDraft(workspaceName);
+    setIsRenamingWorkspace(false);
+  }
+
+  useEffect(() => {
+    document.body.classList.add("cc-workspace-theme");
+    return () => {
+      document.body.classList.remove("cc-workspace-theme");
+    };
+  }, []);
 
   useEffect(() => {
     if (!browserClient) {
@@ -736,7 +830,7 @@ export function EditorShell() {
     return (
       <main className="editor-page">
         <section className="editor-shell flex items-center justify-center">
-          <p className="text-sm text-white/70">Checking authentication...</p>
+          <p className="text-sm text-[#6a6257]">Checking authentication...</p>
         </section>
       </main>
     );
@@ -746,7 +840,7 @@ export function EditorShell() {
     return (
       <main className="editor-page">
         <section className="editor-shell flex items-center justify-center">
-          <p className="text-sm text-white/70">Redirecting to login...</p>
+          <p className="text-sm text-[#6a6257]">Redirecting to login...</p>
         </section>
       </main>
     );
@@ -767,17 +861,73 @@ export function EditorShell() {
           transition={{ delay: 0.06, duration: 0.24 }}
         >
           <div className="editor-topbar-left">
-            <div className="editor-logo-mark" />
-            <div>
-              <p className="eyebrow" style={{ marginBottom: 2 }}>
-                Editor
-              </p>
-              <h1 className="editor-heading">{workspaceName}</h1>
+            <p className="workspace-brand">CollabCanvas</p>
+            <div className="workspace-name-wrap">
+              {isRenamingWorkspace ? (
+                <>
+                  <input
+                    type="text"
+                    className="workspace-name-input"
+                    value={workspaceNameDraft}
+                    onChange={(event) => setWorkspaceNameDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleWorkspaceRenameSubmit();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        handleWorkspaceRenameCancel();
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="workspace-name-action"
+                    onClick={() => void handleWorkspaceRenameSubmit()}
+                    disabled={workspaceRenameSaving}
+                    title="Save workspace name"
+                  >
+                    {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="workspace-name-action"
+                    onClick={handleWorkspaceRenameCancel}
+                    disabled={workspaceRenameSaving}
+                    title="Cancel rename"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
+                  {canRenameWorkspace ? (
+                    <button
+                      type="button"
+                      className="workspace-name-action"
+                      onClick={() => setIsRenamingWorkspace(true)}
+                      title="Rename workspace"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
 
           <div className="editor-topbar-right">
             <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+            {workspace?.owner_id !== authUser.id ? (
+              <span className="editor-access-pill">
+                {accessLevel === "comment" ? "Comment access" : canEdit ? "Edit access" : "View only"}
+              </span>
+            ) : (
+              <span className="editor-owner-pill">Owner</span>
+            )}
             <button
               type="button"
               className="toolbar-button editor-share-button"
@@ -787,11 +937,63 @@ export function EditorShell() {
               <Share2 size={14} />
               <span>Share</span>
             </button>
-            {workspace?.owner_id !== authUser.id ? (
-              <span className="toolbar-label editor-access-badge">
-                {accessLevel === "comment" ? "Can comment" : canEdit ? "Can edit" : "Read only"}
-              </span>
-            ) : null}
+            <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+              <motion.button
+                type="button"
+                className="toolbar-button toolbar-button-compact editor-export-button"
+                onClick={() => setExportMenuOpen((open) => !open)}
+                title="Export workspace"
+                whileHover={{ y: -1, scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <Download size={14} />
+                <span>Export</span>
+                <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+              </motion.button>
+
+              <AnimatePresence>
+                {exportMenuOpen ? (
+                  <motion.div
+                    className="toolbar-menu-list"
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.16 }}
+                  >
+                    <button
+                      type="button"
+                      className="toolbar-menu-item"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        void exportWorkspaceAsPng(`${fileBase}.png`);
+                      }}
+                    >
+                      PNG
+                    </button>
+                    <button
+                      type="button"
+                      className="toolbar-menu-item"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                      }}
+                    >
+                      JPEG
+                    </button>
+                    <button
+                      type="button"
+                      className="toolbar-menu-item"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                      }}
+                    >
+                      PDF
+                    </button>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
             <AutoSaveBadge status={saveStatus} />
             <ProfileMenu
               displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
@@ -806,37 +1008,15 @@ export function EditorShell() {
           </div>
         </motion.header>
 
-        <div className="editor-grid">
+        <div className="workspace-layout">
           <motion.div
-            className="editor-column editor-column-left"
+            className="workspace-dock-shell"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1, duration: 0.24 }}
           >
-            <LeftSidebar />
-          </motion.div>
-
-          <motion.div
-            className="editor-column editor-column-main"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.14, duration: 0.24 }}
-          >
-            <Toolbar workspaceName={workspaceName} />
-            <CanvasWorkspace
-              currentUserId={currentUserMeta.user_id}
-              presences={presences}
-              remoteCursors={remoteCursors}
-            />
-          </motion.div>
-
-          <motion.div
-            className="editor-column editor-column-right"
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.18, duration: 0.24 }}
-          >
-            <RightSidebar
+            <WorkspaceSidebar
+              workspaceName={workspaceName}
               workspaceId={workspace?.id}
               comments={comments}
               commentsLoading={commentsLoading}
@@ -844,6 +1024,39 @@ export function EditorShell() {
               currentUserId={authUser.id}
               canComment={accessLevel === "comment" || canEdit}
               onAddComment={handleAddComment}
+            />
+          </motion.div>
+
+          <motion.div
+            className="workspace-main-shell"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14, duration: 0.24 }}
+          >
+            <AnimatePresence mode="wait">
+              {selectedElementId ? (
+                <motion.div
+                  key="canvas-selection-toolbar"
+                  className="canvas-selection-toolbar-shell"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <Toolbar
+                    workspaceName={workspaceName}
+                    showHistoryActions={false}
+                    showAddActions={false}
+                    showSelectionActions
+                  />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+
+            <CanvasWorkspace
+              currentUserId={currentUserMeta.user_id}
+              presences={presences}
+              remoteCursors={remoteCursors}
             />
           </motion.div>
         </div>

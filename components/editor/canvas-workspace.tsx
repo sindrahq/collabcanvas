@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Palette, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
   broadcastCursor,
@@ -39,10 +39,6 @@ type CanvasWorkspaceProps = {
 };
 
 export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
-  const elementCount      = useWorkspaceStore((s) => s.elements.length);
-  const canvasBackground  = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canEdit           = useWorkspaceStore((s) => s.canEdit);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [autoFitEnabled, setAutoFitEnabled] = useState(true);
@@ -165,63 +161,12 @@ function getTouchDistance(touches: React.TouchList) {
 
   return (
     <section className="canvas-stage-shell">
-      <div className="canvas-toolbar-row">
-        <div className="canvas-toolbar-copy">
-          <p className="eyebrow">Workspace Surface</p>
-          <h2 className="canvas-title">Canvas</h2>
-        </div>
-        <div className="canvas-toolbar-actions">
-          <div className="canvas-badge">
-            <strong>{elementCount}</strong>
-            <span>{elementCount === 1 ? "element" : "elements"}</span>
-          </div>
-          <div className="canvas-bg-picker" title="Canvas background color">
-            <Palette size={13} />
-            <input
-              type="color"
-              value={canvasBackground}
-              onChange={(e) => setCanvasBackground(e.target.value)}
-              disabled={!canEdit}
-              title="Canvas background"
-            />
-          </div>
-          <div className="zoom-controls">
-            <button
-              type="button" className="zoom-btn"
-              onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
-              title="Zoom out"
-            >
-              <ZoomOut size={14} />
-            </button>
-            <button
-              type="button" className="zoom-level"
-              onClick={zoomReset} title="Reset zoom"
-            >
-              {zoomPercent}%
-            </button>
-            <button
-              type="button" className="zoom-btn"
-              onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
-              title="Zoom in"
-            >
-              <ZoomIn size={14} />
-            </button>
-            <button
-              type="button" className="zoom-btn"
-              onClick={zoomReset} title="Fit to screen"
-            >
-              <Maximize2 size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div className="canvas-viewport" ref={viewportRef}>
         <div
           className="konva-shell konva-stage-wrap"
           style={{
-            transformOrigin: "center top",
-            transform: `scale(${zoom})`,
+            transformOrigin: "center center",
+            transform: `translateX(-36px) scale(${zoom})`,
             touchAction: isMobileViewport ? "pan-x" : "none",
             width: `${STAGE_RENDER_WIDTH}px`,
             minWidth: `${STAGE_RENDER_WIDTH}px`,
@@ -245,6 +190,37 @@ function getTouchDistance(touches: React.TouchList) {
             presences={presences}
             currentUserId={currentUserId}
           />
+        </div>
+      </div>
+
+      <div className="canvas-zoom-float">
+        <div className="zoom-controls">
+          <button
+            type="button" className="zoom-btn"
+            onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
+            title="Zoom out"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <button
+            type="button" className="zoom-level"
+            onClick={zoomReset} title="Reset zoom"
+          >
+            {zoomPercent}%
+          </button>
+          <button
+            type="button" className="zoom-btn"
+            onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
+            title="Zoom in"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            type="button" className="zoom-btn"
+            onClick={zoomReset} title="Fit to screen"
+          >
+            <Maximize2 size={13} />
+          </button>
         </div>
       </div>
     </section>

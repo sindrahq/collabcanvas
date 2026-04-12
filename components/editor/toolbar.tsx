@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
-  Baseline, Bold, ChevronDown, Circle, Copy, Download,
+  Baseline, Bold, Circle, Copy,
   Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2,
 } from "lucide-react";
-import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
 
 const FONTS = [
@@ -35,7 +33,19 @@ const ALIGNMENTS = [
   { align: "right"  as const, icon: AlignRight },
 ];
 
-export function Toolbar({ workspaceName }: { workspaceName: string }) {
+export function Toolbar({
+  workspaceName,
+  layout = "horizontal",
+  showHistoryActions = true,
+  showAddActions = true,
+  showSelectionActions = true,
+}: {
+  workspaceName: string;
+  layout?: "horizontal" | "vertical";
+  showHistoryActions?: boolean;
+  showAddActions?: boolean;
+  showSelectionActions?: boolean;
+}) {
   const selectedElementId        = useWorkspaceStore((s) => s.selectedElementId);
   const elements                 = useWorkspaceStore((s) => s.elements);
   const canEdit                  = useWorkspaceStore((s) => s.canEdit);
@@ -52,19 +62,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
   const isText = selectedElement?.type === "text";
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
-      if (!exportMenuRef.current?.contains(event.target as Node)) {
-        setExportMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
+  const isVertical = layout === "vertical";
 
   function toggleStyle<K extends "fontWeight" | "fontStyle">(
     field: K,
@@ -133,123 +131,66 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
 
   return (
     <motion.div
-      className="toolbar"
+      className={`toolbar${isVertical ? " toolbar-vertical" : ""}`}
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      {/* Undo / Redo */}
-      <div className="toolbar-group">
-        <motion.button
-          type="button" className="toolbar-icon-btn"
-          onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
-          whileHover={canUndo ? { scale: 1.08 } : undefined}
-          whileTap={canUndo ? { scale: 0.94 } : undefined}
-        >
-          <Undo2 size={15} />
-        </motion.button>
-        <motion.button
-          type="button" className="toolbar-icon-btn"
-          onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
-          whileHover={canRedo ? { scale: 1.08 } : undefined}
-          whileTap={canRedo ? { scale: 0.94 } : undefined}
-        >
-          <Redo2 size={15} />
-        </motion.button>
-      </div>
+      {showHistoryActions ? (
+        <>
+          {/* Undo / Redo */}
+          <div className="toolbar-group">
+            <motion.button
+              type="button" className="toolbar-icon-btn toolbar-undo-redo-btn"
+              onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
+              whileHover={canUndo ? { scale: 1.08 } : undefined}
+              whileTap={canUndo ? { scale: 0.94 } : undefined}
+            >
+              <Undo2 size={15} />
+            </motion.button>
+            <motion.button
+              type="button" className="toolbar-icon-btn toolbar-undo-redo-btn"
+              onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
+              whileHover={canRedo ? { scale: 1.08 } : undefined}
+              whileTap={canRedo ? { scale: 0.94 } : undefined}
+            >
+              <Redo2 size={15} />
+            </motion.button>
+          </div>
 
-      <div className="toolbar-divider" />
+          <div className="toolbar-divider" />
+        </>
+      ) : null}
 
       {/* Add shapes */}
-      <div className="toolbar-group">
-        <span className="toolbar-label">Add</span>
-        {ADD_BUTTONS.map((item, i) => {
-          const Icon = item.icon;
-          return (
-            <motion.button
-              key={item.label}
-              type="button" className="toolbar-icon-btn toolbar-shape-btn"
-              onClick={() => addElement(item.action)}
-              disabled={!canEdit}
-              title={`Add ${item.label}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * i, duration: 0.2 }}
-              whileHover={{ y: -2, scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-            >
-              <Icon size={14} />
-            </motion.button>
-          );
-        })}
-      </div>
-
-      <div className="toolbar-divider" />
-
-      <div className="toolbar-group">
-        <span className="toolbar-label">Export</span>
-        <div className="toolbar-menu" ref={exportMenuRef}>
-          <motion.button
-            type="button"
-            className="toolbar-button toolbar-button-compact"
-            onClick={() => setExportMenuOpen((open) => !open)}
-            title="Export workspace"
-            whileHover={{ y: -2, scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-          >
-            <Download size={14} />
-            <span>Export</span>
-            <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-          </motion.button>
-
-          <AnimatePresence>
-            {exportMenuOpen ? (
-              <motion.div
-                className="toolbar-menu-list"
-                initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                transition={{ duration: 0.16 }}
+      {showAddActions ? (
+        <div className="toolbar-group toolbar-group-add">
+          <span className="toolbar-label">Add</span>
+          {ADD_BUTTONS.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <motion.button
+                key={item.label}
+                type="button" className="toolbar-icon-btn toolbar-shape-btn"
+                onClick={() => addElement(item.action)}
+                disabled={!canEdit}
+                title={`Add ${item.label}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * i, duration: 0.2 }}
+                whileHover={{ y: -2, scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
               >
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPng(`${fileBase}.png`);
-                  }}
-                >
-                  PNG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                  }}
-                >
-                  JPEG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                  }}
-                >
-                  PDF
-                </button>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+                <Icon size={14} />
+              </motion.button>
+            );
+          })}
         </div>
-      </div>
+      ) : null}
 
       {/* Text formatting context bar */}
       <AnimatePresence>
-        {isText && selectedElement && (
+        {showSelectionActions && isText && selectedElement && (
           <motion.div
             className="toolbar-group"
             initial={{ opacity: 0, scaleX: 0.85 }}
@@ -336,7 +277,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
 
       {/* Edit actions */}
       <AnimatePresence>
-        {selectedElementId ? (
+        {showSelectionActions && selectedElementId ? (
           <motion.div
             className="toolbar-group"
             initial={{ opacity: 0, scaleX: 0.85 }}
