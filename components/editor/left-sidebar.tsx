@@ -8,7 +8,9 @@ import {
 } from "lucide-react";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 
-const TYPE_ICONS = {
+import type { CanvasElementType } from "@/types/canvas";
+
+const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   rectangle: RectangleHorizontal,
   rect: RectangleHorizontal,
   circle: Circle,
@@ -17,6 +19,7 @@ const TYPE_ICONS = {
   star: Star,
   arrow: ArrowRight,
   line: Minus,
+  image: RectangleHorizontal, // fallback icon for image type
 };
 
 
