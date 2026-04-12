@@ -138,8 +138,8 @@ export function Toolbar({
     return trimmed.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "workspace";
   }
 
-  function get3DStylePreset(type: "rectangle" | "text", currentStyle: CanvasElementStyle): Partial<CanvasElementStyle> {
-    // Keep original colors; only add stronger depth treatment.
+  function get3DStylePreset(type: "rectangle" | "text" | "image", currentStyle: CanvasElementStyle): Partial<CanvasElementStyle> {
+    // 3D for text: bold, stroke, shadow
     if (type === "text") {
       return {
         fontWeight: "bold",
@@ -152,7 +152,17 @@ export function Toolbar({
         shadowOffsetY: 10
       };
     }
-
+    // 3D for images: shadow only
+    if (type === "image") {
+      return {
+        shadowEnabled: true,
+        shadowColor: "rgba(8, 14, 26, 0.68)",
+        shadowBlur: 28,
+        shadowOffsetX: 13,
+        shadowOffsetY: 16
+      };
+    }
+    // 3D for shapes
     return {
       strokeWidth: Math.max(3.8, currentStyle.strokeWidth || 0),
       shadowEnabled: true,
@@ -165,7 +175,9 @@ export function Toolbar({
 
   function apply3DToSelected() {
     if (!selectedElement) return;
-    const type = selectedElement.type === "text" ? "text" : "rectangle";
+    let type: "rectangle" | "text" | "image" = "rectangle";
+    if (selectedElement.type === "text") type = "text";
+    else if (selectedElement.type === "image") type = "image";
     updateElementStyle(selectedElement.id, get3DStylePreset(type, selectedElement.style));
   }
 

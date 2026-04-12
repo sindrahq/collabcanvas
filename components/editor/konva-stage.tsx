@@ -236,6 +236,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     ref={(node: any) => {
                       nodeRefs.current[element.id] = node;
                     }}
+                    {...sharedShadow}
                     onTransformEnd={(event: any) =>
                       updateFromTransform(element, event.target, updateElement)
                     }
@@ -416,6 +417,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                   ref={(node) => {
                     nodeRefs.current[element.id] = node;
                   }}
+                  {...sharedShadow}
                   text={element.text ?? "Text element"}
                   fill={element.style.fill}
                   opacity={editingElementId === element.id ? 0 : element.style.opacity}

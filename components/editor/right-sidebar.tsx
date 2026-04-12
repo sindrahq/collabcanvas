@@ -288,43 +288,45 @@ export function RightSidebar({
               </div>
             </div>
 
-            {/* Shadow */}
-            <div className="inspector-section">
-              <div className="inspector-section-title">
-                <Palette size={12} /><span>Shadow</span>
+            {/* Shadow (for all types: shapes, images, text) */}
+            {(selectedElement.type === "rectangle" || selectedElement.type === "circle" || selectedElement.type === "triangle" || selectedElement.type === "star" || selectedElement.type === "image" || selectedElement.type === "text") && (
+              <div className="inspector-section">
+                <div className="inspector-section-title">
+                  <Palette size={12} /><span>Shadow</span>
+                </div>
+                <div className="inspector-row" style={{ marginBottom: 8 }}>
+                  <label className="inspector-label">Enable</label>
+                  <button
+                    type="button"
+                    className={`inspector-toggle-btn${selectedElement.style.shadowEnabled ? " active" : ""}`}
+                    onClick={() => updateElementStyle(selectedElement.id, { shadowEnabled: !selectedElement.style.shadowEnabled })}
+                    disabled={!canEdit}
+                    title="Toggle shadow"
+                  >
+                    {selectedElement.style.shadowEnabled ? "On" : "Off"}
+                  </button>
+                </div>
+                {selectedElement.style.shadowEnabled && (
+                  <>
+                    <ColorRow label="Color" value={selectedElement.style.shadowColor}
+                      onChange={(v) => updateElementStyle(selectedElement.id, { shadowColor: v })}
+                      disabled={!canEdit} />
+                    <SliderRow label="Blur" value={selectedElement.style.shadowBlur}
+                      min={0} max={60} display={`${selectedElement.style.shadowBlur}px`}
+                      onChange={(v) => updateElementStyle(selectedElement.id, { shadowBlur: v })}
+                      disabled={!canEdit} />
+                    <SliderRow label="Offset X" value={selectedElement.style.shadowOffsetX}
+                      min={-40} max={40} display={`${selectedElement.style.shadowOffsetX}px`}
+                      onChange={(v) => updateElementStyle(selectedElement.id, { shadowOffsetX: v })}
+                      disabled={!canEdit} />
+                    <SliderRow label="Offset Y" value={selectedElement.style.shadowOffsetY}
+                      min={-40} max={40} display={`${selectedElement.style.shadowOffsetY}px`}
+                      onChange={(v) => updateElementStyle(selectedElement.id, { shadowOffsetY: v })}
+                      disabled={!canEdit} />
+                  </>
+                )}
               </div>
-              <div className="inspector-row" style={{ marginBottom: 8 }}>
-                <label className="inspector-label">Enable</label>
-                <button
-                  type="button"
-                  className={`inspector-toggle-btn${selectedElement.style.shadowEnabled ? " active" : ""}`}
-                  onClick={() => updateElementStyle(selectedElement.id, { shadowEnabled: !selectedElement.style.shadowEnabled })}
-                  disabled={!canEdit}
-                  title="Toggle shadow"
-                >
-                  {selectedElement.style.shadowEnabled ? "On" : "Off"}
-                </button>
-              </div>
-              {selectedElement.style.shadowEnabled && (
-                <>
-                  <ColorRow label="Color" value={selectedElement.style.shadowColor}
-                    onChange={(v) => updateElementStyle(selectedElement.id, { shadowColor: v })}
-                    disabled={!canEdit} />
-                  <SliderRow label="Blur" value={selectedElement.style.shadowBlur}
-                    min={0} max={60} display={`${selectedElement.style.shadowBlur}px`}
-                    onChange={(v) => updateElementStyle(selectedElement.id, { shadowBlur: v })}
-                    disabled={!canEdit} />
-                  <SliderRow label="Offset X" value={selectedElement.style.shadowOffsetX}
-                    min={-40} max={40} display={`${selectedElement.style.shadowOffsetX}px`}
-                    onChange={(v) => updateElementStyle(selectedElement.id, { shadowOffsetX: v })}
-                    disabled={!canEdit} />
-                  <SliderRow label="Offset Y" value={selectedElement.style.shadowOffsetY}
-                    min={-40} max={40} display={`${selectedElement.style.shadowOffsetY}px`}
-                    onChange={(v) => updateElementStyle(selectedElement.id, { shadowOffsetY: v })}
-                    disabled={!canEdit} />
-                </>
-              )}
-            </div>
+            )}
 
             {/* Text section */}
             {selectedElement.type === "text" && (
