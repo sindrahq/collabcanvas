@@ -1,15 +1,72 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
-  Baseline, Bold, ChevronDown, Circle, Copy, Download,
+  Baseline, Bold, Circle, Copy,
   Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
-  Star, Trash2, Triangle, Type, Undo2,
+  Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
-import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
+import React, { useRef, useState } from "react";
+
+
+function UploadPictureButton() {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const addElement = useWorkspaceStore((s) => s.addElement);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      // Debug: log the uploaded image URL
+      console.log("Uploaded image URL:", data.url);
+      // Add image element to canvas
+      addElement("image", { imageUrl: data.url });
+    } catch (err: any) {
+      setUploadError(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div style={{ display: "inline-block", marginLeft: 8 }}>
+      <input
+        type="file"
+        accept="image/png, image/jpeg"
+        style={{ display: "none" }}
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        disabled={uploading}
+      />
+      <button
+        type="button"
+        className="toolbar-icon-btn toolbar-shape-btn"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        title="Upload Picture"
+        style={{ position: "relative" }}
+      >
+        <ImageIcon size={15} />
+      </button>
+      {uploadError && <div style={{ color: "#c00", fontSize: 11 }}>{uploadError}</div>}
+    </div>
+  );
+}
 
 const FONTS = [
   "Inter", "Roboto", "Montserrat", "Oswald",
@@ -35,7 +92,19 @@ const ALIGNMENTS = [
   { align: "right"  as const, icon: AlignRight },
 ];
 
-export function Toolbar({ workspaceName }: { workspaceName: string }) {
+export function Toolbar({
+  workspaceName,
+  layout = "horizontal",
+  showHistoryActions = true,
+  showAddActions = true,
+  showSelectionActions = true,
+}: {
+  workspaceName: string;
+  layout?: "horizontal" | "vertical";
+  showHistoryActions?: boolean;
+  showAddActions?: boolean;
+  showSelectionActions?: boolean;
+}) {
   const selectedElementId        = useWorkspaceStore((s) => s.selectedElementId);
   const elements                 = useWorkspaceStore((s) => s.elements);
   const canEdit                  = useWorkspaceStore((s) => s.canEdit);
@@ -52,19 +121,7 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
   const isText = selectedElement?.type === "text";
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
-      if (!exportMenuRef.current?.contains(event.target as Node)) {
-        setExportMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
+  const isVertical = layout === "vertical";
 
   function toggleStyle<K extends "fontWeight" | "fontStyle">(
     field: K,
@@ -81,8 +138,8 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
     return trimmed.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "workspace";
   }
 
-  function get3DStylePreset(type: "rectangle" | "text", currentStyle: CanvasElementStyle): Partial<CanvasElementStyle> {
-    // Keep original colors; only add stronger depth treatment.
+  function get3DStylePreset(type: "rectangle" | "text" | "image", currentStyle: CanvasElementStyle): Partial<CanvasElementStyle> {
+    // 3D for text: bold, stroke, shadow
     if (type === "text") {
       return {
         fontWeight: "bold",
@@ -95,7 +152,17 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
         shadowOffsetY: 10
       };
     }
-
+    // 3D for images: shadow only
+    if (type === "image") {
+      return {
+        shadowEnabled: true,
+        shadowColor: "rgba(8, 14, 26, 0.68)",
+        shadowBlur: 28,
+        shadowOffsetX: 13,
+        shadowOffsetY: 16
+      };
+    }
+    // 3D for shapes
     return {
       strokeWidth: Math.max(3.8, currentStyle.strokeWidth || 0),
       shadowEnabled: true,
@@ -108,7 +175,9 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
 
   function apply3DToSelected() {
     if (!selectedElement) return;
-    const type = selectedElement.type === "text" ? "text" : "rectangle";
+    let type: "rectangle" | "text" | "image" = "rectangle";
+    if (selectedElement.type === "text") type = "text";
+    else if (selectedElement.type === "image") type = "image";
     updateElementStyle(selectedElement.id, get3DStylePreset(type, selectedElement.style));
   }
 
@@ -133,123 +202,75 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
 
   return (
     <motion.div
-      className="toolbar"
+      className={`toolbar${isVertical ? " toolbar-vertical" : ""}`}
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      {/* Undo / Redo */}
-      <div className="toolbar-group">
-        <motion.button
-          type="button" className="toolbar-icon-btn"
-          onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
-          whileHover={canUndo ? { scale: 1.08 } : undefined}
-          whileTap={canUndo ? { scale: 0.94 } : undefined}
-        >
-          <Undo2 size={15} />
-        </motion.button>
-        <motion.button
-          type="button" className="toolbar-icon-btn"
-          onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
-          whileHover={canRedo ? { scale: 1.08 } : undefined}
-          whileTap={canRedo ? { scale: 0.94 } : undefined}
-        >
-          <Redo2 size={15} />
-        </motion.button>
-      </div>
 
-      <div className="toolbar-divider" />
 
-      {/* Add shapes */}
-      <div className="toolbar-group">
-        <span className="toolbar-label">Add</span>
-        {ADD_BUTTONS.map((item, i) => {
-          const Icon = item.icon;
-          return (
+      {/* Add section with requested order and layout */}
+      {showAddActions ? (
+        <div className="toolbar-group toolbar-group-add" style={{ minWidth: 180 }}>
+          <span className="toolbar-label" style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Add</span>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Shapes subheading and grid */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Shapes</span>
+          <div className="toolbar-shapes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '6px 0 10px 0' }}>
+            {ADD_BUTTONS.filter(b => b.action !== 'text').map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <motion.button
+                  key={item.label}
+                  type="button" className="toolbar-icon-btn toolbar-shape-btn"
+                  onClick={() => addElement(item.action)}
+                  disabled={!canEdit}
+                  title={`Add ${item.label}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 * i, duration: 0.2 }}
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                >
+                  <Icon size={16} />
+                </motion.button>
+              );
+            })}
+          </div>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Text subheading and icon */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Text</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
             <motion.button
-              key={item.label}
-              type="button" className="toolbar-icon-btn toolbar-shape-btn"
-              onClick={() => addElement(item.action)}
+              type="button"
+              className="toolbar-icon-btn toolbar-shape-btn"
+              onClick={() => addElement('text')}
               disabled={!canEdit}
-              title={`Add ${item.label}`}
+              title="Add Text"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * i, duration: 0.2 }}
+              transition={{ delay: 0.05 * ADD_BUTTONS.length, duration: 0.2 }}
               whileHover={{ y: -2, scale: 1.03 }}
               whileTap={{ scale: 0.96 }}
             >
-              <Icon size={14} />
+              <Type size={16} />
             </motion.button>
-          );
-        })}
-      </div>
+          </div>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
 
-      <div className="toolbar-divider" />
-
-      <div className="toolbar-group">
-        <span className="toolbar-label">Export</span>
-        <div className="toolbar-menu" ref={exportMenuRef}>
-          <motion.button
-            type="button"
-            className="toolbar-button toolbar-button-compact"
-            onClick={() => setExportMenuOpen((open) => !open)}
-            title="Export workspace"
-            whileHover={{ y: -2, scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-          >
-            <Download size={14} />
-            <span>Export</span>
-            <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-          </motion.button>
-
-          <AnimatePresence>
-            {exportMenuOpen ? (
-              <motion.div
-                className="toolbar-menu-list"
-                initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                transition={{ duration: 0.16 }}
-              >
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPng(`${fileBase}.png`);
-                  }}
-                >
-                  PNG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                  }}
-                >
-                  JPEG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                  }}
-                >
-                  PDF
-                </button>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          {/* Upload subheading and icon */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Upload</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 0 0' }}>
+            <UploadPictureButton />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Text formatting context bar */}
       <AnimatePresence>
-        {isText && selectedElement && (
+        {showSelectionActions && isText && selectedElement && (
           <motion.div
             className="toolbar-group"
             initial={{ opacity: 0, scaleX: 0.85 }}
@@ -334,9 +355,9 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
         )}
       </AnimatePresence>
 
-      {/* Edit actions */}
+      {/* Edit actions + Opacity control */}
       <AnimatePresence>
-        {selectedElementId ? (
+        {showSelectionActions && selectedElementId ? (
           <motion.div
             className="toolbar-group"
             initial={{ opacity: 0, scaleX: 0.85 }}
@@ -347,6 +368,26 @@ export function Toolbar({ workspaceName }: { workspaceName: string }) {
           >
             <div className="toolbar-divider" />
             <span className="toolbar-label">Edit</span>
+
+            {/* Opacity slider for images, text, and shapes */}
+            {selectedElement && (selectedElement.type === "image" || selectedElement.type === "text" || ["rectangle","circle","triangle","star","arrow","line"].includes(selectedElement.type)) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 12px 0 0" }}>
+                <span style={{ fontSize: 13, color: "#444" }}>Opacity</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1}
+                  step={0.01}
+                  value={selectedElement.style.opacity}
+                  onChange={e => updateElementStyle(selectedElement.id, { opacity: parseFloat(e.target.value) })}
+                  style={{ width: 80 }}
+                  disabled={!canEdit}
+                  title="Opacity"
+                />
+                <span style={{ fontSize: 12, color: "#666", minWidth: 28, textAlign: "right" }}>{Math.round(selectedElement.style.opacity * 100)}%</span>
+              </div>
+            )}
+
             <motion.button
               type="button" className="toolbar-button toolbar-button-compact"
               onClick={apply3DToSelected}

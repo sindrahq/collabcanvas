@@ -3,77 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createShareToken, type ShareAccessLevel } from "@/lib/share-links";
 
 type ShareRequestBody = {
-  mode?: "email" | "link";
-  email?: string;
+  mode?: "username" | "link";
+  username?: string;
   accessLevel?: ShareAccessLevel;
 };
 
 function isShareAccessLevel(value: unknown): value is ShareAccessLevel {
   return value === "view" || value === "comment" || value === "edit";
-}
-
-async function sendInviteEmail(args: {
-  to: string;
-  workspaceName: string;
-  inviterName: string;
-  shareLink: string;
-  accessLevel: ShareAccessLevel;
-}): Promise<{ sent: boolean; warning?: string }> {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-
-  if (!resendApiKey || !resendFromEmail) {
-    return {
-      sent: false,
-      warning:
-        "Email provider is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL to send workspace invites.",
-    };
-  }
-
-  const accessLabel = args.accessLevel === "comment" ? "comment" : args.accessLevel === "edit" ? "edit" : "view";
-  const subject = `${args.inviterName} invited you to collaborate on ${args.workspaceName}`;
-  const text = [
-    `You were invited to collaborate on ${args.workspaceName}.`,
-    `Access level: ${accessLabel}`,
-    `Open the workspace: ${args.shareLink}`,
-    "",
-    "If you were not expecting this invite, you can ignore this email.",
-  ].join("\n");
-
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1a1a1a">
-      <h2 style="margin:0 0 12px">You were invited to collaborate on ${args.workspaceName}</h2>
-      <p style="margin:0 0 8px">Access level: <strong>${accessLabel}</strong></p>
-      <p style="margin:0 0 16px"><a href="${args.shareLink}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px">Open workspace</a></p>
-      <p style="margin:0 0 8px;color:#5f584e;font-size:14px">Or copy this link:</p>
-      <p style="margin:0;word-break:break-all;font-size:14px">${args.shareLink}</p>
-    </div>
-  `;
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: resendFromEmail,
-      to: [args.to],
-      subject,
-      text,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    return {
-      sent: false,
-      warning: errorBody?.message || `Failed to send invite email (${response.status}).`,
-    };
-  }
-
-  return { sent: true };
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ workspaceId: string }> }) {
@@ -100,9 +36,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const mode = body.mode ?? "email";
+  const mode = body.mode ?? "username";
   const accessLevel = isShareAccessLevel(body.accessLevel) ? body.accessLevel : "view";
-  const email = body.email?.trim().toLowerCase() || "";
+  const username = body.username?.trim() || "";
 
   let cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }> = [];
 
@@ -168,18 +104,87 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     }
   }
 
-  if (!email) {
-    return NextResponse.json({ error: "Recipient email is required." }, { status: 400 });
+  if (mode !== "username") {
+    return NextResponse.json({ error: "Unsupported share mode." }, { status: 400 });
   }
 
-  const { error: shareError } = await supabase.from("workspace_shares").insert({
-    workspace_id: workspaceId,
-    shared_by_id: userData.user.id,
-    shared_with_email: email,
-    access_level: accessLevel,
-    share_kind: "email",
-    active: true,
-  });
+  if (!username) {
+    return NextResponse.json({ error: "Recipient username is required." }, { status: 400 });
+  }
+
+  const normalizedUsername = username.replace(/^@+/, "").toLowerCase();
+  if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
+    return NextResponse.json(
+      { error: "Username must be 3-30 chars and only contain letters, numbers, or underscores." },
+      { status: 400 }
+    );
+  }
+
+  const { data: targetProfile, error: profileError } = await supabase
+    .from("user_profiles")
+    .select("user_id, username")
+    .ilike("username", normalizedUsername)
+    .maybeSingle();
+
+  if (profileError) {
+    const missingProfilesTable = profileError.message.includes("Could not find the table 'public.user_profiles'");
+    if (missingProfilesTable) {
+      return NextResponse.json(
+        { error: "Username directory is missing. Run docs/SUPABASE_USERNAMES_SETUP.sql in Supabase SQL Editor." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: profileError.message }, { status: 400 });
+  }
+
+  if (!targetProfile?.user_id) {
+    return NextResponse.json({ error: "No user found with that username." }, { status: 404 });
+  }
+
+  if (targetProfile.user_id === userData.user.id) {
+    return NextResponse.json({ error: "You already have access to this workspace." }, { status: 400 });
+  }
+
+  const { data: existingShare, error: existingShareError } = await supabase
+    .from("workspace_shares")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("shared_with_id", targetProfile.user_id)
+    .maybeSingle();
+
+  if (existingShareError) {
+    const missingSharesTable = existingShareError.message.includes("Could not find the table 'public.workspace_shares'");
+    if (missingSharesTable) {
+      return NextResponse.json(
+        { error: "Workspace sharing table is missing. Run docs/SUPABASE_WORKSPACE_SHARES_TABLE_FIX.sql in Supabase SQL Editor." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: existingShareError.message }, { status: 400 });
+  }
+
+  const shareMutation = existingShare?.id
+    ? supabase
+        .from("workspace_shares")
+        .update({
+          shared_by_id: userData.user.id,
+          access_level: accessLevel,
+          active: true,
+          shared_with_email: null,
+          share_kind: "email",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingShare.id)
+    : supabase.from("workspace_shares").insert({
+        workspace_id: workspaceId,
+        shared_by_id: userData.user.id,
+        shared_with_id: targetProfile.user_id,
+        access_level: accessLevel,
+        share_kind: "email",
+        active: true,
+      });
+
+  const { error: shareError } = await shareMutation;
 
   if (shareError) {
     const missingSharesTable = shareError.message.includes("Could not find the table 'public.workspace_shares'");
@@ -192,65 +197,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     return NextResponse.json({ error: shareError.message }, { status: 400 });
   }
 
-  if (mode === "email") {
-    const token = createShareToken({
-      workspaceId,
-      accessLevel,
-      issuedAt: Date.now(),
-    });
-    const shareLink = `${new URL(request.url).origin}/s/${encodeURIComponent(token)}`;
-
-    try {
-      const inviterName =
-        typeof userData.user.user_metadata?.full_name === "string" && userData.user.user_metadata.full_name.trim()
-          ? userData.user.user_metadata.full_name.trim()
-          : userData.user.email || "Someone";
-
-      const emailResult = await sendInviteEmail({
-        to: email,
-        workspaceName: workspace.name,
-        inviterName,
-        shareLink,
-        accessLevel,
-      });
-
-      const response = NextResponse.json({
-        sharedWithEmail: email,
-        accessLevel,
-        shareLink,
-        emailSent: emailResult.sent,
-        emailWarning: emailResult.warning,
-      });
-
-      cookiesToSet.forEach(({ name, value, options }) => {
-        response.cookies.set(name, value, options);
-      });
-
-      return response;
-    } catch (emailError) {
-      const warning =
-        emailError instanceof Error
-          ? emailError.message
-          : "Invite saved, but email could not be sent.";
-
-      const response = NextResponse.json({
-        sharedWithEmail: email,
-        accessLevel,
-        shareLink,
-        emailSent: false,
-        emailWarning: warning,
-      });
-
-      cookiesToSet.forEach(({ name, value, options }) => {
-        response.cookies.set(name, value, options);
-      });
-
-      return response;
-    }
-  }
-
   const response = NextResponse.json({
-    sharedWithEmail: email,
+    sharedWithUsername: targetProfile.username,
     accessLevel,
   });
 

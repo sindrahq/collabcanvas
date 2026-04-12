@@ -34,6 +34,18 @@ type CommentAuthor = {
 	email?: string | null;
 };
 
+function mapCommentsError(message: string | undefined) {
+	const raw = message ?? "";
+	if (raw.includes("Could not find the table 'public.workspace_comments'")) {
+		return "Comments table is missing. Run docs/SUPABASE_WORKSPACE_COMMENTS_TABLE_FIX.sql in Supabase SQL Editor.";
+	}
+	if (raw.includes("violates row-level security policy") && raw.includes("workspace_comments")) {
+		return "You do not have comment permission for this workspace yet. Run docs/SUPABASE_WORKSPACE_COMMENTS_TABLE_FIX.sql (or docs/SUPABASE_RLS_WORKSPACE_SHARING_PATCH.sql) and verify the workspace is owned/shared with your signed-in account email.";
+	}
+
+	return raw || "Unable to load comments.";
+}
+
 function mapCommentRow(row: WorkspaceCommentRow): WorkspaceComment | null {
 	if (!row.id || !row.workspace_id || !row.author_id || !row.message) {
 		return null;
@@ -64,7 +76,7 @@ export async function loadWorkspaceComments(workspaceId: string): Promise<{ comm
 	if (error) {
 		return {
 			comments: [],
-			error: error.message,
+			error: mapCommentsError(error.message),
 		};
 	}
 
@@ -106,7 +118,7 @@ export async function createWorkspaceComment(
 	if (error || !data) {
 		return {
 			comment: null,
-			error: error?.message ?? "Unable to create comment.",
+			error: mapCommentsError(error?.message) || "Unable to create comment.",
 		};
 	}
 

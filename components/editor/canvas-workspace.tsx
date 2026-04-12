@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Palette, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
   broadcastCursor,
@@ -46,7 +46,6 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
-
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [autoFitEnabled, setAutoFitEnabled] = useState(true);
@@ -220,13 +219,12 @@ function getTouchDistance(touches: React.TouchList) {
           </div>
         </div>
       </div>
-
       <div className="canvas-viewport" ref={viewportRef}>
         <div
           className="konva-shell konva-stage-wrap"
           style={{
-            transformOrigin: "center top",
-            transform: `scale(${zoom})`,
+            transformOrigin: "center center",
+            transform: `translateX(-36px) scale(${zoom})`,
             touchAction: isMobileViewport ? "pan-x" : "none",
             width: `${stageRenderWidth}px`,
             minWidth: `${stageRenderWidth}px`,
@@ -250,6 +248,37 @@ function getTouchDistance(touches: React.TouchList) {
             presences={presences}
             currentUserId={currentUserId}
           />
+        </div>
+      </div>
+
+      <div className="canvas-zoom-float">
+        <div className="zoom-controls">
+          <button
+            type="button" className="zoom-btn"
+            onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
+            title="Zoom out"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <button
+            type="button" className="zoom-level"
+            onClick={zoomReset} title="Reset zoom"
+          >
+            {zoomPercent}%
+          </button>
+          <button
+            type="button" className="zoom-btn"
+            onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
+            title="Zoom in"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            type="button" className="zoom-btn"
+            onClick={zoomReset} title="Fit to screen"
+          >
+            <Maximize2 size={13} />
+          </button>
         </div>
       </div>
     </section>
