@@ -10,8 +10,8 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
-import { CANVAS_DIMENSIONS } from "@/lib/constants";
 import { useWorkspaceStore } from "@/store/workspaceStore";
+import { FramePicker } from "@/components/editor/frame-picker";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -29,8 +29,7 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.15;
 const MOBILE_BREAKPOINT = 860;
-const STAGE_RENDER_WIDTH = CANVAS_DIMENSIONS.width / 1.6;
-const STAGE_RENDER_HEIGHT = CANVAS_DIMENSIONS.height / 1.6;
+const STAGE_SCALE = 1.6;
 
 type CanvasWorkspaceProps = {
   currentUserId: string;
@@ -39,6 +38,14 @@ type CanvasWorkspaceProps = {
 };
 
 export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+  const elementCount        = useWorkspaceStore((s) => s.elements.length);
+  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
+  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
+  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
+  const canEdit             = useWorkspaceStore((s) => s.canEdit);
+
+  const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
+  const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [autoFitEnabled, setAutoFitEnabled] = useState(true);
@@ -49,9 +56,9 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
   const fitZoom = useMemo(() => {
     const width = Math.max(1, viewportSize.width - 24);
     const height = Math.max(1, viewportSize.height - 24);
-    const nextZoom = Math.min(width / STAGE_RENDER_WIDTH, height / STAGE_RENDER_HEIGHT);
+    const nextZoom = Math.min(width / stageRenderWidth, height / stageRenderHeight);
     return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, parseFloat(nextZoom.toFixed(2))));
-  }, [viewportSize]);
+  }, [viewportSize, stageRenderWidth, stageRenderHeight]);
 
   const isMobileViewport = viewportSize.width > 0 && viewportSize.width < MOBILE_BREAKPOINT;
 
@@ -161,6 +168,57 @@ function getTouchDistance(touches: React.TouchList) {
 
   return (
     <section className="canvas-stage-shell">
+      <div className="canvas-toolbar-row">
+        <div className="canvas-toolbar-copy">
+          <p className="eyebrow">Workspace Surface</p>
+          <h2 className="canvas-title">Canvas</h2>
+        </div>
+        <div className="canvas-toolbar-actions">
+          <div className="canvas-badge">
+            <strong>{elementCount}</strong>
+            <span>{elementCount === 1 ? "element" : "elements"}</span>
+          </div>
+          <FramePicker />
+          <div className="canvas-bg-picker" title="Canvas background color">
+            <Palette size={13} />
+            <input
+              type="color"
+              value={canvasBackground}
+              onChange={(e) => setCanvasBackground(e.target.value)}
+              disabled={!canEdit}
+              title="Canvas background"
+            />
+          </div>
+          <div className="zoom-controls">
+            <button
+              type="button" className="zoom-btn"
+              onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
+              title="Zoom out"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <button
+              type="button" className="zoom-level"
+              onClick={zoomReset} title="Reset zoom"
+            >
+              {zoomPercent}%
+            </button>
+            <button
+              type="button" className="zoom-btn"
+              onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
+              title="Zoom in"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button
+              type="button" className="zoom-btn"
+              onClick={zoomReset} title="Fit to screen"
+            >
+              <Maximize2 size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
       <div className="canvas-viewport" ref={viewportRef}>
         <div
           className="konva-shell konva-stage-wrap"
@@ -168,9 +226,9 @@ function getTouchDistance(touches: React.TouchList) {
             transformOrigin: "center center",
             transform: `translateX(-36px) scale(${zoom})`,
             touchAction: isMobileViewport ? "pan-x" : "none",
-            width: `${STAGE_RENDER_WIDTH}px`,
-            minWidth: `${STAGE_RENDER_WIDTH}px`,
-            height: `${STAGE_RENDER_HEIGHT}px`,
+            width: `${stageRenderWidth}px`,
+            minWidth: `${stageRenderWidth}px`,
+            height: `${stageRenderHeight}px`,
           }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}

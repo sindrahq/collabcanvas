@@ -14,13 +14,10 @@ import {
   Transformer,
 } from "react-konva";
 import type Konva from "konva";
-import { CANVAS_DIMENSIONS } from "@/lib/constants";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import { KonvaImage } from "./konva-image";
 
 const STAGE_SCALE = 1.6;
-const STAGE_WIDTH = CANVAS_DIMENSIONS.width / STAGE_SCALE;
-const STAGE_HEIGHT = CANVAS_DIMENSIONS.height / STAGE_SCALE;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -107,7 +104,11 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const selectElement = useWorkspaceStore((state) => state.selectElement);
   const updateElement = useWorkspaceStore((state) => state.updateElement);
   const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
+  const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
   const canEdit = useWorkspaceStore((state) => state.canEdit);
+
+  const STAGE_WIDTH  = canvasDimensions.width  / STAGE_SCALE;
+  const STAGE_HEIGHT = canvasDimensions.height / STAGE_SCALE;
 
   const orderedElements = useMemo(
     () => [...elements].sort((left, right) => left.layerOrder - right.layerOrder),
@@ -135,8 +136,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   }, [canEdit, orderedElements, selectedElementId]);
 
   return (
-    <>
-      <div className="konva-frame">
+    <div className="konva-frame">
         <Stage
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}

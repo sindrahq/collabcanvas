@@ -88,6 +88,7 @@ type WorkspaceState = {
   history: CanvasElement[][];
   historyIndex: number;
   canvasBackground: string;
+  canvasDimensions: { width: number; height: number };
   selectElement: (elementId: string | null) => void;
   setSelectedElementId: (elementId: string | null) => void;
   setWorkspace: (workspace: WorkspaceMeta | null) => void;
@@ -105,6 +106,7 @@ type WorkspaceState = {
   toggleLock: (elementId: string) => void;
   updateLayerOrder: (elements: CanvasElement[]) => void;
   setCanvasBackground: (color: string) => void;
+  setCanvasDimensions: (dimensions: { width: number; height: number }) => void;
   undo: () => void;
   redo: () => void;
 };
@@ -231,6 +233,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       history: [cloneElements(starterElements)],
       historyIndex: 0,
       canvasBackground: "#fffdf8",
+      canvasDimensions: { width: 1280, height: 800 },
 
       selectElement: (selectedElementId) => set({ selectedElementId }),
       setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
@@ -355,6 +358,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((state) => withHistory(state, normalizeElements(elements))),
 
       setCanvasBackground: (canvasBackground) => set({ canvasBackground }),
+      setCanvasDimensions: (canvasDimensions) => set({ canvasDimensions }),
 
       undo: () =>
         set((state) => {
@@ -379,6 +383,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         elementList: state.elementList,
         workspaceName: state.workspaceName,
         canvasBackground: state.canvasBackground,
+        canvasDimensions: state.canvasDimensions,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
