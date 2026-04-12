@@ -6,9 +6,7 @@ import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
   Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
 } from "lucide-react";
-import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
-
-import type { CanvasElementType } from "@/types/canvas";
+import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
 
 const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   rectangle: RectangleHorizontal,
