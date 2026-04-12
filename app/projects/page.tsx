@@ -2,9 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
+import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { supabase } from "@/lib/supabaseClient";
-import { loadAllLocalWorkspaceSnapshots } from "@/lib/localWorkspacePersistence";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getDisplayNameFromMetadata } from "@/lib/profile";
 import "../globals.css";
 
 type ProjectRow = {
@@ -37,6 +40,10 @@ type CanvasPreviewElement = {
   id: string;
   workspace_id: string;
   type: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
   position?: {
     x?: number;
     y?: number;
@@ -50,13 +57,60 @@ type CanvasPreviewElement = {
     opacity?: number;
     fontSize?: number;
   };
+  style_ext?: {
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    opacity?: number;
+    fontSize?: number;
+  };
   layer_order?: number;
+};
+
+type WorkspaceHistoryPreviewRow = {
+  workspace_id?: string;
+  created_at?: string;
+  snapshot?: {
+    elements?: Array<{
+      id?: string;
+      type?: string;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+      layerOrder?: number;
+      layer_order?: number;
+      style?: {
+        fill?: string;
+        stroke?: string;
+        strokeWidth?: number;
+        opacity?: number;
+        fontSize?: number;
+      };
+    }>;
+  };
 };
 
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const LOCAL_PROJECTS_KEY = "collabcanvas_guest_projects";
 const LOCAL_SHARED_PROJECTS_KEY = "collabcanvas_shared_projects";
 const LOCAL_TRASH_KEY = "collabcanvas_project_trash";
+
+const headingSerif = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["700", "800", "900"],
+});
+
+const accentSerif = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  style: ["italic"],
+});
+
+const bodySans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 const SECTION_COPY: Record<SectionKey, { heading: string; subheading: string }> = {
   "my-projects": {
@@ -94,9 +148,36 @@ function toTimestamp(value?: string | null): number {
   return Number.isNaN(ts) ? 0 : ts;
 }
 
+function normalizePreviewElement(input: Partial<CanvasPreviewElement>): CanvasPreviewElement | null {
+  const workspaceId = input.workspace_id;
+  const elementId = input.id;
+  const elementType = input.type;
+  if (!workspaceId || !elementId || !elementType) return null;
+
+  const position = input.position || {
+    x: input.x,
+    y: input.y,
+    width: input.width,
+    height: input.height,
+  };
+
+  const style = input.style || input.style_ext;
+
+  return {
+    id: elementId,
+    workspace_id: workspaceId,
+    type: elementType,
+    position,
+    style,
+    layer_order: input.layer_order,
+  };
+}
+
 function buildPreviewMap(elements: CanvasPreviewElement[]): Record<string, CanvasPreviewElement[]> {
   const grouped: Record<string, CanvasPreviewElement[]> = {};
-  for (const element of elements) {
+  for (const raw of elements) {
+    const element = normalizePreviewElement(raw);
+    if (!element) continue;
     if (!grouped[element.workspace_id]) grouped[element.workspace_id] = [];
     grouped[element.workspace_id].push(element);
   }
@@ -106,38 +187,6 @@ function buildPreviewMap(elements: CanvasPreviewElement[]): Record<string, Canva
   });
 
   return grouped;
-}
-
-function buildLocalPreviewMap(workspaceIds: string[]): Record<string, CanvasPreviewElement[]> {
-  const snapshots = loadAllLocalWorkspaceSnapshots();
-  const result: Record<string, CanvasPreviewElement[]> = {};
-
-  workspaceIds.forEach((workspaceId) => {
-    const snapshot = snapshots[workspaceId];
-    if (!snapshot?.elements?.length) return;
-
-    result[workspaceId] = snapshot.elements.slice(0, 20).map((element) => ({
-      id: element.id,
-      workspace_id: workspaceId,
-      type: element.type,
-      position: {
-        x: element.x,
-        y: element.y,
-        width: element.width,
-        height: element.height,
-      },
-      style: {
-        fill: element.style.fill,
-        stroke: element.style.stroke,
-        strokeWidth: element.style.strokeWidth,
-        opacity: element.style.opacity,
-        fontSize: element.style.fontSize,
-      },
-      layer_order: element.layerOrder,
-    }));
-  });
-
-  return result;
 }
 
 function getLocalOwnerId(): string {
@@ -235,7 +284,7 @@ function saveTrashEntries(entries: TrashEntry[]): void {
 function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
   if (!elements.length) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_20%_20%,rgba(78,161,255,0.2),transparent_45%),linear-gradient(135deg,#1a1a1a,#121212)] text-xs text-white/55">
+      <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_12%_18%,rgba(139,115,85,0.18),transparent_46%),linear-gradient(150deg,#f7f4ef,#eee8de)] text-xs text-[#6f6558]">
         No preview yet
       </div>
     );
@@ -268,14 +317,14 @@ function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
   const offsetY = (previewH - contentH * scale) / 2;
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(135deg,#171717,#101010)]">
+    <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(140deg,#f7f3ed,#efe8de)]">
       {elements.map((element) => {
         const x = Number(element.position?.x ?? 0);
         const y = Number(element.position?.y ?? 0);
         const width = Math.max(10, Number(element.position?.width ?? 80));
         const height = Math.max(10, Number(element.position?.height ?? 50));
-        const fill = element.style?.fill || "rgba(78, 161, 255, 0.2)";
-        const stroke = element.style?.stroke || "rgba(255,255,255,0.22)";
+        const fill = element.style?.fill || "rgba(139, 115, 85, 0.2)";
+        const stroke = element.style?.stroke || "rgba(54,45,38,0.24)";
         const strokeWidth = Math.max(1, Number(element.style?.strokeWidth ?? 1) * scale);
         const opacity = Number(element.style?.opacity ?? 1);
 
@@ -321,6 +370,10 @@ export default function ProjectsDashboard() {
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [previewMap, setPreviewMap] = useState<Record<string, CanvasPreviewElement[]>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
@@ -334,16 +387,69 @@ export default function ProjectsDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
 
   useEffect(() => {
-    setCurrentUserId(getLocalOwnerId());
-    setTrashEntries(loadTrashEntries());
-  }, []);
+    if (!browserClient) {
+      setErrorMessage("Authentication is unavailable. Missing Supabase environment variables.");
+      setLoadingProjects(false);
+      return;
+    }
+
+    let active = true;
+
+    void browserClient.auth.getSession().then(({ data }) => {
+      if (!active) return;
+
+      if (!data.session?.user) {
+        router.replace("/auth?next=%2Fprojects");
+        return;
+      }
+
+      const user = data.session.user;
+      const metadata = user.user_metadata || {};
+
+      setCurrentUserId(user.id);
+      setCurrentUserEmail(user.email?.trim().toLowerCase() ?? null);
+      setCurrentUserDisplayName(getDisplayNameFromMetadata(metadata, user.email));
+      setCurrentUserAvatarUrl(typeof metadata.avatar_url === "string" ? metadata.avatar_url : null);
+      setTrashEntries(loadTrashEntries());
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = browserClient.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+
+      if (!session?.user) {
+        setCurrentUserId(null);
+        setCurrentUserEmail(null);
+        setCurrentUserDisplayName(null);
+        setCurrentUserAvatarUrl(null);
+        setAuthReady(false);
+        router.replace("/auth?next=%2Fprojects");
+        return;
+      }
+
+      const metadata = session.user.user_metadata || {};
+
+      setCurrentUserId(session.user.id);
+      setCurrentUserEmail(session.user.email?.trim().toLowerCase() ?? null);
+      setCurrentUserDisplayName(getDisplayNameFromMetadata(metadata, session.user.email));
+      setCurrentUserAvatarUrl(typeof metadata.avatar_url === "string" ? metadata.avatar_url : null);
+      setAuthReady(true);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   useEffect(() => {
     async function fetchProjects() {
-      if (!currentUserId) return;
+      if (!authReady || !currentUserId) return;
 
       setLoadingProjects(true);
       setErrorMessage(null);
@@ -359,7 +465,7 @@ export default function ProjectsDashboard() {
         const localShared = loadLocalSharedProjects(currentUserId);
         setMyProjects(localMy);
         setSharedProjects(localShared);
-        setPreviewMap(buildLocalPreviewMap([...localMy, ...localShared].map((project) => project.id)));
+        setPreviewMap({});
         setUsingLocalMode(true);
         setUsingLocalTrashMode(true);
         setErrorMessage(null);
@@ -368,26 +474,37 @@ export default function ProjectsDashboard() {
       }
 
       const myRows = (data || []) as ProjectRow[];
-      const remoteMy = myRows.map((project) => ({ ...project, storage: "remote" as const }));
-      const localMy = loadLocalProjects(currentUserId);
-      const myMerged = Array.from(
-        new Map([...localMy, ...remoteMy].map((project) => [project.id, project])).values()
-      );
-      setMyProjects(myMerged);
+      setMyProjects(myRows.map((project) => ({ ...project, storage: "remote" as const })));
 
       // Shared-with-me fetch: fallback to local storage if sharing table is unavailable.
       let sharedRows: ProjectRow[] = [];
-      const { data: shareData, error: shareError } = await supabase
+      const sharedIds = new Set<string>();
+
+      const { data: idShareData, error: idShareError } = await supabase
         .from("workspace_shares")
         .select("workspace_id")
         .eq("shared_with_id", currentUserId);
 
-      if (!shareError && shareData?.length) {
-        const sharedIds = shareData.map((row: { workspace_id: string }) => row.workspace_id);
+      if (!idShareError && idShareData?.length) {
+        idShareData.forEach((row: { workspace_id: string }) => sharedIds.add(row.workspace_id));
+      }
+
+      if (currentUserEmail) {
+        const { data: emailShareData, error: emailShareError } = await supabase
+          .from("workspace_shares")
+          .select("workspace_id")
+          .eq("shared_with_email", currentUserEmail);
+
+        if (!emailShareError && emailShareData?.length) {
+          emailShareData.forEach((row: { workspace_id: string }) => sharedIds.add(row.workspace_id));
+        }
+      }
+
+      if (sharedIds.size) {
         const { data: sharedWorkspaceData, error: sharedWorkspaceError } = await supabase
           .from("workspaces")
           .select("*")
-          .in("id", sharedIds)
+          .in("id", [...sharedIds])
           .order("updated_at", { ascending: false });
 
         if (!sharedWorkspaceError) {
@@ -422,7 +539,7 @@ export default function ProjectsDashboard() {
         setUsingLocalTrashMode(false);
       }
 
-      const workspaceIds = [...myMerged, ...sharedRows].map((project) => project.id);
+      const workspaceIds = [...myRows, ...sharedRows].map((project) => project.id);
       if (!workspaceIds.length) {
         setPreviewMap({});
         setLoadingProjects(false);
@@ -431,23 +548,64 @@ export default function ProjectsDashboard() {
 
       const { data: canvasData, error: canvasError } = await supabase
         .from("canvas_elements")
-        .select("id, workspace_id, type, position, style, layer_order")
+        .select("*")
         .in("workspace_id", workspaceIds)
         .order("layer_order", { ascending: true });
 
-      if (canvasError) {
-        setPreviewMap(buildLocalPreviewMap(workspaceIds));
-      } else {
-        const remotePreviewMap = buildPreviewMap((canvasData || []) as CanvasPreviewElement[]);
-        const localPreviewMap = buildLocalPreviewMap(workspaceIds);
-        setPreviewMap({ ...localPreviewMap, ...remotePreviewMap });
+      let nextPreviewMap: Record<string, CanvasPreviewElement[]> = {};
+      if (!canvasError) {
+        nextPreviewMap = buildPreviewMap((canvasData || []) as CanvasPreviewElement[]);
       }
+
+      const missingPreviewWorkspaceIds = workspaceIds.filter((workspaceId) => !(nextPreviewMap[workspaceId]?.length));
+
+      if (missingPreviewWorkspaceIds.length) {
+        const { data: historyData, error: historyError } = await supabase
+          .from("workspace_history")
+          .select("workspace_id, created_at, snapshot")
+          .in("workspace_id", missingPreviewWorkspaceIds)
+          .order("created_at", { ascending: false });
+
+        if (!historyError && historyData?.length) {
+          const latestByWorkspace: Record<string, WorkspaceHistoryPreviewRow> = {};
+          for (const row of historyData as WorkspaceHistoryPreviewRow[]) {
+            if (!row.workspace_id || latestByWorkspace[row.workspace_id]) continue;
+            latestByWorkspace[row.workspace_id] = row;
+          }
+
+          for (const workspaceId of Object.keys(latestByWorkspace)) {
+            const elementsFromSnapshot = latestByWorkspace[workspaceId].snapshot?.elements || [];
+            const previewElements: CanvasPreviewElement[] = elementsFromSnapshot
+              .map((element, index) =>
+                normalizePreviewElement({
+                  id: element.id || `${workspaceId}-snapshot-${index}`,
+                  workspace_id: workspaceId,
+                  type: element.type || "rectangle",
+                  x: element.x,
+                  y: element.y,
+                  width: element.width,
+                  height: element.height,
+                  style: element.style,
+                  layer_order: element.layer_order ?? element.layerOrder ?? index,
+                })
+              )
+              .filter((element): element is CanvasPreviewElement => Boolean(element))
+              .slice(0, 20);
+
+            if (previewElements.length) {
+              nextPreviewMap[workspaceId] = previewElements;
+            }
+          }
+        }
+      }
+
+      setPreviewMap(nextPreviewMap);
 
       setLoadingProjects(false);
     }
 
     fetchProjects();
-  }, [currentUserId]);
+  }, [authReady, currentUserEmail, currentUserId]);
 
   const visibleProjects = useMemo(() => {
     const trashedIds = new Set(trashEntries.map((entry) => entry.id));
@@ -492,6 +650,14 @@ export default function ProjectsDashboard() {
   }, [visibleProjects, searchQuery, dateFilter, sortBy]);
 
   const currentCopy = SECTION_COPY[activeSection];
+
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FAF9F6] text-sm text-[#645C52]">
+        Checking authentication...
+      </div>
+    );
+  }
 
   async function handleCreateProject() {
     if (!currentUserId) {
@@ -750,24 +916,31 @@ export default function ProjectsDashboard() {
 
   return (
     <div
-      className="flex h-[100dvh] flex-col overflow-hidden"
+      className={`${bodySans.className} flex h-screen flex-col overflow-hidden bg-[var(--projects-bg)] text-[var(--projects-text)]`}
+      style={{
+        ["--projects-bg" as string]: "#FAF9F6",
+        ["--projects-surface" as string]: "#F3EFE8",
+        ["--projects-panel" as string]: "#F8F5EF",
+        ["--projects-text" as string]: "#1A1A1A",
+        ["--projects-muted" as string]: "#645C52",
+        ["--projects-line" as string]: "rgba(26,26,26,0.14)",
+        ["--projects-accent" as string]: "#8B7355",
+        ["--projects-success" as string]: "#4ADE80",
+      } as React.CSSProperties}
       onClick={() => {
         setOpenMenuProjectId(null);
         setFilterMenuOpen(false);
         setViewMenuOpen(false);
-        setMobileNavOpen(false);
       }}
     >
       {/* Top Menu Bar */}
-      <nav className="flex w-full flex-wrap items-center gap-2 border-b border-white/10 bg-[#121212] px-3 py-3 text-white sm:px-6">
-        <div className="font-bold text-lg">CollabCanvas</div>
-        <button className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10" aria-label="Account" type="button">
-          <img src="/account.png" alt="Account" className="h-5 w-5 object-contain" />
-        </button>
-        <div className="order-3 w-full sm:order-2 sm:flex-1 sm:px-4">
-          <div className="flex items-center gap-2 sm:block">
-            <div className="relative w-full sm:max-w-md sm:mx-auto">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-white/15 bg-[#2f2f34] text-[#bcd8ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <nav className="flex w-full items-center justify-between border-b border-[var(--projects-line)] bg-[var(--projects-bg)] px-6 py-4 text-[var(--projects-text)]">
+        <div className="flex items-center gap-5">
+          <div className={`${headingSerif.className} text-xl font-black tracking-[-0.02em]`}>CollabCanvas</div>
+        </div>
+        <div className="flex-1 px-4">
+          <div className="relative w-full max-w-md">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-[var(--projects-line)] bg-[var(--projects-panel)] text-[var(--projects-muted)]">
               <svg
                 className="h-3.5 w-3.5"
               viewBox="0 0 24 24"
@@ -787,87 +960,48 @@ export default function ProjectsDashboard() {
               placeholder="Search Projects"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="h-10 w-full rounded-xl border border-white/15 bg-[#232327] py-2 pl-10 pr-4 text-sm text-white placeholder:text-white/95 shadow-[0_8px_20px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 focus:border-[#4ea1ff]/70 focus:outline-none focus:ring-2 focus:ring-[#4ea1ff]/45"
+              className="h-10 w-full rounded-xl border border-[var(--projects-line)] bg-[var(--projects-panel)] py-2 pl-10 pr-4 text-sm text-[var(--projects-text)] placeholder:text-[var(--projects-muted)]/80 shadow-[0_20px_40px_rgba(0,0,0,0.04)] transition-all duration-200 focus:border-[var(--projects-accent)] focus:outline-none focus:ring-2 focus:ring-[rgba(139,115,85,0.16)]"
             />
-            </div>
-            <div className="relative md:hidden" onClick={(event) => event.stopPropagation()}>
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen((prev) => !prev)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-[#232327] text-white/85 transition-colors hover:bg-[#2b2b31]"
-                aria-label="Open sections"
-              >
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-
-              {mobileNavOpen ? (
-                <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/15 bg-[#1b1b1b] shadow-xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveSection("my-projects");
-                      setMobileNavOpen(false);
-                    }}
-                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${activeSection === "my-projects" ? "text-[#8ec5ff]" : "text-white/85"}`}
-                  >
-                    My Projects
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveSection("shared");
-                      setMobileNavOpen(false);
-                    }}
-                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${activeSection === "shared" ? "text-[#8ec5ff]" : "text-white/85"}`}
-                  >
-                    Shared with me
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveSection("trash");
-                      setMobileNavOpen(false);
-                    }}
-                    className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${activeSection === "trash" ? "text-[#8ec5ff]" : "text-white/85"}`}
-                  >
-                    Trash
-                  </button>
-                </div>
-              ) : null}
-            </div>
           </div>
         </div>
+        <ProfileMenu
+          displayName={currentUserDisplayName}
+          email={currentUserEmail}
+          avatarUrl={currentUserAvatarUrl}
+          onLogout={async () => {
+            if (!browserClient) return;
+            await browserClient.auth.signOut();
+            router.replace("/");
+          }}
+        />
       </nav>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className="hidden md:block">
-          <Sidebar
-            active={activeSection}
-            onSectionChange={setActiveSection}
-            onCreateProject={handleCreateProject}
-            creatingProject={creatingProject}
-            icons={{
-              designStudio: "/design_studio.png",
-              myProjects: "/my_projects.png",
-              shared: "/shared_with_me.png",
-              templates: "/templates.png",
-              trash: "/trash.png",
-              layers: "/layers.png"
-            }}
-          />
-        </div>
+        <Sidebar
+          theme="projects"
+          active={activeSection}
+          onSectionChange={setActiveSection}
+          onCreateProject={handleCreateProject}
+          creatingProject={creatingProject}
+          icons={{
+            designStudio: "/design_studio.png",
+            myProjects: "/my_projects.png",
+            shared: "/shared_with_me.png",
+            templates: "/templates.png",
+            trash: "/trash.png",
+            layers: "/layers.png"
+          }}
+        />
         {/* Main Content Area */}
-        <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-[#121212] pb-16 md:pb-0">
-          <section className="flex flex-1 flex-col px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-[var(--projects-bg)]">
+          <section className="flex flex-1 flex-col px-8 py-8 lg:px-10 lg:py-10">
             <div className="flex w-full flex-1 flex-col">
-              <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">{currentCopy.heading}</h1>
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <p className="text-sm text-white/70 sm:text-base">{currentCopy.subheading}</p>
-                <div className="relative flex w-full items-center justify-end gap-2 sm:ml-auto sm:w-auto" onClick={(event) => event.stopPropagation()}>
+              <div className="flex flex-col gap-6 border-b border-[var(--projects-line)] pb-10 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-5">
+                  <h1 className={`${headingSerif.className} text-5xl font-black leading-[0.95] tracking-[-0.03em] text-[var(--projects-text)] md:text-6xl`}>{currentCopy.heading}</h1>
+                  <p className="max-w-2xl text-base text-[var(--projects-muted)]">{currentCopy.subheading}</p>
+                </div>
+                <div className="relative flex items-center gap-2 self-start lg:mt-2" onClick={(event) => event.stopPropagation()}>
                   <div className="relative">
                     <button
                       type="button"
@@ -875,7 +1009,7 @@ export default function ProjectsDashboard() {
                         setFilterMenuOpen((prev) => !prev);
                         setViewMenuOpen(false);
                       }}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+                      className="inline-flex items-center gap-2 rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--projects-muted)] transition-colors hover:bg-[#ede6db]"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <line x1="4" y1="6" x2="20" y2="6" />
@@ -889,18 +1023,18 @@ export default function ProjectsDashboard() {
                     </button>
 
                     {filterMenuOpen ? (
-                      <div className="absolute right-0 top-9 z-40 w-56 overflow-hidden rounded-lg border border-white/15 bg-[#1b1b1b] shadow-xl">
-                        <div className="border-b border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white/65">Date</div>
-                        <button type="button" onClick={() => setDateFilter("all")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${dateFilter === "all" ? "text-[#8ec5ff]" : "text-white/85"}`}>All time</button>
-                        <button type="button" onClick={() => setDateFilter("24h")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${dateFilter === "24h" ? "text-[#8ec5ff]" : "text-white/85"}`}>Last 24 hours</button>
-                        <button type="button" onClick={() => setDateFilter("7d")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${dateFilter === "7d" ? "text-[#8ec5ff]" : "text-white/85"}`}>Last 7 days</button>
-                        <button type="button" onClick={() => setDateFilter("30d")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${dateFilter === "30d" ? "text-[#8ec5ff]" : "text-white/85"}`}>Last 30 days</button>
+                      <div className="absolute right-0 top-9 z-40 w-56 overflow-hidden rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] shadow-[0_20px_40px_rgba(0,0,0,0.06)]">
+                        <div className="border-b border-[var(--projects-line)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--projects-muted)]">Date</div>
+                        <button type="button" onClick={() => setDateFilter("all")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${dateFilter === "all" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>All time</button>
+                        <button type="button" onClick={() => setDateFilter("24h")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${dateFilter === "24h" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Last 24 hours</button>
+                        <button type="button" onClick={() => setDateFilter("7d")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${dateFilter === "7d" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Last 7 days</button>
+                        <button type="button" onClick={() => setDateFilter("30d")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${dateFilter === "30d" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Last 30 days</button>
 
-                        <div className="border-y border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white/65">Sort</div>
-                        <button type="button" onClick={() => setSortBy("name-asc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${sortBy === "name-asc" ? "text-[#8ec5ff]" : "text-white/85"}`}>Alphabetical (A-Z)</button>
-                        <button type="button" onClick={() => setSortBy("name-desc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${sortBy === "name-desc" ? "text-[#8ec5ff]" : "text-white/85"}`}>Alphabetical (Z-A)</button>
-                        <button type="button" onClick={() => setSortBy("created-asc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${sortBy === "created-asc" ? "text-[#8ec5ff]" : "text-white/85"}`}>Created time (oldest first)</button>
-                        <button type="button" onClick={() => setSortBy("created-desc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${sortBy === "created-desc" ? "text-[#8ec5ff]" : "text-white/85"}`}>Created time (newest first)</button>
+                        <div className="border-y border-[var(--projects-line)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--projects-muted)]">Sort</div>
+                        <button type="button" onClick={() => setSortBy("name-asc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${sortBy === "name-asc" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Alphabetical (A-Z)</button>
+                        <button type="button" onClick={() => setSortBy("name-desc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${sortBy === "name-desc" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Alphabetical (Z-A)</button>
+                        <button type="button" onClick={() => setSortBy("created-asc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${sortBy === "created-asc" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Created time (oldest first)</button>
+                        <button type="button" onClick={() => setSortBy("created-desc")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${sortBy === "created-desc" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Created time (newest first)</button>
                       </div>
                     ) : null}
                   </div>
@@ -912,7 +1046,7 @@ export default function ProjectsDashboard() {
                         setViewMenuOpen((prev) => !prev);
                         setFilterMenuOpen(false);
                       }}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+                      className="inline-flex items-center gap-2 rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--projects-muted)] transition-colors hover:bg-[#ede6db]"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <rect x="3.5" y="4.5" width="7" height="6" rx="1.25" />
@@ -924,9 +1058,9 @@ export default function ProjectsDashboard() {
                     </button>
 
                     {viewMenuOpen ? (
-                      <div className="absolute right-0 top-9 z-40 w-44 overflow-hidden rounded-lg border border-white/15 bg-[#1b1b1b] shadow-xl">
-                        <button type="button" onClick={() => setViewMode("grid")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${viewMode === "grid" ? "text-[#8ec5ff]" : "text-white/85"}`}>Grid View</button>
-                        <button type="button" onClick={() => setViewMode("list")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 ${viewMode === "list" ? "text-[#8ec5ff]" : "text-white/85"}`}>List View</button>
+                      <div className="absolute right-0 top-9 z-40 w-44 overflow-hidden rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] shadow-[0_20px_40px_rgba(0,0,0,0.06)]">
+                        <button type="button" onClick={() => setViewMode("grid")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${viewMode === "grid" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>Grid View</button>
+                        <button type="button" onClick={() => setViewMode("list")} className={`block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[#ede6db] ${viewMode === "list" ? "text-[var(--projects-accent)]" : "text-[var(--projects-text)]"}`}>List View</button>
                       </div>
                     ) : null}
                   </div>
@@ -934,12 +1068,12 @@ export default function ProjectsDashboard() {
               </div>
 
               {errorMessage ? (
-                <p className="mt-4 text-sm text-red-300">{errorMessage}</p>
+                <p className="mt-4 text-sm text-[#9b3f3f]">{errorMessage}</p>
               ) : null}
 
-              <section className="mt-7 flex-1 pr-1">
+              <section className="mt-8 flex-1 pr-1">
                 {loadingProjects ? (
-                  <p className="text-sm text-white/70">Loading projects...</p>
+                  <p className="text-sm text-[var(--projects-muted)]">Loading projects...</p>
                 ) : displayedProjects.length === 0 ? (
                   activeSection === "my-projects" ? (
                     <div className="flex flex-wrap items-start gap-3">
@@ -948,10 +1082,10 @@ export default function ProjectsDashboard() {
                           type="button"
                           onClick={handleCreateProject}
                           disabled={creatingProject}
-                          className="group relative flex h-48 w-72 flex-none flex-col items-center justify-center gap-3 overflow-hidden rounded-[2rem] border border-[#66b2ff]/40 bg-gradient-to-br from-[#1c6dff]/45 via-[#2894ff]/35 to-[#5bb8ff]/35 text-sm font-medium text-white shadow-[0_10px_30px_rgba(30,112,255,0.28)] transition-transform duration-200 hover:scale-[1.01]"
+                          className="group relative flex h-48 w-72 flex-none flex-col items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] text-sm font-semibold text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-10px_24px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px"
                         >
-                          <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(255,255,255,0.18),transparent_55%)]" aria-hidden="true" />
-                          <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-xl border border-[#9fd0ff]/35 bg-[#66b2ff]/20 text-2xl leading-none">+</span>
+                          <span className="pointer-events-none absolute inset-x-3 top-2 h-10 rounded-full bg-gradient-to-b from-[#fff5e7]/28 to-transparent blur-[1px]" aria-hidden="true" />
+                          <span className="relative text-3xl leading-none text-[#EDE3D3]">+</span>
                           <span className="relative text-center">{creatingProject ? "Creating..." : "Create New Project"}</span>
                         </button>
                       ) : (
@@ -959,32 +1093,33 @@ export default function ProjectsDashboard() {
                           type="button"
                           onClick={handleCreateProject}
                           disabled={creatingProject}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-[#66b2ff]/40 bg-gradient-to-r from-[#1c6dff]/30 via-[#2894ff]/24 to-[#5bb8ff]/26 px-5 py-2.5 text-sm text-white shadow-[0_8px_20px_rgba(30,112,255,0.2)] transition-colors hover:from-[#1c6dff]/38 hover:via-[#2894ff]/30 hover:to-[#5bb8ff]/32"
+                          className="group relative inline-flex items-center gap-2 overflow-hidden rounded-[14px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] px-5 py-2.5 text-sm text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-8px_18px_rgba(0,0,0,0.18),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all hover:-translate-y-px"
                         >
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#66b2ff]/25 text-base leading-none">+</span>
+                          <span className="pointer-events-none absolute inset-x-2 top-1.5 h-6 rounded-full bg-gradient-to-b from-[#fff5e7]/25 to-transparent" aria-hidden="true" />
+                          <span className="relative text-lg leading-none text-[#EDE3D3]">+</span>
                           {creatingProject ? "Creating..." : "Create New Project"}
                         </button>
                       )}
-                      <p className="pt-2 text-sm text-white/70">No projects created yet.</p>
+                      <p className="pt-2 text-sm text-[var(--projects-muted)]">No projects created yet.</p>
                     </div>
                   ) : (
-                    <p className="text-sm text-white/70">
+                    <p className="text-sm text-[var(--projects-muted)]">
                       {activeSection === "shared"
                         ? "No projects have been shared with you yet."
                         : "Trash is empty."}
                     </p>
                   )
                 ) : (
-                    <div className={viewMode === "grid" ? "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(18rem,18rem))] xl:justify-between" : "space-y-2"}>
+                  <div className={viewMode === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(18rem,18rem))] justify-between items-start gap-3" : "space-y-2"}>
                       {activeSection === "my-projects" && viewMode === "grid" ? (
                         <button
                           type="button"
                           onClick={handleCreateProject}
                           disabled={creatingProject}
-                          className="group relative flex h-48 w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[2rem] border border-[#66b2ff]/40 bg-gradient-to-br from-[#1c6dff]/45 via-[#2894ff]/35 to-[#5bb8ff]/35 text-sm font-medium text-white shadow-[0_10px_30px_rgba(30,112,255,0.28)] transition-transform duration-200 hover:scale-[1.01]"
+                          className="group relative flex h-48 w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] text-sm font-semibold text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-10px_24px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px"
                         >
-                          <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(255,255,255,0.18),transparent_55%)]" aria-hidden="true" />
-                          <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-xl border border-[#9fd0ff]/35 bg-[#66b2ff]/20 text-2xl leading-none">+</span>
+                          <span className="pointer-events-none absolute inset-x-3 top-2 h-10 rounded-full bg-gradient-to-b from-[#fff5e7]/28 to-transparent blur-[1px]" aria-hidden="true" />
+                          <span className="relative text-3xl leading-none text-[#EDE3D3]">+</span>
                           <span className="relative text-center">{creatingProject ? "Creating..." : "Create New Project"}</span>
                         </button>
                       ) : null}
@@ -994,9 +1129,10 @@ export default function ProjectsDashboard() {
                           type="button"
                           onClick={handleCreateProject}
                           disabled={creatingProject}
-                          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-[#66b2ff]/40 bg-gradient-to-r from-[#1c6dff]/30 via-[#2894ff]/24 to-[#5bb8ff]/26 px-5 py-2.5 text-sm text-white shadow-[0_8px_20px_rgba(30,112,255,0.2)] transition-colors hover:from-[#1c6dff]/38 hover:via-[#2894ff]/30 hover:to-[#5bb8ff]/32"
+                          className="group relative inline-flex w-fit items-center gap-2 overflow-hidden rounded-[14px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] px-5 py-2.5 text-sm text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-8px_18px_rgba(0,0,0,0.18),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all hover:-translate-y-px"
                         >
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#66b2ff]/25 text-base leading-none">+</span>
+                          <span className="pointer-events-none absolute inset-x-2 top-1.5 h-6 rounded-full bg-gradient-to-b from-[#fff5e7]/25 to-transparent" aria-hidden="true" />
+                          <span className="relative text-lg leading-none text-[#EDE3D3]">+</span>
                           {creatingProject ? "Creating..." : "Create New Project"}
                         </button>
                       ) : null}
@@ -1006,21 +1142,29 @@ export default function ProjectsDashboard() {
                           key={project.id}
                           className={
                             viewMode === "grid"
-                              ? "w-full cursor-pointer rounded-none border border-white/10 bg-[#171717] p-3 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition-colors hover:border-white/20"
-                              : "flex w-full cursor-pointer items-center justify-between rounded-none border border-white/10 bg-[#171717] px-4 py-3 transition-colors hover:border-white/20"
+                              ? "group/card relative isolate w-full cursor-pointer overflow-hidden rounded-xl border border-[#f4e9d9]/26 bg-[linear-gradient(148deg,rgba(46,46,46,0.74),rgba(20,20,20,0.84))] p-3 text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-14px_28px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:border-[#f4e9d9]/42 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_-18px_30px_rgba(0,0,0,0.25),0_28px_52px_rgba(0,0,0,0.24)]"
+                              : "group/card relative isolate flex w-full cursor-pointer items-center justify-between overflow-hidden rounded-lg border border-[#f4e9d9]/26 bg-[linear-gradient(148deg,rgba(46,46,46,0.74),rgba(20,20,20,0.84))] px-4 py-3 text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-10px_20px_rgba(0,0,0,0.2),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.01] hover:border-[#f4e9d9]/42 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_-12px_24px_rgba(0,0,0,0.22),0_24px_40px_rgba(0,0,0,0.22)]"
                           }
                           onClick={() => handleOpenProject(project.id)}
                         >
+                          <span
+                            className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_100%_at_5%_0%,rgba(255,255,255,0.16),transparent_45%),radial-gradient(120%_100%_at_100%_100%,rgba(139,115,85,0.2),transparent_56%)] opacity-80 transition-opacity duration-300 group-hover/card:opacity-100"
+                            aria-hidden="true"
+                          />
+                          <span
+                            className="pointer-events-none absolute -top-8 left-10 h-24 w-48 rotate-[-8deg] bg-white/20 blur-2xl opacity-25 transition-all duration-300 group-hover/card:translate-x-5 group-hover/card:opacity-40"
+                            aria-hidden="true"
+                          />
                           {viewMode === "grid" ? (
                             <>
-                              <div className="aspect-[16/10] w-full overflow-hidden rounded-none border border-white/10">
+                              <div className="relative z-10 aspect-[16/10] w-full overflow-hidden rounded-lg border border-[#f4e9d9]/26">
                                 <ProjectPreview elements={previewMap[project.id] || []} />
                               </div>
 
-                              <div className="mt-3 flex items-start justify-between gap-2">
+                              <div className="relative z-10 mt-3 flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  <h2 className="truncate text-sm font-semibold text-white">{project.name}</h2>
-                                  <p className="mt-1 truncate text-xs text-white/60">
+                                  <h2 className="truncate text-sm font-semibold text-[#FAF9F6]">{project.name}</h2>
+                                  <p className="mt-1 truncate text-xs text-[#E7DCCB]/75">
                                     {formatRelativeTime(project.updated_at || project.created_at)}
                                   </p>
                                 </div>
@@ -1032,21 +1176,21 @@ export default function ProjectsDashboard() {
                                       event.stopPropagation();
                                       setOpenMenuProjectId((prev) => (prev === project.id ? null : project.id));
                                     }}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#E7DCCB]/80 transition-colors hover:bg-white/10 hover:text-[#FAF9F6]"
                                     aria-label="Project actions"
                                   >
                                     <span className="text-lg leading-none">⋮</span>
                                   </button>
 
                                   {openMenuProjectId === project.id ? (
-                                    <div className="absolute right-0 top-8 z-30 w-32 overflow-hidden rounded-lg border border-white/15 bg-[#1b1b1b] shadow-xl">
+                                    <div className="absolute right-0 top-8 z-30 w-32 overflow-hidden rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] shadow-[0_20px_40px_rgba(0,0,0,0.06)]">
                                       <button
                                         type="button"
                                         onClick={(event) => {
                                           event.stopPropagation();
                                           handleOpenProject(project.id);
                                         }}
-                                        className="block w-full px-3 py-2 text-left text-xs text-white/85 transition-colors hover:bg-white/10"
+                                        className="block w-full px-3 py-2 text-left text-xs text-[var(--projects-text)] transition-colors hover:bg-[#ede6db]"
                                       >
                                         Open
                                       </button>
@@ -1057,7 +1201,7 @@ export default function ProjectsDashboard() {
                                           handleRenameProject(project.id);
                                         }}
                                         disabled={busyProjectId === project.id}
-                                        className="block w-full px-3 py-2 text-left text-xs text-white/85 transition-colors hover:bg-white/10 disabled:opacity-60"
+                                        className="block w-full px-3 py-2 text-left text-xs text-[var(--projects-text)] transition-colors hover:bg-[#ede6db] disabled:opacity-60"
                                       >
                                         Rename
                                       </button>
@@ -1068,7 +1212,7 @@ export default function ProjectsDashboard() {
                                           handleDeleteProject(project.id);
                                         }}
                                         disabled={busyProjectId === project.id}
-                                        className="block w-full px-3 py-2 text-left text-xs text-red-300 transition-colors hover:bg-red-500/10 disabled:opacity-60"
+                                        className="block w-full px-3 py-2 text-left text-xs text-[#9b3f3f] transition-colors hover:bg-[#f5dcd9] disabled:opacity-60"
                                       >
                                         Delete
                                       </button>
@@ -1079,35 +1223,35 @@ export default function ProjectsDashboard() {
                             </>
                           ) : (
                             <>
-                              <div className="min-w-0">
-                                <h2 className="truncate text-sm font-medium text-white">{project.name}</h2>
-                                <p className="mt-1 truncate text-xs text-white/60">
+                              <div className="relative z-10 min-w-0">
+                                <h2 className="truncate text-sm font-medium text-[#FAF9F6]">{project.name}</h2>
+                                <p className="mt-1 truncate text-xs text-[#E7DCCB]/75">
                                   {formatRelativeTime(project.updated_at || project.created_at)}
                                 </p>
                               </div>
 
-                              <div className="relative">
+                              <div className="relative z-10">
                                 <button
                                   type="button"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setOpenMenuProjectId((prev) => (prev === project.id ? null : project.id));
                                   }}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#E7DCCB]/80 transition-colors hover:bg-white/10 hover:text-[#FAF9F6]"
                                   aria-label="Project actions"
                                 >
                                   <span className="text-lg leading-none">⋮</span>
                                 </button>
 
                                 {openMenuProjectId === project.id ? (
-                                  <div className="absolute right-0 top-8 z-30 w-32 overflow-hidden rounded-lg border border-white/15 bg-[#1b1b1b] shadow-xl">
+                                  <div className="absolute right-0 top-8 z-30 w-32 overflow-hidden rounded-lg border border-[var(--projects-line)] bg-[var(--projects-panel)] shadow-[0_20px_40px_rgba(0,0,0,0.06)]">
                                     <button
                                       type="button"
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         handleOpenProject(project.id);
                                       }}
-                                      className="block w-full px-3 py-2 text-left text-xs text-white/85 transition-colors hover:bg-white/10"
+                                      className="block w-full px-3 py-2 text-left text-xs text-[var(--projects-text)] transition-colors hover:bg-[#ede6db]"
                                     >
                                       Open
                                     </button>
@@ -1118,7 +1262,7 @@ export default function ProjectsDashboard() {
                                         handleRenameProject(project.id);
                                       }}
                                       disabled={busyProjectId === project.id}
-                                      className="block w-full px-3 py-2 text-left text-xs text-white/85 transition-colors hover:bg-white/10 disabled:opacity-60"
+                                      className="block w-full px-3 py-2 text-left text-xs text-[var(--projects-text)] transition-colors hover:bg-[#ede6db] disabled:opacity-60"
                                     >
                                       Rename
                                     </button>
@@ -1129,7 +1273,7 @@ export default function ProjectsDashboard() {
                                         handleDeleteProject(project.id);
                                       }}
                                       disabled={busyProjectId === project.id}
-                                      className="block w-full px-3 py-2 text-left text-xs text-red-300 transition-colors hover:bg-red-500/10 disabled:opacity-60"
+                                      className="block w-full px-3 py-2 text-left text-xs text-[#9b3f3f] transition-colors hover:bg-[#f5dcd9] disabled:opacity-60"
                                     >
                                       Delete
                                     </button>
@@ -1145,23 +1289,23 @@ export default function ProjectsDashboard() {
                 </section>
               </div>
             </section>
-            <footer className="w-full flex flex-col md:flex-row items-center justify-between px-4 sm:px-6 py-4 bg-[#121212] border-t border-white/10">
+            <footer className="flex w-full flex-col items-center justify-between border-t border-[var(--projects-line)] bg-[var(--projects-bg)] px-6 py-4 md:flex-row">
               <div className="mb-2 md:mb-0 text-center md:text-left">
-                <div className="font-manrope font-bold text-white text-base">CollabCanvas</div>
-                <div className="text-xs text-white/65">© 2026 CollabCanvas</div>
+                <div className={`${headingSerif.className} text-base font-black tracking-[-0.02em] text-[var(--projects-text)]`}>CollabCanvas</div>
+                <div className="text-xs text-[var(--projects-muted)]">© 2026 CollabCanvas</div>
               </div>
             </footer>
           </main>
         </div>
         {deleteConfirmProjectId ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#05070d]/65 p-4 backdrop-blur-md" onClick={() => setDeleteConfirmProjectId(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(15,12,10,0.36)] p-4 backdrop-blur-sm" onClick={() => setDeleteConfirmProjectId(null)}>
             <div
-              className="w-full max-w-md overflow-hidden rounded-2xl border border-[#4ea1ff]/25 bg-[linear-gradient(160deg,rgba(18,23,36,0.9),rgba(10,13,22,0.92))] shadow-[0_18px_60px_rgba(4,8,18,0.7),0_0_0_1px_rgba(78,161,255,0.08)] backdrop-blur-xl"
+              className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--projects-line)] bg-[var(--projects-panel)] shadow-[0_20px_40px_rgba(0,0,0,0.06)]"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="border-b border-[#4ea1ff]/20 bg-gradient-to-r from-[#4ea1ff]/18 via-[#2b5fa8]/10 to-transparent px-5 py-4">
-                <h3 className="text-base font-semibold text-white">Confirm deletion</h3>
-                <p className="mt-1 text-sm text-[#c9dcff]/85">
+              <div className="border-b border-[var(--projects-line)] bg-[radial-gradient(circle_at_10%_10%,rgba(139,115,85,0.14),transparent_48%)] px-5 py-4">
+                <h3 className={`${headingSerif.className} text-base font-bold text-[var(--projects-text)]`}>Confirm deletion</h3>
+                <p className="mt-1 text-sm text-[var(--projects-muted)]">
                   {activeSection === "trash"
                     ? "Permanently delete this project? This action cannot be undone."
                     : "Move this project to Trash?"}
@@ -1171,14 +1315,14 @@ export default function ProjectsDashboard() {
                 <button
                   type="button"
                   onClick={() => setDeleteConfirmProjectId(null)}
-                  className="rounded-lg border border-[#4ea1ff]/28 bg-[#0f1628]/70 px-4 py-2 text-sm text-[#d9e8ff] transition-colors hover:bg-[#172744]"
+                  className="rounded-[10px] border border-[var(--projects-line)] bg-[var(--projects-bg)] px-4 py-2 text-sm text-[var(--projects-text)] transition-colors hover:bg-[#ede6db]"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => executeDeleteProject(deleteConfirmProjectId)}
-                  className="rounded-lg border border-[#4ea1ff]/35 bg-gradient-to-r from-[#1d4f93]/55 to-[#2f7edc]/45 px-4 py-2 text-sm text-white transition-colors hover:from-[#2261b5] hover:to-[#3a90f0]"
+                  className="rounded-[10px] bg-[#1A1A1A] px-4 py-2 text-sm text-[#FAF9F6] transition-colors hover:bg-[#2a2a2a]"
                 >
                   {activeSection === "trash" ? "Delete Permanently" : "Move to Trash"}
                 </button>
@@ -1187,6 +1331,30 @@ export default function ProjectsDashboard() {
           </div>
         ) : null}
 
+        {/* Mobile Navigation (BottomNavBar) */}
+        <nav className="md:hidden fixed bottom-0 left-0 w-full glass-panel flex justify-around items-center h-12 px-2 z-50">
+          <a className="flex flex-col items-center gap-0.5 text-[#c0c1ff]" href="#">
+            <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: 'FILL 1' }}>folder_shared</span>
+            <span className="text-[9px] font-bold uppercase tracking-tighter">Projects</span>
+          </a>
+          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
+            <span className="material-symbols-outlined text-base">group</span>
+            <span className="text-[9px] font-bold uppercase tracking-tighter">Shared</span>
+          </a>
+          <div className="relative -top-4">
+            <button className="bg-primary-container text-on-primary-container h-8 w-8 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
+              <span className="material-symbols-outlined text-lg">add</span>
+            </button>
+          </div>
+          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
+            <span className="material-symbols-outlined text-base">auto_awesome_motion</span>
+            <span className="text-[9px] font-bold uppercase tracking-tighter">Templates</span>
+          </a>
+          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
+            <span className="material-symbols-outlined text-base">settings</span>
+            <span className="text-[9px] font-bold uppercase tracking-tighter">Settings</span>
+          </a>
+        </nav>
       </div>
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
   Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
@@ -19,58 +19,6 @@ const TYPE_ICONS = {
   line: Minus,
 };
 
-function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
-  const selectElement = useWorkspaceStore((state) => state.selectElement);
-  const reorderElement = useWorkspaceStore((state) => state.reorderElement);
-  const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
-  const toggleLock = useWorkspaceStore((state) => state.toggleLock);
-  const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
-
-  return (
-    <motion.article
-      layout
-      className={`layer-row${isSelected ? " selected" : ""}${!element.visible ? " layer-hidden" : ""}`}
-      variants={{
-        hidden: { opacity: 0, x: -12 },
-        show:   { opacity: 1, x: 0 },
-      }}
-      transition={{ type: "spring", stiffness: 380, damping: 30 }}
-      exit={{ opacity: 0, x: -8, transition: { duration: 0.15 } }}
-    >
-      <button
-        type="button"
-        className="layer-row-main"
-        onClick={() => selectElement(element.id)}
-        title={element.name}
-      >
-        <Icon size={13} className="layer-type-icon" />
-        <span className="layer-name">{element.name}</span>
-      </button>
-
-      <div className="layer-row-actions">
-        <button type="button" className="layer-icon-btn"
-          onClick={() => reorderElement(element.id, "forward")} title="Move up">
-          <ArrowUp size={12} />
-        </button>
-        <button type="button" className="layer-icon-btn"
-          onClick={() => reorderElement(element.id, "backward")} title="Move down">
-          <ArrowDown size={12} />
-        </button>
-        <button type="button" className="layer-icon-btn"
-          onClick={() => toggleVisibility(element.id)}
-          title={element.visible ? "Hide" : "Show"}>
-          {element.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-        </button>
-        <button type="button"
-          className={`layer-icon-btn${element.locked ? " active" : ""}`}
-          onClick={() => toggleLock(element.id)}
-          title={element.locked ? "Unlock" : "Lock"}>
-          {element.locked ? <Lock size={12} /> : <Unlock size={12} />}
-        </button>
-      </div>
-    </motion.article>
-  );
-}
 
 export function LeftSidebar() {
   const elements = useWorkspaceStore((state) => state.elements);
@@ -91,7 +39,9 @@ export function LeftSidebar() {
       <div className="layers-header">
         <Layers size={14} className="layers-header-icon" />
         <span className="eyebrow" style={{ margin: 0 }}>Layers</span>
-        <span className="layers-count">{orderedElements.length}</span>
+        <span className="layers-count">
+          {orderedElements.length} {orderedElements.length === 1 ? "element" : "elements"}
+        </span>
       </div>
 
       <div className="layers-meta">
@@ -123,3 +73,60 @@ export function LeftSidebar() {
     </motion.aside>
   );
 }
+
+function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
+  const selectElement = useWorkspaceStore((state) => state.selectElement);
+  const reorderElement = useWorkspaceStore((state) => state.reorderElement);
+  const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
+  const toggleLock = useWorkspaceStore((state) => state.toggleLock);
+  const canEdit = useWorkspaceStore((state) => state.canEdit);
+  const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
+
+  return (
+    <motion.article
+      layout
+      className={`layer-row${isSelected ? " selected" : ""}${!element.visible ? " layer-hidden" : ""}`}
+      variants={{
+        hidden: { opacity: 0, x: -12 },
+        show:   { opacity: 1, x: 0 },
+      }}
+      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      exit={{ opacity: 0, x: -8, transition: { duration: 0.15 } }}
+    >
+      <button
+        type="button"
+        className="layer-row-main"
+        onClick={() => selectElement(element.id)}
+        title={element.name}
+      >
+        <Icon size={13} className="layer-type-icon" />
+        <span className="layer-name">{element.name}</span>
+      </button>
+
+      <div className="layer-row-actions">
+        <button type="button" className="layer-icon-btn"
+          onClick={() => reorderElement(element.id, "forward")} disabled={!canEdit} title="Move up">
+          <ArrowUp size={12} />
+        </button>
+        <button type="button" className="layer-icon-btn"
+          onClick={() => reorderElement(element.id, "backward")} disabled={!canEdit} title="Move down">
+          <ArrowDown size={12} />
+        </button>
+        <button type="button" className="layer-icon-btn"
+          onClick={() => toggleVisibility(element.id)}
+          disabled={!canEdit}
+          title={element.visible ? "Hide" : "Show"}>
+          {element.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+        </button>
+        <button type="button"
+          className={`layer-icon-btn${element.locked ? " active" : ""}`}
+          onClick={() => toggleLock(element.id)}
+          disabled={!canEdit}
+          title={element.locked ? "Unlock" : "Lock"}>
+          {element.locked ? <Lock size={12} /> : <Unlock size={12} />}
+        </button>
+      </div>
+    </motion.article>
+  );
+}
+

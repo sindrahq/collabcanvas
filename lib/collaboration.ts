@@ -17,6 +17,9 @@ type CursorListener = (payload: CursorBroadcast) => void;
 let cursorListeners: CursorListener[] = [];
 
 type PresenceState = Record<string, PresenceMeta>;
+type PresenceJoinPayload = { key: string; newPresences: PresenceMeta[] };
+type PresenceLeavePayload = { key: string };
+type CursorBroadcastPayload = { payload: CursorBroadcast };
 type PresenceEventMeta = {
 	onSync?: (presences: PresenceState) => void;
 	onJoin?: (userId: string, meta: PresenceMeta) => void;
@@ -86,24 +89,24 @@ export function initPresenceChannel(
 		events.onSync?.(flattenPresenceState());
 	});
 
-	presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+	presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }: PresenceJoinPayload) => {
 		const incoming = (newPresences as unknown as PresenceMeta[] | undefined)?.[0];
 		if (incoming) {
 			events.onJoin?.(key, incoming);
 		}
 	});
 
-	presenceChannel.on('presence', { event: 'leave' }, ({ key }) => {
+	presenceChannel.on('presence', { event: 'leave' }, ({ key }: PresenceLeavePayload) => {
 		events.onLeave?.(key);
 	});
 
 	// Attach cursor broadcast handler here (fixes TS error)
-	presenceChannel.on('broadcast', { event: 'cursor' }, ({ payload }) => {
+	presenceChannel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
 		cursorListeners.forEach((fn) => fn(payload));
 	});
 
 	// Subscribe to the channel
-	presenceChannel.subscribe((status) => {
+	presenceChannel.subscribe((status: string) => {
 		if (status === 'SUBSCRIBED') {
 			presenceChannel?.track(meta);
 		}

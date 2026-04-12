@@ -1,0 +1,14 @@
+7eb995c
+Everything up-to-date
+ M components/landing/landing-hero.tsx
+?? public/export.png
+?? public/hero-image.jpg
+?? public/real_time.png
+?? public/shared_workspaces.png
+?? public/smart_layer.png
+?? public/template-business.jpg
+?? public/template-invitation.jpg
+?? public/template-poster.jpg
+?? public/template-presentation.jpg
+?? public/template-social.jpg
+?? push_report.txt
