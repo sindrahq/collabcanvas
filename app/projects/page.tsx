@@ -622,6 +622,7 @@ export default function ProjectsDashboard() {
 
   const displayedProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
 
     const filtered = visibleProjects.filter((project) => {

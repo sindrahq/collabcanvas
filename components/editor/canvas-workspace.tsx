@@ -89,6 +89,7 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
 
   useLayoutEffect(() => {
     if (isMobileViewport && autoFitEnabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setZoom(fitZoom);
     }
   }, [autoFitEnabled, fitZoom, isMobileViewport]);

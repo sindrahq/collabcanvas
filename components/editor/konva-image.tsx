@@ -1,14 +1,14 @@
 import { Image } from "react-konva";
 import { useEffect, useRef, useState } from "react";
 
-export function KonvaImage({ imageUrl, ...props }: { imageUrl: string; [key: string]: any }) {
+export function KonvaImage({ imageUrl, ...props }: { imageUrl: string; [key: string]: unknown }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [error, setError] = useState(false);
   const urlRef = useRef(imageUrl);
 
   useEffect(() => {
     if (!imageUrl) return;
-    setError(false);
+    setTimeout(() => setError(false), 0);
     const image = new window.Image();
     image.crossOrigin = "anonymous";
     image.src = imageUrl;

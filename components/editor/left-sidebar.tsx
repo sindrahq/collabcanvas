@@ -8,9 +8,8 @@ import {
 } from "lucide-react";
 import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
 
-const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
+const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number; className?: string }>> = {
   rectangle: RectangleHorizontal,
-  rect: RectangleHorizontal,
   circle: Circle,
   text: Type,
   triangle: Triangle,

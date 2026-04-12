@@ -223,7 +223,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 );
               }
 
-              if (element.type === "image" && (element as any).imageUrl) {
+              if (element.type === "image" && element.imageUrl) {
                 return (
                   <KonvaImage
                     key={element.id}
@@ -232,13 +232,13 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     y={element.y / STAGE_SCALE}
                     width={elementWidth}
                     height={elementHeight}
-                    imageUrl={(element as any).imageUrl}
-                    ref={(node: any) => {
+                    imageUrl={element.imageUrl}
+                    ref={(node: Konva.Image | null) => {
                       nodeRefs.current[element.id] = node;
                     }}
                     {...sharedShadow}
-                    onTransformEnd={(event: any) =>
-                      updateFromTransform(element, event.target, updateElement)
+                    onTransformEnd={(event: Konva.KonvaEventObject<Event>) =>
+                      updateFromTransform(element, event.target as Konva.Image, updateElement)
                     }
                   />
                 );
