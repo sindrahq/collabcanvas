@@ -115,8 +115,8 @@ type WorkspaceState = {
 
 const BASE_FONT = {
   fontFamily: "Inter",
-  fontStyle: "normal",
-  fontWeight: "normal",
+  fontStyle: "normal" as const,
+  fontWeight: "normal" as const,
   textAlign: "left" as const,
   shadowEnabled: false,
   shadowBlur: 16,
