@@ -10,7 +10,6 @@ import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@
 
 const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   rectangle: RectangleHorizontal,
-  rect: RectangleHorizontal,
   circle: Circle,
   text: Type,
   triangle: Triangle,

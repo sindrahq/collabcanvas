@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { EditorShell } from "@/components/editor/editor-shell";
 
 export default function WorkspaceEditorPage() {
-  return <EditorShell />;
+  return (
+    <Suspense>
+      <EditorShell />
+    </Suspense>
+  );
 }
