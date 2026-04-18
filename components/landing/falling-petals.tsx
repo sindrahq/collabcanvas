@@ -11,7 +11,11 @@ type Petal = {
   rotation: number;
 };
 
-export function FallingPetals() {
+type FallingPetalsProps = {
+  variant?: "pink" | "lavender";
+};
+
+export function FallingPetals({ variant = "pink" }: FallingPetalsProps) {
   const [petals, setPetals] = useState<Petal[]>([]);
 
   useEffect(() => {
@@ -44,12 +48,16 @@ export function FallingPetals() {
             repeat: Infinity,
             ease: "linear",
           }}
-          className="absolute bg-gradient-to-br from-[#F1948A] to-[#FADBD8]"
+          className={`absolute bg-gradient-to-br ${
+            variant === "lavender" ? "from-[#D3B5E5] to-[#EBDDF2]" : "from-[#F1948A] to-[#FADBD8]"
+          }`}
           style={{
             width: p.size,
             height: p.size,
             borderRadius: "100% 0% 100% 0%",
-            boxShadow: "0 8px 16px rgba(211,165,177,0.4)"
+            boxShadow: variant === "lavender" 
+              ? "0 8px 16px rgba(211,181,229,0.4)" 
+              : "0 8px 16px rgba(211,165,177,0.4)"
           }}
         />
       ))}

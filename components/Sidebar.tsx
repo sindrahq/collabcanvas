@@ -44,7 +44,7 @@ export default function Sidebar({
       className={clsx(
         "group/sidebar flex h-full w-20 flex-col overflow-hidden border-r px-2 py-4 transition-[width] duration-300 ease-out hover:w-56",
         isProjectsTheme
-          ? "border-[rgba(26,26,26,0.14)] bg-[#F3EFE8]"
+          ? "border-[rgba(26,26,26,0.14)] bg-white/40 backdrop-blur-md"
           : "border-white/10 bg-[#121212]"
       )}
     >
@@ -60,7 +60,7 @@ export default function Sidebar({
           <span
             className={clsx(
               "max-w-0 overflow-hidden whitespace-nowrap text-base leading-none uppercase opacity-0 transition-all duration-300 group-hover/sidebar:max-w-[140px] group-hover/sidebar:opacity-100",
-              isProjectsTheme ? "text-[#1A1A1A]" : "text-white"
+              isProjectsTheme ? "text-[var(--projects-text)]" : "text-white"
             )}
           >
             Design Studio
@@ -84,10 +84,10 @@ export default function Sidebar({
                 isCompactPrimary ? "gap-1.5" : "gap-2",
                 isActive
                   ? isProjectsTheme
-                    ? "bg-[#E9E1D6] text-[#8B7355]"
+                    ? "bg-white/50 text-[var(--projects-accent)] shadow-sm"
                     : "bg-[#17315c] text-[#9fd0ff]"
                   : isProjectsTheme
-                    ? "text-[#5c5349] hover:bg-[#ede6db] hover:text-[#1A1A1A]"
+                    ? "text-[var(--projects-muted)] hover:bg-white/30 hover:text-[var(--projects-text)]"
                     : "text-white/70 hover:text-white"
               )}
               style={{ fontWeight: isCompactPrimary ? 400 : isActive ? 600 : 500 }}

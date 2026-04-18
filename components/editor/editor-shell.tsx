@@ -25,6 +25,8 @@ import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
+import { CustomCursor } from "@/components/landing/custom-cursor";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -848,6 +850,8 @@ export function EditorShell() {
 
   return (
     <main className="editor-page">
+      <PastelBlobBackground />
+      <CustomCursor />
       <motion.section
         className="editor-shell"
         initial={{ opacity: 0, y: 12 }}

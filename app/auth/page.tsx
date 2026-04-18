@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState, type FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseBrowserClient, setSupabaseSessionPersistence } from "@/lib/supabase/client";
+import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
+import { CustomCursor } from "@/components/landing/custom-cursor";
+import { FallingPetals } from "@/components/landing/falling-petals";
 
 function AuthPage() {
   const router = useRouter();
@@ -174,19 +177,35 @@ function AuthPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4ef] text-[#1a1a1a]">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-6 py-12">
-        <div className="mb-4 text-center">
-          <Link href="/" className="text-2xl font-semibold italic tracking-tight">
-            CollabCanvas
-          </Link>
-        </div>
+    <main className="min-h-screen text-[#1a1a1a] relative overflow-hidden">
+      {/* Background Assets */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-[0]"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2670&auto=format&fit=crop')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" />
+      
+      <div className="relative z-10 w-full h-full min-h-screen">
+        <PastelBlobBackground />
+        <CustomCursor />
+        <FallingPetals variant="lavender" />
 
-        <section className="mx-auto w-full max-w-md rounded-2xl border border-[#dfd7cd] bg-white p-6 shadow-[0_16px_40px_rgba(0,0,0,0.08)]">
-          <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-[#f2ede6] p-1">
+        <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-6 py-12 relative z-20">
+          <div className="mb-8 text-center">
+            <Link href="/" className="text-4xl font-semibold italic tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+              CollabCanvas
+            </Link>
+          </div>
+
+          <section className="mx-auto w-full max-w-md rounded-[2rem] glass-panel-deep p-8">
+            <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl bg-white/40 p-1">
             <button
               type="button"
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${mode === "login" ? "bg-[#1a1a1a] text-white" : "text-[#5f584e]"}`}
+              className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${mode === "login" ? "bg-[#2D3436] text-white shadow-md" : "text-[#2D3436] hover:bg-white/40"}`}
               onClick={() => {
                 setMode("login");
                 setError("");
@@ -197,7 +216,7 @@ function AuthPage() {
             </button>
             <button
               type="button"
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${mode === "signup" ? "bg-[#1a1a1a] text-white" : "text-[#5f584e]"}`}
+              className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${mode === "signup" ? "bg-[#2D3436] text-white shadow-md" : "text-[#2D3436] hover:bg-white/40"}`}
               onClick={() => {
                 setMode("signup");
                 setError("");
@@ -305,7 +324,7 @@ function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-[#1a1a1a] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#2c2c2c] disabled:opacity-70"
+              className="w-full rounded-xl bg-[var(--accent)] px-3 py-3 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-lg disabled:opacity-70 mt-4"
             >
               {loading ? "Please wait..." : mode === "login" ? "Log in" : "Create account"}
             </button>
@@ -315,10 +334,11 @@ function AuthPage() {
 
         <Link
           href="/"
-          className="mt-4 inline-flex items-center justify-center rounded-lg border border-[#d7cec2] bg-white px-4 py-2 text-sm font-medium text-[#3f372e] shadow-sm transition hover:bg-[#f5f1eb]"
+          className="mt-6 inline-flex items-center justify-center rounded-xl bg-white/40 backdrop-blur-md px-6 py-2.5 text-sm font-bold text-[#2D3436] shadow-sm transition hover:bg-white/60 relative z-20"
         >
           Back to home
         </Link>
+        </div>
       </div>
     </main>
   );
