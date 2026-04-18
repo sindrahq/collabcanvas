@@ -19,19 +19,74 @@ type TemplateItem = {
   img: string;
   label: string;
   query: string;
+  aspectClass: string;
 };
 
 const templates: TemplateItem[] = [
-  { img: "/invitation-template.png", label: "Invitation", query: "invitation" },
-  { img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business" },
-  { img: "https://images.unsplash.com/photo-1561070791-2526d30994b5?q=80&w=1000&auto=format&fit=crop", label: "Poster", query: "poster" },
-  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation" },
-  { img: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop", label: "Social Media", query: "social-media" },
+  { img: "https://images.unsplash.com/photo-1544377193-33dce4d95d0c?q=80&w=1000&auto=format&fit=crop", label: "Invitation", query: "invitation", aspectClass: "aspect-[3/4]" },
+  { img: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business", aspectClass: "aspect-[1.58/1]" },
+  { img: "https://images.unsplash.com/photo-1563298723-dcfebaa392e3?q=80&w=1000&auto=format&fit=crop", label: "Poster", query: "poster", aspectClass: "aspect-[3/4]" },
+  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation", aspectClass: "aspect-video" },
+  { img: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop", label: "Social Media", query: "social-media", aspectClass: "aspect-square" },
 ];
+
+const TEMPLATE_DESIGNS: Record<string, string[]> = {
+  "invitation": [
+    "https://images.unsplash.com/photo-1544377193-33dce4d95d0c",
+    "https://images.unsplash.com/photo-1510076857177-7470076d4098",
+    "https://images.unsplash.com/photo-1531058020387-3be344556be6",
+    "https://images.unsplash.com/photo-1519225421980-715cb0215aed",
+    "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8",
+    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3",
+    "https://images.unsplash.com/photo-1469334031218-e382a71b716b",
+    "https://images.unsplash.com/photo-1520854221256-17451cc331bf"
+  ],
+  "business": [
+    "https://images.unsplash.com/photo-1589829085413-56de8ae18c73",
+    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
+    "https://images.unsplash.com/photo-1552664730-d307ca884978",
+    "https://images.unsplash.com/photo-1553484771-047a44eee27b",
+    "https://images.unsplash.com/photo-1558403194-611308249627",
+    "https://images.unsplash.com/photo-1542744094-3a31f272c490",
+    "https://images.unsplash.com/photo-1556761175-b413da4baf72",
+    "https://images.unsplash.com/photo-1454165833767-131ef248c5de"
+  ],
+  "poster": [
+    "https://images.unsplash.com/photo-1563298723-dcfebaa392e3",
+    "https://images.unsplash.com/photo-1531206715517-5c0ba140b2b8",
+    "https://images.unsplash.com/photo-1541185933-ef5d8ed016c2",
+    "https://images.unsplash.com/photo-1515462277126-2dd0c162007a",
+    "https://images.unsplash.com/photo-1558655146-d09347e92766",
+    "https://images.unsplash.com/photo-1483058712412-4245e9b90334",
+    "https://images.unsplash.com/photo-1542626991-cbc4e32524cc",
+    "https://images.unsplash.com/photo-1544928147-79a2dbc1f389"
+  ],
+  "presentation": [
+    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
+    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3",
+    "https://images.unsplash.com/photo-1551434678-e076c223a692",
+    "https://images.unsplash.com/photo-1542744173-8e7e53415bb0",
+    "https://images.unsplash.com/photo-1555066931-4365d14bab8c",
+    "https://images.unsplash.com/photo-1551288049-bbbda536339a",
+    "https://images.unsplash.com/photo-1553877522-43269d4ea984",
+    "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23"
+  ],
+  "social-media": [
+    "https://images.unsplash.com/photo-1611162617474-5b21e879e113",
+    "https://images.unsplash.com/photo-1611224923853-80b023f02d71",
+    "https://images.unsplash.com/photo-1611605698335-8b156981043e",
+    "https://images.unsplash.com/photo-1611606063065-ee7946f0787a",
+    "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6",
+    "https://images.unsplash.com/photo-1492724441997-5dc865305da7",
+    "https://images.unsplash.com/photo-1533750349088-cd871a92f312",
+    "https://images.unsplash.com/photo-1563986768609-322da13575f3"
+  ]
+};
 
 export function LandingHero() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typed, setTyped] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const fullText = useMemo(() => "Design Without Limits", []);
 
   useEffect(() => {
@@ -84,7 +139,6 @@ export function LandingHero() {
         >
           <div className="flex items-center gap-8">
             <div className="text-xl font-bold tracking-tight italic flex items-center gap-2">
-              <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#D4E6F1] to-[#FADBD8] flex items-center justify-center text-xs not-italic">CC</span>
               CollabCanvas
             </div>
             
@@ -159,10 +213,7 @@ export function LandingHero() {
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 border border-black/[0.03] text-xs font-semibold text-[#8b7355] mb-6">
-              <Sparkles size={14} className="text-[#D4B595]" />
-              Real-time Design Collaboration
-            </div>
+            <div className="mt-6" />
             
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] text-[#2D3436] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
               {typed}
@@ -234,14 +285,11 @@ export function LandingHero() {
       {/* Templates Section */}
       <section id="templates" className="py-24 px-6 overflow-hidden">
         <div className="mx-auto max-w-7xl">
-          <div className="flex items-end justify-between mb-12">
+          <div className="mb-12">
             <div>
               <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
               <p className="text-[#636E72]">Pick a starting point and make it yours.</p>
             </div>
-            <Link href="/projects" className="hidden sm:flex items-center gap-2 font-bold text-[#8b7355] hover:gap-3 transition-all">
-              Browse All <ArrowRight size={18} />
-            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -253,11 +301,11 @@ export function LandingHero() {
                 transition={{ delay: idx * 0.1 }}
                 viewport={{ once: true }}
               >
-                <Link
-                  href={`/projects?template=${template.query}`}
-                  className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all"
+                <div
+                  onClick={() => setSelectedTemplate(template)}
+                  className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all cursor-pointer"
                 >
-                  <div className="aspect-[3/4] overflow-hidden">
+                  <div className={`${template.aspectClass} overflow-hidden bg-black/[0.02]`}>
                     <img
                       src={template.img}
                       alt={template.label}
@@ -268,10 +316,71 @@ export function LandingHero() {
                     <span className="font-bold text-sm">{template.label}</span>
                     <ArrowRight size={16} className="text-black/20 group-hover:text-black transition-colors" />
                   </div>
-                </Link>
+                </div>
               </motion.div>
             ))}
           </div>
+
+          <AnimatePresence>
+            {selectedTemplate && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-8 bg-[#D3A5B1]/10 backdrop-blur-xl"
+                onClick={() => setSelectedTemplate(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.95, y: 20, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  exit={{ scale: 0.95, y: 20, opacity: 0 }}
+                  className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-[2.5rem] bg-white shadow-[0_32px_64px_rgba(211,165,177,0.25)] border border-[#D3A5B1]/10 flex flex-col relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-[#FFF5F8] to-transparent pointer-events-none" />
+
+                  <div className="p-8 md:p-12 pb-6 border-b border-[#D3A5B1]/10 flex items-center justify-between relative z-10">
+                    <div>
+                      <h3 className="text-3xl md:text-4xl font-bold tracking-tight text-[#2D3436]" style={{ fontFamily: "'Playfair Display', serif" }}>
+                        {selectedTemplate.label} Templates
+                      </h3>
+                      <p className="text-[#636E72] mt-2 text-lg">Select a beautifully crafted starting point.</p>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedTemplate(null)}
+                      className="w-12 h-12 rounded-full bg-white border border-[#D3A5B1]/20 flex items-center justify-center text-[#D3A5B1] hover:bg-[#D3A5B1] hover:text-white transition-all hover:scale-105"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#FDFBFB]">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+                      {(TEMPLATE_DESIGNS[selectedTemplate.query] || []).map((imgUrl, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                          className={`group relative ${selectedTemplate.aspectClass} rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#D3A5B1]/30 transition-all duration-300 border border-black/[0.03] bg-white`}
+                        >
+                          <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                            <Link 
+                              href={`/projects?template=${selectedTemplate.query}`}
+                              className="bg-white text-[#D3A5B1] px-6 py-3 rounded-full text-sm font-bold shadow-xl scale-95 group-hover:scale-100 transition-transform hover:bg-[#FFF5F8]"
+                            >
+                              Use Design
+                            </Link>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </section>
 

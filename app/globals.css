@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #fafaf8;
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-strong: #fffdf9;
+  --bg: #ffffff;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
   --ink: #2d3436;
   --ink-2: #4b5356;
   --muted: #636e72;
@@ -89,15 +89,15 @@ body.cc-landing-theme::before {
 
 
 body.cc-workspace-theme {
-  background: linear-gradient(160deg, #fdf9f6 0%, #f7f1eb 48%, #f4e9ed 100%);
-  color: #1a1a1a;
-  --accent: #FF94B4;
-  --accent-soft: rgba(255, 148, 180, 0.16);
-  --accent-soft-2: rgba(255, 148, 180, 0.28);
+  background: transparent;
+  color: #2d3436;
+  --accent: #D3A5B1;
+  --accent-soft: rgba(211, 165, 177, 0.16);
+  --accent-soft-2: rgba(211, 165, 177, 0.28);
   --muted: #645C52;
-  --line: rgba(255, 148, 180, 0.14);
-  --line-strong: rgba(255, 148, 180, 0.2);
-  --pastel-peach: #FFB7C5;
+  --line: rgba(211, 165, 177, 0.14);
+  --line-strong: rgba(211, 165, 177, 0.2);
+  --pastel-peach: #F0C3D1;
   --pastel-lavender: #FF8EAA;
 }
 
@@ -116,10 +116,13 @@ body.cc-workspace-theme .editor-shell {
   z-index: 10;
 }
 
-/* Glassmorphic toolbars and sidebars */
 body.cc-workspace-theme .editor-shell,
 body.cc-workspace-theme .editor-panel,
+body.cc-workspace-theme .workspace-sidebar,
+body.cc-workspace-theme .workspace-sidebar-rail,
+body.cc-workspace-theme .workspace-sidebar-button,
 body.cc-workspace-theme .toolbar,
+body.cc-workspace-theme .inspector-panel,
 body.cc-workspace-theme .dark-select-trigger,
 body.cc-workspace-theme .toolbar-select,
 body.cc-workspace-theme .toolbar-color-field,
@@ -137,12 +140,52 @@ body.cc-workspace-theme .layer-row,
 body.cc-workspace-theme .layer-row.selected,
 body.cc-workspace-theme .layers-stat,
 body.cc-workspace-theme .canvas-badge {
-  background: rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-color: rgba(255, 255, 255, 0.5);
-  color: #1a1a1a;
-  box-shadow: 0 4px 16px rgba(255, 148, 180, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  color: #2d3436;
+  box-shadow: 0 12px 40px rgba(211, 165, 177, 0.08);
+}
+
+/* Floating Topbar refinement */
+body.cc-workspace-theme .editor-topbar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(211, 165, 177, 0.15);
+  border-radius: 24px;
+  margin: 16px 20px;
+  padding: 10px 24px;
+  width: calc(100% - 40px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 999;
+  overflow: visible !important;
+}
+
+/* Ambient Workspace Aura */
+@keyframes pulseAura {
+  0% { transform: scale(1) translate(-50%, -50%); opacity: 0.4; }
+  50% { transform: scale(1.1) translate(-50%, -50%); opacity: 0.6; }
+  100% { transform: scale(1) translate(-50%, -50%); opacity: 0.4; }
+}
+
+body.cc-workspace-theme .workspace-aura {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(255, 148, 180, 0.25) 0%, rgba(211, 165, 177, 0.1) 40%, transparent 70%);
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(80px);
+  animation: pulseAura 8s infinite ease-in-out;
 }
 
 /* Hard opaque canvas background to protect work legibility */
@@ -153,7 +196,12 @@ body.cc-workspace-theme .canvas-viewport {
   box-shadow: 0 0 0 1px rgba(0,0,0,0.02), inset 0 0 0 1px rgba(255,255,255,1);
 }
 
-body.cc-workspace-theme .editor-shell,
+body.cc-workspace-theme .editor-shell {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
+  overflow: visible !important;
+  position: relative;
+}
+
 body.cc-workspace-theme .toolbar,
 body.cc-workspace-theme .canvas-stage-shell,
 body.cc-workspace-theme .canvas-viewport,
@@ -224,8 +272,8 @@ body.cc-workspace-theme .toolbar-icon-btn.active,
 body.cc-workspace-theme .inspector-toggle-btn.active,
 body.cc-workspace-theme .layer-icon-btn.active,
 body.cc-workspace-theme .layers-count {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
+  background: #D3A5B1;
+  border-color: #D3A5B1;
   color: #fff;
 }
 
@@ -234,9 +282,9 @@ body.cc-workspace-theme .toolbar-shape-btn:hover:not(:disabled),
 body.cc-workspace-theme .toolbar-icon-btn:hover:not(:disabled),
 body.cc-workspace-theme .frame-picker-trigger:hover,
 body.cc-workspace-theme .frame-picker-trigger.active {
-  background: #f5efe7;
-  border-color: #d7cec2;
-  color: #2f2a24;
+  background: rgba(211, 165, 177, 0.1);
+  border-color: rgba(211, 165, 177, 0.3);
+  color: #D3A5B1;
 }
 
 body.cc-workspace-theme .frame-picker-panel {
@@ -290,9 +338,9 @@ body.cc-workspace-theme .layer-row:hover,
 body.cc-workspace-theme .dark-select-option:hover,
 body.cc-workspace-theme .toolbar-menu-item:hover,
 body.cc-workspace-theme .inspector-toggle-btn:hover {
-  background: #f5efe7;
-  border-color: #d7cec2;
-  color: #2f2a24;
+  background: rgba(211, 165, 177, 0.1);
+  border-color: rgba(211, 165, 177, 0.3);
+  color: #D3A5B1;
   box-shadow: none;
 }
 
@@ -348,9 +396,9 @@ button, input, textarea, select { font: inherit; }
   padding: 16px;
   overflow: hidden;
   background:
-    radial-gradient(circle at top left, rgba(79, 140, 255, 0.2), transparent 30%),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 28%),
-    linear-gradient(180deg, #07111f 0%, #0b1324 100%);
+    radial-gradient(circle at top left, rgba(211, 165, 177, 0.15), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(211, 165, 177, 0.12), transparent 40%),
+    linear-gradient(180deg, #ffffff 0%, #fef9fa 100%);
 }
 
 /* ─── Shell ─── */
@@ -361,9 +409,10 @@ button, input, textarea, select { font: inherit; }
   margin: 0 auto;
   padding: 16px;
   border-radius: var(--radius-xl);
-  border: 1px solid rgba(125, 170, 255, 0.14);
-  background: linear-gradient(180deg, rgba(11, 22, 42, 0.94), rgba(8, 17, 34, 0.96));
-  box-shadow: 0 20px 44px rgba(1, 6, 18, 0.46);
+  border: 1px solid rgba(211, 165, 177, 0.12);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 20px 64px rgba(211, 165, 177, 0.1);
 }
 
 /* ─── Topbar ─── */
@@ -642,9 +691,9 @@ button, input, textarea, select { font: inherit; }
   gap: 6px;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(125, 170, 255, 0.14);
-  background: #162743;
-  color: #f3f4f6;
+  border: 1px solid rgba(211, 165, 177, 0.14);
+  background: rgba(211, 165, 177, 0.05);
+  color: #D3A5B1;
   font-size: 0.84rem;
   font-weight: 500;
   cursor: pointer;
@@ -703,14 +752,14 @@ button, input, textarea, select { font: inherit; }
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(125, 170, 255, 0.12);
-  background: #162743;
-  color: #f3f4f6;
+  border: 1px solid rgba(211, 165, 177, 0.12);
+  background: #ffffff;
+  color: #D3A5B1;
 }
 .toolbar-shape-btn:hover:not(:disabled) {
-  background: #1b3154;
-  border-color: rgba(125, 170, 255, 0.28);
-  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.14);
+  background: rgba(211, 165, 177, 0.1);
+  border-color: rgba(211, 165, 177, 0.28);
+  box-shadow: 0 0 0 3px rgba(211, 165, 177, 0.14);
 }
 
 .toolbar-vertical {
@@ -1878,10 +1927,12 @@ body.cc-workspace-theme .workspace-sidebar.panel-open {
 body.cc-workspace-theme .workspace-sidebar-rail {
   width: 76px;
   padding: 6px 8px;
-  border: 1px solid #1f1a14;
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 24px;
-  background: #1f1a14;
-  box-shadow: 0 12px 28px rgba(18, 14, 10, 0.28);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  box-shadow: 0 12px 28px rgba(211, 165, 177, 0.12);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1903,7 +1954,7 @@ body.cc-workspace-theme .workspace-sidebar-button {
   border: 1px solid transparent;
   border-radius: 18px;
   background: transparent;
-  color: #f5efe6;
+  color: #D3A5B1;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1914,9 +1965,9 @@ body.cc-workspace-theme .workspace-sidebar-button {
 
 body.cc-workspace-theme .workspace-sidebar-button:hover,
 body.cc-workspace-theme .workspace-sidebar-button.active {
-  background: #2b241d;
-  border-color: #3a322b;
-  color: #fffaf2;
+  background: rgba(211, 165, 177, 0.1);
+  border-color: rgba(211, 165, 177, 0.2);
+  color: #D3A5B1;
 }
 
 body.cc-workspace-theme .workspace-sidebar-button-icon {
@@ -1926,16 +1977,16 @@ body.cc-workspace-theme .workspace-sidebar-button-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #2a231c;
-  border: 1px solid #3b3229;
-  color: #f5efe6;
+  background: rgba(211, 165, 177, 0.05);
+  border: 1px solid rgba(211, 165, 177, 0.15);
+  color: #D3A5B1;
   flex-shrink: 0;
 }
 
 body.cc-workspace-theme .workspace-sidebar-button.active .workspace-sidebar-button-icon {
-  background: #1f1a14;
-  border-color: #1f1a14;
-  color: #fffaf2;
+  background: #D3A5B1;
+  border-color: #D3A5B1;
+  color: #ffffff;
 }
 
 body.cc-workspace-theme .workspace-sidebar-button-label {
@@ -1955,10 +2006,11 @@ body.cc-workspace-theme .workspace-sidebar-button-label.visible {
 
 body.cc-workspace-theme .workspace-sidebar-panel {
   overflow: hidden;
-  border: 1px solid #ddd3c6;
+  border: 1px solid rgba(211, 165, 177, 0.2);
   border-radius: 24px;
-  background: #f3ece2;
-  box-shadow: 0 12px 28px rgba(38, 30, 22, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 48px rgba(211, 165, 177, 0.15);
+  backdrop-filter: blur(12px);
 }
 
 body.cc-workspace-theme .workspace-sidebar-panel-header {
@@ -1966,13 +2018,14 @@ body.cc-workspace-theme .workspace-sidebar-panel-header {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid #ede3d7;
+  padding: 16px 20px 14px;
+  background: rgba(211, 165, 177, 0.05);
+  border-bottom: 1px solid rgba(211, 165, 177, 0.15);
 }
 
 body.cc-workspace-theme .workspace-sidebar-panel-eyebrow {
   margin: 0 0 4px;
-  color: #7b6e61;
+  color: #D3A5B1;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 0.68rem;
@@ -1981,23 +2034,33 @@ body.cc-workspace-theme .workspace-sidebar-panel-eyebrow {
 
 body.cc-workspace-theme .workspace-sidebar-panel-header h2 {
   margin: 0;
-  color: #1f1a14;
-  font-size: 1rem;
-  font-weight: 700;
+  color: #2d3436;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 body.cc-workspace-theme .workspace-sidebar-panel-close {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
-  border: 1px solid #ddd3c6;
-  background: #fffdf9;
-  color: #6d6256;
+  border: 1px solid rgba(211, 165, 177, 0.15);
+  background: #ffffff;
+  color: #D3A5B1;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+body.cc-workspace-theme .workspace-sidebar-panel-close:hover {
+  background: rgba(211, 165, 177, 0.1);
+  transform: rotate(90deg);
 }
 
 body.cc-workspace-theme .workspace-sidebar-panel-body {
-  padding: 12px 14px;
+  padding: 16px 18px;
   max-height: calc(100vh - 140px);
   overflow: auto;
 }
@@ -2015,13 +2078,21 @@ body.cc-workspace-theme .workspace-sidebar-panel-empty p {
 }
 
 body.cc-workspace-theme .editor-topbar {
+  margin-bottom: 20px;
+}
+
+.editor-topbar-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 4px 2px 14px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #e8dfd3;
+  gap: 6px;
+}
+
+.nav-pill-btn {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
 }
 
 body.cc-workspace-theme .editor-topbar-left {
@@ -2041,7 +2112,7 @@ body.cc-workspace-theme .editor-topbar-right {
 
 body.cc-workspace-theme .workspace-brand,
 body.cc-workspace-theme .workspace-name-text {
-  color: #1f1a14;
+  color: #2d3436;
 }
 
 body.cc-workspace-theme .workspace-name-input {
@@ -2077,7 +2148,7 @@ body.cc-workspace-theme .toolbar-menu-item,
 body.cc-workspace-theme .dark-select-option,
 body.cc-workspace-theme .zoom-level,
 body.cc-workspace-theme .history-item-copy strong {
-  color: #1f1a14;
+  color: #2d3436;
 }
 
 body.cc-workspace-theme .eyebrow,
@@ -2127,8 +2198,8 @@ body.cc-workspace-theme .avatar-stack-wrap,
 body.cc-workspace-theme .editor-status,
 body.cc-workspace-theme .canvas-badge,
 body.cc-workspace-theme .layers-stat {
-  background: #fffdf9;
-  border-color: #ddd3c6;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(211, 165, 177, 0.2);
 }
 
 body.cc-workspace-theme .editor-panel,
@@ -2206,9 +2277,9 @@ body.cc-workspace-theme .inspector-type-badge,
 body.cc-workspace-theme .toolbar-icon-btn.active,
 body.cc-workspace-theme .inspector-toggle-btn.active,
 body.cc-workspace-theme .layer-icon-btn.active {
-  background: #1f1a14;
-  color: #fffaf2;
-  border-color: #1f1a14;
+  background: #D3A5B1;
+  color: #ffffff;
+  border-color: #D3A5B1;
 }
 
 body.cc-workspace-theme .toolbar-button:hover:not(:disabled),
@@ -2238,9 +2309,26 @@ body.cc-workspace-theme .layer-row::before {
 
 body.cc-workspace-theme .toolbar-menu-list,
 body.cc-workspace-theme .dark-select-menu {
-  background: #fffdfa;
-  border-color: #d8ccbe;
-  box-shadow: 0 18px 38px rgba(28, 22, 16, 0.12);
+  background: #ffffff;
+  border: 1px solid rgba(211, 165, 177, 0.2);
+  box-shadow: 0 10px 40px rgba(211, 165, 177, 0.15);
+  z-index: 9999 !important;
+  min-width: 140px;
+  color: #2d3436;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+}
+
+body.cc-workspace-theme .toolbar-menu-item {
+  color: #2d3436 !important;
+  font-weight: 600;
+}
+
+body.cc-workspace-theme .toolbar-menu-item:hover {
+  background: rgba(211, 165, 177, 0.1);
+  color: #D3A5B1 !important;
 }
 
 body.cc-workspace-theme .toolbar-select,
@@ -2363,8 +2451,8 @@ body.cc-workspace-theme .editor-owner-pill {
   align-items: center;
   padding: 7px 11px;
   border-radius: 999px;
-  border: 1px solid #ddd3c6;
-  background: #fffdf9;
+  border: 1px solid rgba(211, 165, 177, 0.2);
+  background: #ffffff;
   color: #6d6256;
   font-size: 0.76rem;
   font-weight: 600;

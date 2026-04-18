@@ -31,7 +31,7 @@ export function FallingPetals({ variant = "pink" }: FallingPetalsProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[5] overflow-hidden">
+    <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden">
       {petals.map((p) => (
         <motion.div
           key={p.id}
