@@ -37,7 +37,7 @@ export type WorkspaceAccessLevel = "view" | "comment" | "edit";
 
 export type CanvasElementType =
   | "rectangle" | "circle" | "text"
-  | "triangle" | "star" | "arrow" | "line" | "image";
+  | "triangle" | "star" | "arrow" | "line" | "image" | "pencil";
 
 export type CanvasElementStyle = {
   fill: string;
@@ -73,7 +73,8 @@ export type CanvasElement = {
   layer_order: number;
   text?: string;
   style: CanvasElementStyle;
-  imageUrl?: string; // Only for image elements
+  imageUrl?: string;
+  points?: number[];
 };
 
 type WorkspaceState = {
@@ -84,11 +85,15 @@ type WorkspaceState = {
   selectedElementId: string | null;
   elements: CanvasElement[];
   elementList: CanvasElement[];
+  clipboard: CanvasElement | null;
   loading: boolean;
   history: CanvasElement[][];
   historyIndex: number;
   canvasBackground: string;
   canvasDimensions: { width: number; height: number };
+  activeTool: "select" | "pencil";
+  setActiveTool: (tool: "select" | "pencil") => void;
+  addPencilElement: (points: number[]) => void;
   selectElement: (elementId: string | null) => void;
   setSelectedElementId: (elementId: string | null) => void;
   setWorkspace: (workspace: WorkspaceMeta | null) => void;
@@ -100,6 +105,8 @@ type WorkspaceState = {
   updateElement: (elementId: string, updates: Partial<CanvasElement>) => void;
   updateElementStyle: (elementId: string, style: Partial<CanvasElementStyle>) => void;
   reorderElement: (elementId: string, direction: "forward" | "backward") => void;
+  copySelectedElement: () => void;
+  pasteElement: () => void;
   duplicateSelectedElement: () => void;
   deleteSelectedElement: () => void;
   toggleVisibility: (elementId: string) => void;
@@ -142,6 +149,7 @@ const defaultElementStyle: Record<CanvasElementType, CanvasElementStyle> = {
   arrow:     { fill: "#a8d4f0", stroke: "#1a6fa0", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
   line:      { fill: "transparent", stroke: "#637069", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
   image:     { fill: "#fff", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
+  pencil:    { fill: "transparent", stroke: "#2f2f2f", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
 } satisfies Record<CanvasElementType, CanvasElementStyle>;
 
 function normalizeElements(elements: CanvasElement[]): CanvasElement[] {
@@ -229,11 +237,32 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       selectedElementId: starterElements[2]?.id ?? null,
       elements: starterElements,
       elementList: starterElements,
+      clipboard: null,
       loading: false,
       history: [cloneElements(starterElements)],
       historyIndex: 0,
       canvasBackground: "#fffdf8",
       canvasDimensions: { width: 1280, height: 800 },
+      activeTool: "select",
+
+      setActiveTool: (tool) => set({ activeTool: tool }),
+
+      addPencilElement: (points) =>
+        set((state) => {
+          const layerOrder = state.elements.length;
+          const name = `Pencil ${layerOrder + 1}`;
+          const element: CanvasElement = withCompatFields({
+            id: createId("pencil"),
+            name, label: name, type: "pencil",
+            x: 0, y: 0, width: 0, height: 0,
+            rotation: 0, visible: true, locked: false,
+            layerOrder, layer_order: layerOrder,
+            points,
+            style: { ...defaultElementStyle.pencil },
+          });
+          const nextElements = [...state.elements, element];
+          return { ...withHistory(state, nextElements), selectedElementId: element.id };
+        }),
 
       selectElement: (selectedElementId) => set({ selectedElementId }),
       setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
@@ -307,6 +336,31 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             withCompatFields({ ...el, layerOrder: i, layer_order: i })
           );
           return withHistory(state, nextElements);
+        }),
+
+      copySelectedElement: () => {
+        const state = get();
+        const selected = state.elements.find((el) => el.id === state.selectedElementId);
+        if (!selected) return;
+        set({ clipboard: { ...selected, style: { ...selected.style } } });
+      },
+
+      pasteElement: () =>
+        set((state) => {
+          if (!state.clipboard) return state;
+          const pasted: CanvasElement = withCompatFields({
+            ...state.clipboard,
+            id: createId(state.clipboard.type),
+            name: `${state.clipboard.name} Copy`,
+            label: `${state.clipboard.label} Copy`,
+            x: state.clipboard.x + 24,
+            y: state.clipboard.y + 24,
+            layerOrder: state.elements.length,
+            layer_order: state.elements.length,
+            style: { ...state.clipboard.style },
+          });
+          const nextElements = [...state.elements, pasted];
+          return { ...withHistory(state, nextElements), selectedElementId: pasted.id };
         }),
 
       duplicateSelectedElement: () =>

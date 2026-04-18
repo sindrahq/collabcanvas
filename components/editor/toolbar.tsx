@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
   Baseline, Bold, Circle, Copy,
-  Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
+  Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
@@ -117,6 +117,8 @@ export function Toolbar({
   const redo                     = useWorkspaceStore((s) => s.redo);
   const historyIndex             = useWorkspaceStore((s) => s.historyIndex);
   const history                  = useWorkspaceStore((s) => s.history);
+  const activeTool               = useWorkspaceStore((s) => s.activeTool);
+  const setActiveTool            = useWorkspaceStore((s) => s.setActiveTool);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -265,6 +267,23 @@ export function Toolbar({
           <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Upload</span>
           <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
             <UploadPictureButton />
+          </div>
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Draw subheading and pencil tool toggle */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Draw</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
+            <motion.button
+              type="button"
+              className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "pencil" ? " active" : ""}`}
+              onClick={() => setActiveTool(activeTool === "pencil" ? "select" : "pencil")}
+              disabled={!canEdit}
+              title={activeTool === "pencil" ? "Pencil (active — click to deactivate)" : "Pencil tool"}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Pencil size={16} />
+            </motion.button>
           </div>
           <div className="toolbar-divider" style={{ margin: '8px 0' }} />
 

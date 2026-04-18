@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Arrow as KonvaArrow,
   Ellipse,
@@ -106,6 +106,8 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
   const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
   const canEdit = useWorkspaceStore((state) => state.canEdit);
+  const activeTool = useWorkspaceStore((state) => state.activeTool);
+  const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
 
   const STAGE_WIDTH  = canvasDimensions.width  / STAGE_SCALE;
   const STAGE_HEIGHT = canvasDimensions.height / STAGE_SCALE;
@@ -119,6 +121,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const nodeRefs = useRef<Record<string, Konva.Shape | Konva.Text | null>>({});
   const editingRef = useRef<HTMLTextAreaElement | null>(null);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [drawingPoints, setDrawingPoints] = useState<number[] | null>(null);
+
+  const getStagePos = useCallback((event: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = event.target.getStage();
+    const pos = stage?.getPointerPosition();
+    if (!pos) return null;
+    return { x: pos.x * STAGE_SCALE, y: pos.y * STAGE_SCALE };
+  }, []);
 
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -141,10 +151,32 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
           className="konva-stage"
+          style={{ cursor: activeTool === "pencil" ? "crosshair" : "default" }}
           onMouseDown={(event) => {
+            if (activeTool === "pencil" && canEdit) {
+              const pos = getStagePos(event);
+              if (pos) setDrawingPoints([pos.x, pos.y]);
+              return;
+            }
             if (event.target === event.target.getStage()) {
               selectElement(null);
             }
+          }}
+          onMouseMove={(event) => {
+            if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
+            const pos = getStagePos(event);
+            if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
+          }}
+          onMouseUp={() => {
+            if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
+            if (drawingPoints.length >= 4) addPencilElement(drawingPoints);
+            setDrawingPoints(null);
+          }}
+          onMouseLeave={() => {
+            if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
+              addPencilElement(drawingPoints);
+            }
+            setDrawingPoints(null);
           }}
         >
           <Layer>
@@ -406,6 +438,37 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 );
               }
 
+              if (element.type === "pencil") {
+                return (
+                  <KonvaLine
+                    key={element.id}
+                    points={(element.points ?? []).map((p) => p / STAGE_SCALE)}
+                    stroke={element.style.stroke}
+                    strokeWidth={element.style.strokeWidth / STAGE_SCALE}
+                    tension={0.4}
+                    lineCap="round"
+                    lineJoin="round"
+                    draggable={canEdit && !element.locked}
+                    visible={element.visible}
+                    opacity={element.style.opacity}
+                    hitStrokeWidth={12}
+                    onClick={() => selectElement(element.id)}
+                    onTap={() => selectElement(element.id)}
+                    onDragEnd={(event) => {
+                      if (!canEdit) return;
+                      const dx = event.target.x() * STAGE_SCALE;
+                      const dy = event.target.y() * STAGE_SCALE;
+                      const newPoints = (element.points ?? []).map((p, i) =>
+                        i % 2 === 0 ? p + dx : p + dy
+                      );
+                      event.target.x(0);
+                      event.target.y(0);
+                      updateElement(element.id, { points: newPoints });
+                    }}
+                  />
+                );
+              }
+
               return (
                 <KonvaText
                   key={element.id}
@@ -508,6 +571,19 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 />
               );
             })}
+
+            {/* In-progress pencil stroke */}
+            {drawingPoints && drawingPoints.length >= 4 && (
+              <KonvaLine
+                points={drawingPoints.map((p) => p / STAGE_SCALE)}
+                stroke="#2f2f2f"
+                strokeWidth={3 / STAGE_SCALE}
+                tension={0.4}
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            )}
 
             <Transformer
               ref={transformerRef}
