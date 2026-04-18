@@ -91,8 +91,8 @@ type WorkspaceState = {
   historyIndex: number;
   canvasBackground: string;
   canvasDimensions: { width: number; height: number };
-  activeTool: "select" | "pencil";
-  setActiveTool: (tool: "select" | "pencil") => void;
+  activeTool: "select" | "pencil" | "eraser";
+  setActiveTool: (tool: "select" | "pencil" | "eraser") => void;
   addPencilElement: (points: number[]) => void;
   selectElement: (elementId: string | null) => void;
   setSelectedElementId: (elementId: string | null) => void;
@@ -109,6 +109,8 @@ type WorkspaceState = {
   pasteElement: () => void;
   duplicateSelectedElement: () => void;
   deleteSelectedElement: () => void;
+  deleteElement: (id: string) => void;
+  partialErasePencilStroke: (id: string, segments: number[][]) => void;
   toggleVisibility: (elementId: string) => void;
   toggleLock: (elementId: string) => void;
   updateLayerOrder: (elements: CanvasElement[]) => void;
@@ -390,6 +392,42 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
           );
           return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null };
+        }),
+
+      deleteElement: (id) =>
+        set((state) => {
+          const remaining = normalizeElements(
+            state.elements
+              .filter((el) => el.id !== id)
+              .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
+          );
+          const selectedElementId = state.selectedElementId === id
+            ? (remaining.at(-1)?.id ?? null)
+            : state.selectedElementId;
+          return { ...withHistory(state, remaining), selectedElementId };
+        }),
+
+      partialErasePencilStroke: (id, segments) =>
+        set((state) => {
+          const element = state.elements.find((el) => el.id === id);
+          if (!element) return state;
+          const without = state.elements.filter((el) => el.id !== id);
+          const newElements = segments.map((pts, i) => {
+            const layerOrder = without.length + i;
+            const name = `Pencil ${layerOrder + 1}`;
+            return withCompatFields({
+              id: createId("pencil"),
+              name, label: name, type: "pencil" as const,
+              x: 0, y: 0, width: 0, height: 0,
+              rotation: 0, visible: true, locked: false,
+              layerOrder, layer_order: layerOrder,
+              points: pts,
+              style: { ...element.style },
+            });
+          });
+          const nextElements = normalizeElements([...without, ...newElements]);
+          const selectedElementId = state.selectedElementId === id ? null : state.selectedElementId;
+          return { ...withHistory(state, nextElements), selectedElementId };
         }),
 
       toggleVisibility: (elementId) =>

@@ -17,6 +17,9 @@ import type Konva from "konva";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import { KonvaImage } from "./konva-image";
 
+const PENCIL_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%231e1e1e'/%3E%3Cline x1='12' y1='1' x2='12' y2='8' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='12' y1='16' x2='12' y2='23' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='1' y1='12' x2='8' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='16' y1='12' x2='23' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair`;
+const ERASER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='16'%3E%3Crect x='1' y='1' width='18' height='14' rx='2' fill='white' stroke='%231e1e1e' stroke-width='2'/%3E%3Cline x1='1' y1='9' x2='19' y2='9' stroke='%231e1e1e' stroke-width='1'/%3E%3C/svg%3E") 10 8, cell`;
+
 const STAGE_SCALE = 1.6;
 
 function clamp(value: number, min: number, max: number) {
@@ -108,6 +111,8 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const canEdit = useWorkspaceStore((state) => state.canEdit);
   const activeTool = useWorkspaceStore((state) => state.activeTool);
   const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
+  const deleteElement = useWorkspaceStore((state) => state.deleteElement);
+  const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
 
   const STAGE_WIDTH  = canvasDimensions.width  / STAGE_SCALE;
   const STAGE_HEIGHT = canvasDimensions.height / STAGE_SCALE;
@@ -118,10 +123,53 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   );
 
   const transformerRef = useRef<Konva.Transformer>(null);
+  const stageRef = useRef<Konva.Stage>(null);
   const nodeRefs = useRef<Record<string, Konva.Shape | Konva.Text | null>>({});
   const editingRef = useRef<HTMLTextAreaElement | null>(null);
+  const isErasingRef = useRef(false);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<number[] | null>(null);
+
+  function eraseAtCurrentPos() {
+    const stage = stageRef.current;
+    const pos = stage?.getPointerPosition();
+    if (!stage || !pos) return;
+
+    const eraserX = pos.x * STAGE_SCALE;
+    const eraserY = pos.y * STAGE_SCALE;
+    const rr = (15 * STAGE_SCALE) ** 2;
+
+    for (const element of elements) {
+      if (element.type !== "pencil" || !element.points || element.points.length < 4) continue;
+
+      const pts = element.points;
+      let touched = false;
+      const keep: boolean[] = [];
+      for (let i = 0; i < pts.length; i += 2) {
+        const dx = pts[i] - eraserX;
+        const dy = pts[i + 1] - eraserY;
+        const inRadius = dx * dx + dy * dy <= rr;
+        keep.push(!inRadius);
+        if (inRadius) touched = true;
+      }
+
+      if (!touched) continue;
+
+      const segments: number[][] = [];
+      let seg: number[] = [];
+      for (let i = 0; i < keep.length; i++) {
+        if (keep[i]) {
+          seg.push(pts[i * 2], pts[i * 2 + 1]);
+        } else {
+          if (seg.length >= 4) segments.push(seg);
+          seg = [];
+        }
+      }
+      if (seg.length >= 4) segments.push(seg);
+
+      partialErasePencilStroke(element.id, segments);
+    }
+  }
 
   const getStagePos = useCallback((event: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = event.target.getStage();
@@ -148,11 +196,21 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   return (
     <div className="konva-frame">
         <Stage
+          ref={stageRef}
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
           className="konva-stage"
-          style={{ cursor: activeTool === "pencil" ? "crosshair" : "default" }}
+          style={{
+            cursor: activeTool === "pencil" ? PENCIL_CURSOR
+              : activeTool === "eraser" ? ERASER_CURSOR
+              : "default",
+          }}
           onMouseDown={(event) => {
+            if (activeTool === "eraser" && canEdit) {
+              isErasingRef.current = true;
+              eraseAtCurrentPos();
+              return;
+            }
             if (activeTool === "pencil" && canEdit) {
               const pos = getStagePos(event);
               if (pos) setDrawingPoints([pos.x, pos.y]);
@@ -163,16 +221,25 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
             }
           }}
           onMouseMove={(event) => {
+            if (activeTool === "eraser" && isErasingRef.current && canEdit) {
+              eraseAtCurrentPos();
+              return;
+            }
             if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
             const pos = getStagePos(event);
             if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
           }}
           onMouseUp={() => {
+            if (activeTool === "eraser") {
+              isErasingRef.current = false;
+              return;
+            }
             if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
             if (drawingPoints.length >= 4) addPencilElement(drawingPoints);
             setDrawingPoints(null);
           }}
           onMouseLeave={() => {
+            isErasingRef.current = false;
             if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
               addPencilElement(drawingPoints);
             }
@@ -442,6 +509,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 return (
                   <KonvaLine
                     key={element.id}
+                    ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
                     points={(element.points ?? []).map((p) => p / STAGE_SCALE)}
                     stroke={element.style.stroke}
                     strokeWidth={element.style.strokeWidth / STAGE_SCALE}

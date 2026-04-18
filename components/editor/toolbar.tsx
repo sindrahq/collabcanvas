@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
-  Baseline, Bold, Circle, Copy,
+  Baseline, Bold, Circle, Copy, Eraser,
   Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
@@ -272,7 +272,7 @@ export function Toolbar({
 
           {/* Draw subheading and pencil tool toggle */}
           <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Draw</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 10px 0' }}>
             <motion.button
               type="button"
               className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "pencil" ? " active" : ""}`}
@@ -283,6 +283,17 @@ export function Toolbar({
               whileTap={{ scale: 0.96 }}
             >
               <Pencil size={16} />
+            </motion.button>
+            <motion.button
+              type="button"
+              className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "eraser" ? " active" : ""}`}
+              onClick={() => setActiveTool(activeTool === "eraser" ? "select" : "eraser")}
+              disabled={!canEdit}
+              title={activeTool === "eraser" ? "Eraser (active — click to deactivate)" : "Eraser tool"}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Eraser size={16} />
             </motion.button>
           </div>
           <div className="toolbar-divider" style={{ margin: '8px 0' }} />
