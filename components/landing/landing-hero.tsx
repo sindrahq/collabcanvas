@@ -1,359 +1,309 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, ArrowRight, Sparkles } from "lucide-react";
+import { LandingFeatureCards } from "@/components/landing/landing-feature-cards";
+import { FeatureGridAnimated } from "@/components/landing/feature-grid-animated";
+import { FeatureComparisonTable } from "@/components/landing/feature-comparison-table";
+import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
+import { CustomCursor } from "@/components/landing/custom-cursor";
+import { FallingPetals } from "@/components/landing/falling-petals";
+import { TiltImage } from "@/components/landing/tilt-image";
+import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
+
+type SectionId = "features" | "templates" | "about";
+
+type TemplateItem = {
+  img: string;
+  label: string;
+  query: string;
+};
+
+const templates: TemplateItem[] = [
+  { img: "/invitation-template.png", label: "Invitation", query: "invitation" },
+  { img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business" },
+  { img: "https://images.unsplash.com/photo-1561070791-2526d30994b5?q=80&w=1000&auto=format&fit=crop", label: "Poster", query: "poster" },
+  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation" },
+  { img: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop", label: "Social Media", query: "social-media" },
+];
 
 export function LandingHero() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fullText = "Collaborative Canvas Editor";
+  const fullText = useMemo(() => "Design Without Limits", []);
 
-  // Typewriter
   useEffect(() => {
     let i = 0;
     const interval = setInterval(() => {
       if (i <= fullText.length) {
         setTyped(fullText.slice(0, i));
         i++;
-      } else clearInterval(interval);
-    }, 70);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Mouse spotlight
-  useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener("mousemove", handleMove);
-    return () => window.removeEventListener("mousemove", handleMove);
-  }, []);
-
-  // Particle stars
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    function resize() {
-      if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener("resize", resize);
-
-    const stars = Array.from({ length: 120 }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      size: Math.random() * 2.5 + 0.5,
-      opacity: Math.random() * 0.9 + 0.2,
-      speed: Math.random() * 0.3 + 0.05,
-      twinkleSpeed: Math.random() * 0.02 + 0.005,
-      twinkleDir: 1,
-    }));
-
-    let animId: number;
-
-    function draw() {
-      if (!ctx || !canvas) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      for (const s of stars) {
-        s.opacity += s.twinkleSpeed * s.twinkleDir;
-        if (s.opacity > 0.9 || s.opacity < 0.1) s.twinkleDir *= -1;
-
-        ctx.save();
-        ctx.globalAlpha = s.opacity;
-        ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = "#60a5fa";
-        ctx.shadowBlur = 12;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        s.y -= s.speed;
-        if (s.y < -5) {
-          s.y = canvas.height + 5;
-          s.x = Math.random() * canvas.width;
-        }
+      } else {
+        clearInterval(interval);
       }
+    }, 50);
+    return () => clearInterval(interval);
+  }, [fullText]);
 
-      animId = requestAnimationFrame(draw);
-    }
-
-    draw();
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
+  function scrollToSection(id: SectionId) {
+    const section = document.getElementById(id);
+    if (!section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    setIsMenuOpen(false);
+  }
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      background: "radial-gradient(ellipse at 20% 30%, #0a0a2e 0%, #050508 40%, #000000 100%)",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-
-      {/* Particle stars canvas */}
-      <canvas ref={canvasRef} style={{
-        position: "absolute", inset: 0,
-        pointerEvents: "none", zIndex: 0,
-      }} />
-
-      {/* Mouse spotlight */}
-      <div style={{
-        position: "fixed",
-        left: mousePos.x - 200,
-        top: mousePos.y - 200,
-        width: 400, height: 400,
-        borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%)",
-        pointerEvents: "none",
-        zIndex: 1,
-        transition: "left 0.1s ease, top 0.1s ease",
-      }} />
-
-      {/* Glow blobs */}
-      <div style={{
-        position: "absolute", width: 700, height: 700, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%)",
-        top: "-20%", left: "-5%", pointerEvents: "none", zIndex: 0,
-        animation: "blob-float 8s ease-in-out infinite",
-      }} />
-      <div style={{
-        position: "absolute", width: 600, height: 600, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(124,58,237,0.1) 0%, transparent 70%)",
-        bottom: "-15%", right: "-5%", pointerEvents: "none", zIndex: 0,
-        animation: "blob-float 10s ease-in-out infinite reverse",
-      }} />
-
-      {/* Subtle grid */}
-      <div style={{
-        position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-        backgroundImage: "linear-gradient(rgba(37,99,235,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.03) 1px, transparent 1px)",
-        backgroundSize: "40px 40px",
-      }} />
-
-      {/* Hero content */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center",
-        padding: "60px 24px", position: "relative", zIndex: 2, textAlign: "center",
-      }}>
-
-        {/* Logo */}
-        <div style={{
-          fontSize: 15, fontWeight: 800, letterSpacing: "0.15em",
-          textTransform: "uppercase",
-          background: "linear-gradient(135deg, #60a5fa, #2563eb, #7c3aed)",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          backgroundClip: "text", marginBottom: 32,
-        }}>CollabCanvas</div>
-
-        {/* Live badge */}
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "5px 14px", borderRadius: 20,
-          background: "rgba(37,99,235,0.1)",
-          border: "1px solid rgba(37,99,235,0.25)",
-          fontSize: 11, color: "#60a5fa", marginBottom: 28, fontWeight: 500,
-        }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: "50%",
-            background: "#10b981", display: "inline-block",
-            boxShadow: "0 0 8px #10b981",
-            animation: "pulse-glow 2s ease-in-out infinite",
-          }} />
-          Now Live — Internship Project 2026
-        </div>
-
-        {/* Typewriter title */}
-        <h1 style={{
-          fontSize: "clamp(2.5rem, 6vw, 4.5rem)",
-          fontWeight: 900,
-          background: "linear-gradient(135deg, #ffffff 0%, #93c5fd 40%, #60a5fa 100%)",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          backgroundClip: "text",
-          letterSpacing: "-0.04em", lineHeight: 1.1,
-          marginBottom: 20, maxWidth: "750px",
-          minHeight: "1.2em",
-        }}>
-          {typed}
-          <span style={{
-            display: "inline-block", width: 3, height: "0.85em",
-            background: "#2563eb", marginLeft: 3, verticalAlign: "middle",
-            animation: "blink 1s step-end infinite",
-          }} />
-        </h1>
-
-        {/* Subtext */}
-        <p style={{
-          color: "rgba(255,255,255,0.38)", lineHeight: 1.8, fontSize: 16,
-          maxWidth: 480, marginBottom: 48,
-        }}>
-          A modern Figma/Canva-style editor with real-time collaboration,
-          shared state management, and cloud-powered persistence.
-        </p>
-
-        {/* CTA Button */}
-        <Link href="/projects" style={{
-  padding: "14px 44px", borderRadius: 12, fontWeight: 700, fontSize: 16,
-  background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-  color: "#fff",
-  boxShadow: "0 0 50px rgba(37,99,235,0.5)",
-  transition: "all 200ms", textDecoration: "none",
-  display: "inline-block", marginBottom: 64,
-  outline: "2px solid transparent",
-  animation: "neon-border 2s ease-in-out infinite",
-}}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-3px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 0 80px rgba(37,99,235,0.75)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0) scale(1)";
-            e.currentTarget.style.boxShadow = "0 0 50px rgba(37,99,235,0.5)";
-          }}
+    <main className="cc-landing-theme min-h-screen text-[#2D3436] font-sans selection:bg-[#F0C3D1] relative">
+      {/* Full Cherry Blossom Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-[0]"
+        style={{ 
+          backgroundImage: 'url("https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2500&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      />
+      {/* Soft overlay to ensure buttons and content are readable over the floral background */}
+      <div 
+        className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" 
+      />
+      
+      <div className="relative z-10">
+        <PastelBlobBackground />
+        <CustomCursor />
+        <FallingPetals />
+        
+        {/* Floating Navbar */}
+        <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[min(90%,1200px)]">
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="flex items-center justify-between px-6 py-3 rounded-2xl border border-black/[0.03] bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.03)]"
         >
-          Open Dashboard →
-        </Link>
+          <div className="flex items-center gap-8">
+            <div className="text-xl font-bold tracking-tight italic flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#D4E6F1] to-[#FADBD8] flex items-center justify-center text-xs not-italic">CC</span>
+              CollabCanvas
+            </div>
+            
+            <div className="hidden md:flex items-center gap-6">
+              {["Features", "Templates", "About"].map((item) => (
+                <button
+                  key={item}
+                  onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
+                  className="text-sm font-medium text-[#636E72] hover:text-[#2D3436] transition-colors"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Scrolling Marquee */}
-        <div style={{
-          width: "100%", overflow: "hidden",
-          marginBottom: 64,
-          maskImage: "linear-gradient(90deg, transparent, black 10%, black 90%, transparent)",
-          WebkitMaskImage: "linear-gradient(90deg, transparent, black 10%, black 90%, transparent)",
-        }}>
-          <div style={{
-            display: "flex", gap: 40,
-            animation: "marquee 20s linear infinite",
-            width: "max-content",
-          }}>
-            {[...Array(3)].map((_, repeat) => (
-              <div key={repeat} style={{ display: "flex", gap: 40, alignItems: "center" }}>
-                {[
-                  "Real-time Canvas",
-                  "Zustand State",
-                  "Supabase Sync",
-                  "Konva Engine",
-                  "8 Shape Types",
-                  "Inspector Panel",
-                  "Layer System",
-                  "Auto Save",
-                  "Dark Theme",
-                  "Collaborative",
-                ].map((text) => (
-                  <div key={text} style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    color: "rgba(255,255,255,0.25)", fontSize: 13,
-                    fontWeight: 500, whiteSpace: "nowrap",
-                  }}>
-                    <span style={{
-                      width: 5, height: 5, borderRadius: "50%",
-                      background: "#2563eb", display: "inline-block",
-                      boxShadow: "0 0 6px #2563eb",
-                    }} />
-                    {text}
-                  </div>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/projects"
+              className="hidden sm:inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-sm font-bold shadow-lg shadow-[#D3A5B1]/30 transition-all hover:scale-[1.05]"
+              style={{ backgroundColor: "var(--accent)" }}
+            >
+              Open App
+            </Link>
+            <button 
+              className="md:hidden p-2 text-[#636E72]"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute top-full left-0 right-0 mt-4 p-4 rounded-2xl border border-black/[0.03] bg-white/90 backdrop-blur-2xl shadow-xl md:hidden"
+            >
+              <div className="flex flex-col gap-2">
+                {["Features", "Templates", "About"].map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
+                    className="w-full text-left p-4 rounded-xl hover:bg-black/[0.02] text-sm font-semibold transition-colors"
+                  >
+                    {item}
+                  </button>
                 ))}
+                <div className="h-px bg-black/[0.03] my-2" />
+                <Link
+                  href="/projects"
+                  className="w-full p-4 rounded-xl text-white text-center text-sm font-bold"
+                  style={{ backgroundColor: "var(--accent)" }}
+                >
+                  Open App
+                </Link>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6 md:pt-48 md:pb-32 lg:pt-56 z-10">
+        <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 border border-black/[0.03] text-xs font-semibold text-[#8b7355] mb-6">
+              <Sparkles size={14} className="text-[#D4B595]" />
+              Real-time Design Collaboration
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] text-[#2D3436] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
+              {typed}
+              <motion.span 
+                animate={{ opacity: [1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity }}
+                className="inline-block w-1.5 h-[0.85em] bg-[#D4B595] ml-1 align-middle"
+              />
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8b7355] to-[#D4B595] italic">
+                Your Shared Canvas
+              </span>
+            </h1>
+            
+            <p className="text-lg md:text-xl text-[#636E72] leading-relaxed max-w-xl mb-10">
+              Transform your creative workflow with a seamless, collaborative editor. Build, style, and ship together in real-time.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link
+                href="/projects"
+                className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-2xl text-white font-bold text-lg transition-all hover:scale-[1.02] hover:shadow-2xl hover:shadow-[#D3A5B1]/40"
+                style={{ backgroundColor: "var(--accent)" }}
+              >
+                Start Designing
+                <ArrowRight size={20} />
+              </Link>
+              <button
+                onClick={() => scrollToSection("templates")}
+                className="h-14 px-8 rounded-2xl bg-white border border-black/[0.05] text-[#2D3436] font-bold text-lg transition-all hover:bg-black/[0.02]"
+              >
+                View Templates
+              </button>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ x: 20, opacity: 0, scale: 0.95 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="relative perspective-1000"
+          >
+            <TiltImage src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop" />
+            {/* Decorative elements */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#FADBD8] rounded-full blur-[60px] opacity-60" />
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#D5F5E3] rounded-full blur-[60px] opacity-60" />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <motion.section 
+        id="features" 
+        initial={{ y: 40, opacity: 0 }}
+        whileInView={{ y: 0, opacity: 1 }}
+        viewport={{ once: true }}
+        className="py-24 px-6"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-16 text-center">
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Everything you need</h2>
+            <p className="text-[#636E72] text-lg">Powerful tools built for creative teams.</p>
+          </div>
+          <LandingFeatureCards />
+        </div>
+      </motion.section>
+
+
+      {/* Templates Section */}
+      <section id="templates" className="py-24 px-6 overflow-hidden">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-end justify-between mb-12">
+            <div>
+              <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
+              <p className="text-[#636E72]">Pick a starting point and make it yours.</p>
+            </div>
+            <Link href="/projects" className="hidden sm:flex items-center gap-2 font-bold text-[#8b7355] hover:gap-3 transition-all">
+              Browse All <ArrowRight size={18} />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            {templates.map((template, idx) => (
+              <motion.div
+                key={template.label}
+                initial={{ y: 20, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                transition={{ delay: idx * 0.1 }}
+                viewport={{ once: true }}
+              >
+                <Link
+                  href={`/projects?template=${template.query}`}
+                  className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all"
+                >
+                  <div className="aspect-[3/4] overflow-hidden">
+                    <img
+                      src={template.img}
+                      alt={template.label}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  </div>
+                  <div className="p-4 flex items-center justify-between">
+                    <span className="font-bold text-sm">{template.label}</span>
+                    <ArrowRight size={16} className="text-black/20 group-hover:text-black transition-colors" />
+                  </div>
+                </Link>
+              </motion.div>
             ))}
           </div>
         </div>
+      </section>
 
-        {/* Feature cards */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 16, maxWidth: 780, width: "100%",
-        }}>
-          {[
-            { icon: "🎨", title: "Live Canvas", desc: "Real-time Konva-powered rendering with drag, resize and transform", color: "#2563eb" },
-            { icon: "⚡", title: "Instant Sync", desc: "Supabase-powered autosave keeps your work safe in the cloud", color: "#7c3aed" },
-            { icon: "🤝", title: "Collaborate", desc: "Work together with your team in real-time on the same canvas", color: "#10b981" },
-            { icon: "🔷", title: "8 Shape Types", desc: "Rectangle, Circle, Star, Arrow, Diamond, Triangle and more", color: "#f59e0b" },
-            { icon: "🔍", title: "Inspector Panel", desc: "Fine-tune colors, opacity, position and size of every element", color: "#60a5fa" },
-            { icon: "📋", title: "Layer System", desc: "Manage, reorder, lock and toggle visibility of all your layers", color: "#a78bfa" },
-          ].map((card) => (
-            <div key={card.title} style={{
-              background: "rgba(8, 8, 20, 0.7)",
-              backdropFilter: "blur(20px)",
-              border: `1px solid ${card.color}18`,
-              borderRadius: 14, padding: "20px 18px",
-              textAlign: "left", transition: "all 200ms",
-              cursor: "default",
-            }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${card.color}45`;
-                e.currentTarget.style.transform = "translateY(-4px)";
-                e.currentTarget.style.boxShadow = `0 12px 35px ${card.color}18`;
-                e.currentTarget.style.background = "rgba(12, 12, 28, 0.85)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = `${card.color}18`;
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.background = "rgba(8, 8, 20, 0.7)";
-              }}
+      {/* Footer / About */}
+      <footer id="about" className="py-20 px-6 border-t border-black/[0.03]">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden shadow-2xl shadow-[#D3A5B1]/30" style={{ backgroundColor: "var(--accent)" }}>
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+            <h2 className="text-4xl md:text-6xl font-bold text-white mb-8 relative z-10"> Ready to create <br /> something amazing? </h2>
+            <Link
+              href="/projects"
+              className="inline-flex items-center justify-center h-16 px-10 rounded-2xl bg-white font-bold text-xl transition-all hover:scale-[1.05] relative z-10"
+              style={{ color: "var(--accent)" }}
             >
-              <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                background: `${card.color}18`,
-                border: `1px solid ${card.color}30`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 20, marginBottom: 12,
-              }}>{card.icon}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 6 }}>{card.title}</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", lineHeight: 1.6 }}>{card.desc}</div>
+              Get Started Now
+            </Link>
+          </div>
+          
+          <div className="mt-20 flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-black/[0.03]">
+            <div className="text-xl font-bold italic">CollabCanvas</div>
+            <div className="flex gap-8 text-sm font-medium text-[#636E72]">
+              <Link href="#" className="hover:text-black">Privacy</Link>
+              <Link href="#" className="hover:text-black">Terms</Link>
+              <Link href="#" className="hover:text-black">Contact</Link>
             </div>
-          ))}
+            <div className="text-sm text-[#B2BEC3]">© 2026 CollabCanvas. All rights reserved.</div>
+          </div>
         </div>
-
-        {/* Bottom tagline */}
-        <p style={{
-          marginTop: 48, fontSize: 12,
-          color: "rgba(255,255,255,0.15)",
-          letterSpacing: "0.05em",
-        }}>
-          © 2026 CollabCanvas — Internship Project
-        </p>
+      </footer>
+      <AccumulatedPetals />
       </div>
-
-      <style>{`
-        @keyframes blob-float {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-25px) scale(1.04); }
-        }
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
-          50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
-        }
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-33.33%); }
-        }
-          @keyframes neon-border {
-  0%, 100% {
-    box-shadow: 0 0 50px rgba(37,99,235,0.5), 0 0 0 2px #2563eb, 0 0 20px #2563eb, 0 0 40px #7c3aed;
-  }
-  50% {
-    box-shadow: 0 0 80px rgba(124,58,237,0.7), 0 0 0 2px #7c3aed, 0 0 30px #7c3aed, 0 0 60px #2563eb;
-  }
-}
-      `}</style>
     </main>
   );
 }
+

@@ -3,7 +3,7 @@
 import { useWorkspaceStore } from "@/store/workspaceStore"
 
 export default function InspectorPanel() {
-  const { selectedElementId, elementList, updateElement } = useWorkspaceStore()
+  const { selectedElementId, elementList, updateElementStyle } = useWorkspaceStore()
 
   const selectedElement = elementList.find((el) => el.id === selectedElementId)
 
@@ -30,7 +30,7 @@ export default function InspectorPanel() {
           <input
             type="color"
             value={style.fill}
-            onChange={(e) => updateElement(selectedElement.id, { fill: e.target.value })}
+            onChange={(e) => updateElementStyle(selectedElement.id, { fill: e.target.value })}
             className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent"
           />
           <span className="text-sm font-mono">{style.fill}</span>
@@ -44,7 +44,7 @@ export default function InspectorPanel() {
           <input
             type="color"
             value={style.stroke}
-            onChange={(e) => updateElement(selectedElement.id, { stroke: e.target.value })}
+            onChange={(e) => updateElementStyle(selectedElement.id, { stroke: e.target.value })}
             className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent"
           />
           <span className="text-sm font-mono">{style.stroke}</span>
@@ -61,7 +61,7 @@ export default function InspectorPanel() {
           min={0}
           max={20}
           value={style.strokeWidth}
-          onChange={(e) => updateElement(selectedElement.id, { strokeWidth: Number(e.target.value) })}
+          onChange={(e) => updateElementStyle(selectedElement.id, { strokeWidth: Number(e.target.value) })}
           className="w-full accent-indigo-500"
         />
       </div>
@@ -77,7 +77,7 @@ export default function InspectorPanel() {
           max={1}
           step={0.01}
           value={style.opacity}
-          onChange={(e) => updateElement(selectedElement.id, { opacity: Number(e.target.value) })}
+          onChange={(e) => updateElementStyle(selectedElement.id, { opacity: Number(e.target.value) })}
           className="w-full accent-indigo-500"
         />
       </div>
@@ -93,7 +93,7 @@ export default function InspectorPanel() {
             min={8}
             max={72}
             value={style.fontSize}
-            onChange={(e) => updateElement(selectedElement.id, { fontSize: Number(e.target.value) })}
+            onChange={(e) => updateElementStyle(selectedElement.id, { fontSize: Number(e.target.value) })}
             className="w-full accent-indigo-500"
           />
         </div>

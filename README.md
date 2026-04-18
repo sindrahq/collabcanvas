@@ -15,15 +15,18 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-3. Start the development server:
+3. Run `docs/SUPABASE_USERNAMES_SETUP.sql` in Supabase SQL Editor to enable username-based workspace invites and mandatory username signup.
+
+4. Start the development server:
 
 ```bash
 npm run dev
 ```
 
-4. Open `http://localhost:3000`.
+5. Open `http://localhost:3000`.
 
 ## Included Modules
 

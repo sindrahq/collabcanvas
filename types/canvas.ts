@@ -4,6 +4,8 @@ export interface CanvasElement {
   workspace_id: string;
   type: 'rectangle' | 'circle' | 'text';
   position: { x: number; y: number; width: number; height: number };
+  rotation?: number;
+  text_content?: string | null;
   style: {
     fill: string;
     stroke: string;
@@ -11,6 +13,7 @@ export interface CanvasElement {
     opacity: number;
     fontSize?: number;
   };
+  style_ext?: Record<string, unknown> | null;
   layer_order: number;
   visible: boolean;
   locked: boolean;
