@@ -25,7 +25,7 @@ export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 						<div
 							key={presence.user_id || displayName}
 							className="avatar-chip"
-							style={{ background: presence.color || "#8b7355" }}
+							style={{ background: presence.color || "#FF94B4" }}
 							title={displayName}
 						>
 							{avatarUrl ? (

@@ -1,58 +1,93 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createSupabaseBrowserClient, setSupabaseSessionPersistence } from "@/lib/supabase/client";
+import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, ArrowRight, Sparkles } from "lucide-react";
+import { LandingFeatureCards } from "@/components/landing/landing-feature-cards";
+import { FeatureGridAnimated } from "@/components/landing/feature-grid-animated";
+import { FeatureComparisonTable } from "@/components/landing/feature-comparison-table";
+import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
+import { CustomCursor } from "@/components/landing/custom-cursor";
+import { FallingPetals } from "@/components/landing/falling-petals";
+import { TiltImage } from "@/components/landing/tilt-image";
+import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
+
+type SectionId = "features" | "templates" | "about";
+
+type TemplateItem = {
+  img: string;
+  label: string;
+  query: string;
+  aspectClass: string;
+};
+
+const templates: TemplateItem[] = [
+  { img: "https://images.unsplash.com/photo-1544377193-33dce4d95d0c?q=80&w=1000&auto=format&fit=crop", label: "Invitation", query: "invitation", aspectClass: "aspect-[3/4]" },
+  { img: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business", aspectClass: "aspect-[1.58/1]" },
+  { img: "https://images.unsplash.com/photo-1563298723-dcfebaa392e3?q=80&w=1000&auto=format&fit=crop", label: "Poster", query: "poster", aspectClass: "aspect-[3/4]" },
+  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation", aspectClass: "aspect-video" },
+  { img: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop", label: "Social Media", query: "social-media", aspectClass: "aspect-square" },
+];
+
+const TEMPLATE_DESIGNS: Record<string, string[]> = {
+  "invitation": [
+    "https://images.unsplash.com/photo-1544377193-33dce4d95d0c",
+    "https://images.unsplash.com/photo-1510076857177-7470076d4098",
+    "https://images.unsplash.com/photo-1531058020387-3be344556be6",
+    "https://images.unsplash.com/photo-1519225421980-715cb0215aed",
+    "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8",
+    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3",
+    "https://images.unsplash.com/photo-1469334031218-e382a71b716b",
+    "https://images.unsplash.com/photo-1520854221256-17451cc331bf"
+  ],
+  "business": [
+    "https://images.unsplash.com/photo-1589829085413-56de8ae18c73",
+    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
+    "https://images.unsplash.com/photo-1552664730-d307ca884978",
+    "https://images.unsplash.com/photo-1553484771-047a44eee27b",
+    "https://images.unsplash.com/photo-1558403194-611308249627",
+    "https://images.unsplash.com/photo-1542744094-3a31f272c490",
+    "https://images.unsplash.com/photo-1556761175-b413da4baf72",
+    "https://images.unsplash.com/photo-1454165833767-131ef248c5de"
+  ],
+  "poster": [
+    "https://images.unsplash.com/photo-1563298723-dcfebaa392e3",
+    "https://images.unsplash.com/photo-1531206715517-5c0ba140b2b8",
+    "https://images.unsplash.com/photo-1541185933-ef5d8ed016c2",
+    "https://images.unsplash.com/photo-1515462277126-2dd0c162007a",
+    "https://images.unsplash.com/photo-1558655146-d09347e92766",
+    "https://images.unsplash.com/photo-1483058712412-4245e9b90334",
+    "https://images.unsplash.com/photo-1542626991-cbc4e32524cc",
+    "https://images.unsplash.com/photo-1544928147-79a2dbc1f389"
+  ],
+  "presentation": [
+    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
+    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3",
+    "https://images.unsplash.com/photo-1551434678-e076c223a692",
+    "https://images.unsplash.com/photo-1542744173-8e7e53415bb0",
+    "https://images.unsplash.com/photo-1555066931-4365d14bab8c",
+    "https://images.unsplash.com/photo-1551288049-bbbda536339a",
+    "https://images.unsplash.com/photo-1553877522-43269d4ea984",
+    "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23"
+  ],
+  "social-media": [
+    "https://images.unsplash.com/photo-1611162617474-5b21e879e113",
+    "https://images.unsplash.com/photo-1611224923853-80b023f02d71",
+    "https://images.unsplash.com/photo-1611605698335-8b156981043e",
+    "https://images.unsplash.com/photo-1611606063065-ee7946f0787a",
+    "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6",
+    "https://images.unsplash.com/photo-1492724441997-5dc865305da7",
+    "https://images.unsplash.com/photo-1533750349088-cd871a92f312",
+    "https://images.unsplash.com/photo-1563986768609-322da13575f3"
+  ]
+};
 
 export function LandingHero() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const [activeFeature, setActiveFeature] = useState<number | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [authMessage, setAuthMessage] = useState("");
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-  const profileRef = useRef<HTMLDivElement | null>(null);
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const fullText = "Design Without Limits";
-  const startCreatingHref = currentUserEmail ? "/projects" : "/auth?next=%2Fprojects";
-
-  function mapAuthError(raw: string | undefined) {
-    const normalized = (raw || "").toLowerCase();
-
-    if (normalized.includes("email rate limit exceeded") || normalized.includes("over_email_send_rate_limit")) {
-      return "Too many verification emails were requested. Please wait a few minutes before trying again, or log in with an existing account.";
-    }
-
-    if (normalized.includes("invalid login credentials")) {
-      return "Invalid email or password.";
-    }
-
-    return raw || "Authentication failed. Please try again.";
-  }
-
-  function validatePassword(value: string) {
-    const rules = [
-      { ok: value.length >= 8, message: "at least 8 characters" },
-      { ok: /[a-z]/.test(value), message: "one lowercase letter" },
-      { ok: /[A-Z]/.test(value), message: "one uppercase letter" },
-      { ok: /\d/.test(value), message: "one number" },
-      { ok: /[^A-Za-z0-9]/.test(value), message: "one special character" },
-    ];
-
-    return {
-      ok: rules.every((rule) => rule.ok),
-      missing: rules.filter((rule) => !rule.ok).map((rule) => rule.message),
-    };
-  }
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const fullText = useMemo(() => "Design Without Limits", []);
 
   useEffect(() => {
     let i = 0;
@@ -60,1066 +95,324 @@ export function LandingHero() {
       if (i <= fullText.length) {
         setTyped(fullText.slice(0, i));
         i++;
-      } else clearInterval(interval);
-    }, 80);
+      } else {
+        clearInterval(interval);
+      }
+    }, 50);
     return () => clearInterval(interval);
-  }, []);
+  }, [fullText]);
 
-  useEffect(() => {
-    document.body.classList.add("cc-landing-theme");
-    return () => {
-      document.body.classList.remove("cc-landing-theme");
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) return;
-
-    void supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserEmail(data.user?.email ?? null);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUserEmail(session?.user?.email ?? null);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    function handleDocumentClick(event: MouseEvent) {
-      if (!profileRef.current) return;
-      if (!profileRef.current.contains(event.target as Node)) {
-        setProfileOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleDocumentClick);
-    return () => document.removeEventListener("mousedown", handleDocumentClick);
-  }, []);
-
-  const resetAuthFeedback = () => {
-    setAuthError("");
-    setAuthMessage("");
-  };
-
-  async function handleAuthSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    resetAuthFeedback();
-
-    if (!supabase) {
-      setAuthError("Authentication is unavailable. Please configure Supabase keys.");
-      return;
-    }
-
-    if (authMode === "signup") {
-      const passwordCheck = validatePassword(password);
-      if (!firstName.trim() || !lastName.trim()) {
-        setAuthError("Please enter both first name and last name.");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setAuthError("Passwords do not match.");
-        return;
-      }
-      if (!passwordCheck.ok) {
-        setAuthError(`Password must contain ${passwordCheck.missing.join(", ")}.`);
-        return;
-      }
-    }
-
-    setSupabaseSessionPersistence(rememberMe);
-    setAuthLoading(true);
-
-    if (authMode === "signup") {
-      const signUpResponse = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          email,
-          password,
-        }),
-      });
-
-      const signUpPayload = (await signUpResponse.json()) as {
-        error?: string;
-        session?: { access_token: string; refresh_token: string } | null;
-        requiresEmailVerification?: boolean;
-      };
-
-      if (!signUpResponse.ok) {
-        setAuthError(mapAuthError(signUpPayload.error || "Could not create account."));
-      } else if (signUpPayload.session) {
-        await supabase.auth.setSession(signUpPayload.session);
-        setAuthMessage("Signup successful. You are now logged in.");
-        setAuthModalOpen(false);
-      } else if (signUpPayload.requiresEmailVerification) {
-        setAuthMessage("Signup successful. Please verify your email before login.");
-      } else {
-        setAuthMessage("Signup successful.");
-      }
-    } else {
-      const loginResponse = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
-      const loginPayload = (await loginResponse.json()) as {
-        error?: string;
-        session?: { access_token: string; refresh_token: string } | null;
-      };
-
-      if (!loginResponse.ok) {
-        setAuthError(mapAuthError(loginPayload.error || "Could not log in."));
-      } else {
-        if (loginPayload.session) {
-          await supabase.auth.setSession(loginPayload.session);
-        }
-        setAuthMessage("Login successful.");
-        setAuthModalOpen(false);
-      }
-    }
-
-    setAuthLoading(false);
+  function scrollToSection(id: SectionId) {
+    const section = document.getElementById(id);
+    if (!section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    setIsMenuOpen(false);
   }
-
-  async function handleSignOut() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setProfileOpen(false);
-  }
-
-  const templates = [
-    { img: "/template-invitation.jpg", label: "Invitation" },
-    { img: "/template-business.jpg", label: "Business" },
-    { img: "/template-poster.jpg", label: "Poster" },
-    { img: "/template-presentation.jpg", label: "Presentation" },
-    { img: "/template-social.jpg", label: "Social Media" },
-  ];
-
-  const featureCards = [
-    {
-      title: "Realtime Presence",
-      desc: "Collaborate with live cursors, teammate activity, and instant updates while everyone edits together.",
-      details:
-        "Presence indicators keep your team aligned in real time with cursor trails, active-user signals, and awareness states that reduce collisions during fast-moving sessions.",
-      tone: "#B78C5A",
-      img: "/real_time.png",
-      fallbackImg: "/hero-image.jpg",
-    },
-    {
-      title: "Shared Workspaces",
-      desc: "Access projects shared with you and collaborate across teams from one dashboard.",
-      details:
-        "The projects dashboard includes a dedicated Shared With Me flow backed by workspace share records, so collaborators can open and continue work instantly.",
-      tone: "#9B734E",
-      img: "/shared_workspaces.png",
-      fallbackImg: "/shared_with_me.png",
-    },
-    {
-      title: "Smart Layers",
-      desc: "Manage complex scenes with groups, hierarchy controls, locking, and selective visibility.",
-      details:
-        "Layer tools are built for dense canvases: quickly isolate objects, reorder structure with precision, and maintain clean composition while collaborating.",
-      tone: "#D2A267",
-      img: "/smart_layer.png",
-      fallbackImg: "/template-poster.jpg",
-    },
-    {
-      title: "Export Studio",
-      desc: "Deliver polished outputs in PNG, JPEG, and PDF with production-ready quality.",
-      details:
-        "Export workflows support fast handoff from ideation to delivery, helping your team package assets and present design outcomes without friction.",
-      tone: "#A58055",
-      img: "/export.png",
-      fallbackImg: "/design_studio.png",
-    },
-  ];
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#f7f4ef",
-      fontFamily: "'Georgia', 'Times New Roman', serif",
-      overflowX: "hidden",
-    }}>
-
-      {/* ── NAVBAR ── */}
-      <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        display: "flex", alignItems: "center",
-        justifyContent: "space-between",
-        padding: "16px 64px",
-        background: "rgba(247,244,239,0.92)",
-        backdropFilter: "blur(12px)",
-        borderBottom: "1px solid #e8e4df",
-      }}>
-        <Link href="/" style={{
-          fontSize: 22, fontWeight: 700, color: "#1a1a1a",
-          letterSpacing: "-0.02em",
-          fontStyle: "italic",
-          textDecoration: "none",
-        }}>
-          CollabCanvas
-        </Link>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 24, color: "#6b6560" }}>
-          <span
-            style={{ cursor: "pointer", transition: "color 150ms", fontSize: 14 }}
-            onMouseEnter={(e) => e.currentTarget.style.color = "#1a1a1a"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "#6b6560"}
-          >
-            Templates
-          </span>
-          <span
-            style={{ cursor: "pointer", transition: "color 150ms", fontSize: 14 }}
-            onMouseEnter={(e) => e.currentTarget.style.color = "#1a1a1a"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "#6b6560"}
-          >
-            About
-          </span>
-
-          <div ref={profileRef} style={{ position: "relative" }}>
-            <button
-              type="button"
-              onClick={() => setProfileOpen((value) => !value)}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                border: "1px solid #d7d0c8",
-                background: "#fff",
-                padding: 0,
-                overflow: "hidden",
-                cursor: "pointer",
-              }}
-              aria-label="Open profile menu"
-            >
-              <img src="/account.png" alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            </button>
-
-            {profileOpen && (
-              <div className="cc-profile-menu">
-                {currentUserEmail ? (
-                  <>
-                    <p className="cc-profile-user">{currentUserEmail}</p>
-                    <Link href="/profile" className="cc-profile-action" onClick={() => setProfileOpen(false)}>
-                      Profile
-                    </Link>
-                    <button type="button" className="cc-profile-action" onClick={() => void handleSignOut()}>
-                      Logout
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="cc-profile-action"
-                      onClick={() => {
-                        setAuthMode("login");
-                        setAuthModalOpen(true);
-                        setProfileOpen(false);
-                        resetAuthFeedback();
-                      }}
-                    >
-                      Login
-                    </button>
-                    <button
-                      type="button"
-                      className="cc-profile-action cc-profile-primary"
-                      onClick={() => {
-                        setAuthMode("signup");
-                        setAuthModalOpen(true);
-                        setProfileOpen(false);
-                        resetAuthFeedback();
-                      }}
-                    >
-                      Signup
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+    <main className="cc-landing-theme min-h-screen text-[#2D3436] font-sans selection:bg-[#F0C3D1] relative">
+      {/* Full Cherry Blossom Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-[0]"
+        style={{ 
+          backgroundImage: 'url("https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2500&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      />
+      {/* Soft overlay to ensure buttons and content are readable over the floral background */}
+      <div 
+        className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" 
+      />
+      
+      <div className="relative z-10">
+        <PastelBlobBackground />
+        <CustomCursor />
+        <FallingPetals />
+        
+        {/* Floating Navbar */}
+        <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[min(90%,1200px)]">
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="flex items-center justify-between px-6 py-3 rounded-2xl border border-black/[0.03] bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.03)]"
+        >
+          <div className="flex items-center gap-8">
+            <div className="text-xl font-bold tracking-tight italic flex items-center gap-2">
+              CollabCanvas
+            </div>
+            
+            <div className="hidden md:flex items-center gap-6">
+              {["Features", "Templates", "About"].map((item) => (
+                <button
+                  key={item}
+                  onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
+                  className="text-sm font-medium text-[#636E72] hover:text-[#2D3436] transition-colors"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+
+          <div className="flex items-center gap-4">
+            <Link
+              href="/projects"
+              className="hidden sm:inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-sm font-bold shadow-lg shadow-[#D3A5B1]/30 transition-all hover:scale-[1.05]"
+              style={{ backgroundColor: "var(--accent)" }}
+            >
+              Open App
+            </Link>
+            <button 
+              className="md:hidden p-2 text-[#636E72]"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute top-full left-0 right-0 mt-4 p-4 rounded-2xl border border-black/[0.03] bg-white/90 backdrop-blur-2xl shadow-xl md:hidden"
+            >
+              <div className="flex flex-col gap-2">
+                {["Features", "Templates", "About"].map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
+                    className="w-full text-left p-4 rounded-xl hover:bg-black/[0.02] text-sm font-semibold transition-colors"
+                  >
+                    {item}
+                  </button>
+                ))}
+                <div className="h-px bg-black/[0.03] my-2" />
+                <Link
+                  href="/projects"
+                  className="w-full p-4 rounded-xl text-white text-center text-sm font-bold"
+                  style={{ backgroundColor: "var(--accent)" }}
+                >
+                  Open App
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
-      {/* ── HERO SECTION ── */}
-      <section style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        minHeight: "calc(100vh - 61px)",
-        alignItems: "stretch",
-      }}>
-        {/* Left — Text */}
-        <div style={{
-          padding: "80px 64px 80px 80px",
-          display: "flex", flexDirection: "column",
-          justifyContent: "center",
-        }}>
-          {/* Title */}
-          <h1 style={{
-            fontSize: "clamp(2.8rem, 5vw, 4rem)", fontWeight: 700,
-            color: "#1a1a1a", letterSpacing: "-0.03em",
-            lineHeight: 1.1, marginBottom: 20,
-          }}>
-            {typed}
-            <span style={{
-              display: "inline-block", width: 2, height: "0.85em",
-              background: "#8b7355", marginLeft: 3,
-              verticalAlign: "middle", animation: "blink 1s step-end infinite",
-            }} />
-            <br />
-            <span style={{ color: "#8b7355", fontStyle: "italic" }}>Your Creative Canvas</span>
-          </h1>
-
-          {/* Description */}
-          <p style={{
-            color: "#7c7268", lineHeight: 1.75, fontSize: 16,
-            marginBottom: 40, maxWidth: 420,
-            fontFamily: "'Helvetica Neue', sans-serif",
-          }}>
-            A powerful Figma/Canva-style collaborative editor with
-            real-time sync, smart layers, and beautiful design tools —
-            built for modern creators.
-          </p>
-
-          {/* Single CTA button */}
-          <div>
-            <Link href={startCreatingHref} style={{
-              padding: "14px 32px", borderRadius: 10,
-              fontWeight: 600, fontSize: 15, background: "#1a1a1a",
-              color: "#fff", textDecoration: "none",
-              fontFamily: "'Helvetica Neue', sans-serif",
-              transition: "all 200ms",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-              display: "inline-block",
-            }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.15)"; }}
-            >Start Creating →</Link>
-          </div>
-        </div>
-
-        {/* Right — Image */}
-        <div style={{ position: "relative", overflow: "hidden", background: "#f0ede8" }}>
-          <img
-            src="/hero-image.jpg"
-            alt="Designer working"
-            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
-          />
-        </div>
-      </section>
-
-      {/* ── UTILITIES FLASHCARDS ── */}
-      <section style={{
-        padding: "56px 80px 28px",
-        background: "#f7f4ef",
-      }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          marginBottom: 20,
-        }}>
-          <h3 style={{
-            margin: 0,
-            fontSize: 30,
-            fontWeight: 700,
-            letterSpacing: "-0.03em",
-            color: "#1f1a16",
-          }}>
-            Why CollabCanvas?
-          </h3>
-        </div>
-
-        <div className="cc-utility-grid">
-          {featureCards.map((card, idx) => (
-            <article
-              className="cc-utility-card"
-              key={card.title}
-              style={{ borderColor: `${card.tone}4d` }}
-              onClick={() => setActiveFeature(idx)}
-            >
-              <div className="cc-utility-thumb-wrap">
-                <img
-                  src={card.img}
-                  alt={card.title}
-                  className="cc-utility-thumb"
-                  onError={(e) => {
-                    const img = e.currentTarget;
-                    if (img.src.includes(card.fallbackImg)) return;
-                    img.src = card.fallbackImg;
-                  }}
-                />
-                <span className="cc-utility-thumb-glow" style={{ background: `${card.tone}66` }} />
-              </div>
-              <div className="cc-utility-content">
-                <span className="cc-utility-dot" style={{ background: card.tone }} />
-                <h4>{card.title}</h4>
-                <p>{card.desc}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        {activeFeature !== null && (
-          <div className="cc-popup-overlay" onClick={() => setActiveFeature(null)}>
-            <article className="cc-popup-card" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="cc-popup-close"
-                onClick={() => setActiveFeature(null)}
-                aria-label="Close card details"
-              >
-                ×
-              </button>
-              <img
-                src={featureCards[activeFeature].img}
-                alt={featureCards[activeFeature].title}
-                className="cc-popup-image"
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6 md:pt-48 md:pb-32 lg:pt-56 z-10">
+        <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="mt-6" />
+            
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] text-[#2D3436] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
+              {typed}
+              <motion.span 
+                animate={{ opacity: [1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity }}
+                className="inline-block w-1.5 h-[0.85em] bg-[#D4B595] ml-1 align-middle"
               />
-              <div className="cc-popup-content">
-                <h4>{featureCards[activeFeature].title}</h4>
-                <p>{featureCards[activeFeature].details}</p>
-              </div>
-            </article>
-          </div>
-        )}
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8b7355] to-[#D4B595] italic">
+                Your Shared Canvas
+              </span>
+            </h1>
+            
+            <p className="text-lg md:text-xl text-[#636E72] leading-relaxed max-w-xl mb-10">
+              Transform your creative workflow with a seamless, collaborative editor. Build, style, and ship together in real-time.
+            </p>
 
-        {authModalOpen && (
-          <div className="cc-auth-overlay" onClick={() => setAuthModalOpen(false)}>
-            <article className="cc-auth-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="cc-auth-tabs">
-                <button
-                  type="button"
-                  className={`cc-auth-tab ${authMode === "login" ? "is-active" : ""}`}
-                  onClick={() => {
-                    setAuthMode("login");
-                    resetAuthFeedback();
-                  }}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  className={`cc-auth-tab ${authMode === "signup" ? "is-active" : ""}`}
-                  onClick={() => {
-                    setAuthMode("signup");
-                    resetAuthFeedback();
-                  }}
-                >
-                  Signup
-                </button>
-              </div>
-
-              <form className="cc-auth-form" onSubmit={(e) => void handleAuthSubmit(e)}>
-                {authMode === "signup" && (
-                  <div className="cc-auth-name-grid">
-                    <input
-                      className="cc-auth-input"
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="First name"
-                      autoComplete="given-name"
-                    />
-                    <input
-                      className="cc-auth-input"
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Last name"
-                      autoComplete="family-name"
-                    />
-                  </div>
-                )}
-                <input
-                  className="cc-auth-input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  autoComplete="email"
-                  required
-                />
-                <input
-                  className="cc-auth-input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  autoComplete={authMode === "login" ? "current-password" : "new-password"}
-                  minLength={8}
-                  required
-                />
-
-                {authMode === "signup" && (
-                  <input
-                    className="cc-auth-input"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm password"
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                  />
-                )}
-
-                {authMode === "signup" && (
-                  <div className="cc-auth-rules">
-                    <p className="cc-auth-rules-title">Password requirements</p>
-                    <ul className="cc-auth-rules-list">
-                      <li>At least 8 characters</li>
-                      <li>One uppercase letter</li>
-                      <li>One lowercase letter</li>
-                      <li>One number</li>
-                      <li>One special character</li>
-                    </ul>
-                  </div>
-                )}
-
-                <label className="cc-auth-remember">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  />
-                  Remember me
-                </label>
-
-                {authError && <p className="cc-auth-error">{authError}</p>}
-                {!authError && authMessage && <p className="cc-auth-message">{authMessage}</p>}
-
-                <button className="cc-auth-submit" type="submit" disabled={authLoading}>
-                  {authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create account"}
-                </button>
-
-              </form>
-            </article>
-          </div>
-        )}
-      </section>
-
-      {/* ── TEMPLATES SECTION ── */}
-      <section style={{ padding: "80px 80px 60px", background: "#f7f4ef" }}>
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <h2 style={{
-            fontSize: "2.5rem", fontWeight: 700,
-            color: "#1a1a1a", letterSpacing: "-0.03em", marginBottom: 12,
-          }}>Start with a template</h2>
-          <p style={{ color: "#9c9690", fontSize: 16, fontFamily: "'Helvetica Neue', sans-serif" }}>
-            Jump-start your creativity with ready-made designs
-          </p>
-        </div>
-
-        {/* Templates Grid — 5 real images */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-          {templates.map((template, i) => (
-            <div key={i} style={{
-              borderRadius: 16, overflow: "hidden",
-              cursor: "pointer", transition: "all 200ms",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-              border: "1px solid #e8e4df",
-            }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 16px 32px rgba(0,0,0,0.12)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)"; }}
-            >
-              {/* Real image */}
-              <div style={{ height: 200, overflow: "hidden", position: "relative" }}>
-                <img
-                  src={template.img}
-                  alt={template.label}
-                  style={{
-                    width: "100%", height: "100%",
-                    objectFit: "cover", objectPosition: "center",
-                    display: "block", transition: "transform 300ms",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-                />
-              </div>
-              {/* Label */}
-              <div style={{
-                padding: "12px 14px", background: "#fbf8f3",
-                fontSize: 13, color: "#3d3833",
-                fontFamily: "'Helvetica Neue', sans-serif", fontWeight: 600,
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-              }}>
-                <span>{template.label}</span>
-                <span style={{ color: "#c4bfba", fontSize: 14 }}>→</span>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link
+                href="/projects"
+                className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-2xl text-white font-bold text-lg transition-all hover:scale-[1.02] hover:shadow-2xl hover:shadow-[#D3A5B1]/40"
+                style={{ backgroundColor: "var(--accent)" }}
+              >
+                Start Designing
+                <ArrowRight size={20} />
+              </Link>
+              <button
+                onClick={() => scrollToSection("templates")}
+                className="h-14 px-8 rounded-2xl bg-white border border-black/[0.05] text-[#2D3436] font-bold text-lg transition-all hover:bg-black/[0.02]"
+              >
+                View Templates
+              </button>
             </div>
-          ))}
-        </div>
+          </motion.div>
 
-        {/* Browse all button */}
-        <div style={{ textAlign: "center", marginTop: 40 }}>
-          <Link href="/projects" style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "12px 32px", borderRadius: 10,
-            border: "1px solid #d4cfc9", color: "#3d3833",
-            textDecoration: "none", fontSize: 14, fontWeight: 500,
-            fontFamily: "'Helvetica Neue', sans-serif",
-            background: "#fbf8f3", transition: "all 150ms",
-          }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#f5f2ee"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#fbf8f3"; }}
-          >Browse all templates →</Link>
+          <motion.div
+            initial={{ x: 20, opacity: 0, scale: 0.95 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="relative perspective-1000"
+          >
+            <TiltImage src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop" />
+            {/* Decorative elements */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#FADBD8] rounded-full blur-[60px] opacity-60" />
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#D5F5E3] rounded-full blur-[60px] opacity-60" />
+          </motion.div>
         </div>
       </section>
 
-      {/* ── CTA BANNER ── */}
-      <section style={{
-        margin: "60px 80px 80px",
-        background: "#1a1a1a", borderRadius: 28,
-        padding: "60px 80px",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
-        <div>
-          <h2 style={{ fontSize: "2rem", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em", marginBottom: 8 }}>
-            Ready to start designing?
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, fontFamily: "'Helvetica Neue', sans-serif" }}>
-            Join your team on CollabCanvas today.
-          </p>
+      {/* Features Section */}
+      <motion.section 
+        id="features" 
+        initial={{ y: 40, opacity: 0 }}
+        whileInView={{ y: 0, opacity: 1 }}
+        viewport={{ once: true }}
+        className="py-24 px-6"
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-16 text-center">
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Everything you need</h2>
+            <p className="text-[#636E72] text-lg">Powerful tools built for creative teams.</p>
+          </div>
+          <LandingFeatureCards />
         </div>
-        <Link href={startCreatingHref} style={{
-          padding: "14px 36px", borderRadius: 12, fontWeight: 600, fontSize: 15,
-          background: "#fff", color: "#1a1a1a", textDecoration: "none",
-          fontFamily: "'Helvetica Neue', sans-serif", transition: "all 200ms", whiteSpace: "nowrap",
-        }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#f5f2ee"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
-        >Start Creating →</Link>
+      </motion.section>
+
+
+      {/* Templates Section */}
+      <section id="templates" className="py-24 px-6 overflow-hidden">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12">
+            <div>
+              <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
+              <p className="text-[#636E72]">Pick a starting point and make it yours.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            {templates.map((template, idx) => (
+              <motion.div
+                key={template.label}
+                initial={{ y: 20, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                transition={{ delay: idx * 0.1 }}
+                viewport={{ once: true }}
+              >
+                <div
+                  onClick={() => setSelectedTemplate(template)}
+                  className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all cursor-pointer"
+                >
+                  <div className={`${template.aspectClass} overflow-hidden bg-black/[0.02]`}>
+                    <img
+                      src={template.img}
+                      alt={template.label}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  </div>
+                  <div className="p-4 flex items-center justify-between">
+                    <span className="font-bold text-sm">{template.label}</span>
+                    <ArrowRight size={16} className="text-black/20 group-hover:text-black transition-colors" />
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <AnimatePresence>
+            {selectedTemplate && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-8 bg-[#D3A5B1]/10 backdrop-blur-xl"
+                onClick={() => setSelectedTemplate(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.95, y: 20, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  exit={{ scale: 0.95, y: 20, opacity: 0 }}
+                  className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-[2.5rem] bg-white shadow-[0_32px_64px_rgba(211,165,177,0.25)] border border-[#D3A5B1]/10 flex flex-col relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-[#FFF5F8] to-transparent pointer-events-none" />
+
+                  <div className="p-8 md:p-12 pb-6 border-b border-[#D3A5B1]/10 flex items-center justify-between relative z-10">
+                    <div>
+                      <h3 className="text-3xl md:text-4xl font-bold tracking-tight text-[#2D3436]" style={{ fontFamily: "'Playfair Display', serif" }}>
+                        {selectedTemplate.label} Templates
+                      </h3>
+                      <p className="text-[#636E72] mt-2 text-lg">Select a beautifully crafted starting point.</p>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedTemplate(null)}
+                      className="w-12 h-12 rounded-full bg-white border border-[#D3A5B1]/20 flex items-center justify-center text-[#D3A5B1] hover:bg-[#D3A5B1] hover:text-white transition-all hover:scale-105"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#FDFBFB]">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+                      {(TEMPLATE_DESIGNS[selectedTemplate.query] || []).map((imgUrl, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                          className={`group relative ${selectedTemplate.aspectClass} rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#D3A5B1]/30 transition-all duration-300 border border-black/[0.03] bg-white`}
+                        >
+                          <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                            <Link 
+                              href={`/projects?template=${selectedTemplate.query}`}
+                              className="bg-white text-[#D3A5B1] px-6 py-3 rounded-full text-sm font-bold shadow-xl scale-95 group-hover:scale-100 transition-transform hover:bg-[#FFF5F8]"
+                            >
+                              Use Design
+                            </Link>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </section>
 
-      {/* ── FOOTER ── */}
-      <footer style={{
-        padding: "32px 80px", borderTop: "1px solid #e8e4df",
-        display: "flex", justifyContent: "space-between",
-        alignItems: "center", background: "#f7f4ef",
-      }}>
-        <div style={{ fontSize: 18, fontWeight: 700, fontStyle: "italic", color: "#1a1a1a" }}>CollabCanvas</div>
-        <div style={{ display: "flex", gap: 24, fontSize: 13, color: "#9c9690", fontFamily: "'Helvetica Neue', sans-serif" }}>
-          <span style={{ cursor: "pointer" }}>Privacy</span>
-          <span style={{ cursor: "pointer" }}>Terms</span>
-          <span style={{ cursor: "pointer" }}>Contact</span>
+      {/* Footer / About */}
+      <footer id="about" className="py-20 px-6 border-t border-black/[0.03]">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden shadow-2xl shadow-[#D3A5B1]/30" style={{ backgroundColor: "var(--accent)" }}>
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+            <h2 className="text-4xl md:text-6xl font-bold text-white mb-8 relative z-10"> Ready to create <br /> something amazing? </h2>
+            <Link
+              href="/projects"
+              className="inline-flex items-center justify-center h-16 px-10 rounded-2xl bg-white font-bold text-xl transition-all hover:scale-[1.05] relative z-10"
+              style={{ color: "var(--accent)" }}
+            >
+              Get Started Now
+            </Link>
+          </div>
+          
+          <div className="mt-20 flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-black/[0.03]">
+            <div className="text-xl font-bold italic">CollabCanvas</div>
+            <div className="flex gap-8 text-sm font-medium text-[#636E72]">
+              <Link href="#" className="hover:text-black">Privacy</Link>
+              <Link href="#" className="hover:text-black">Terms</Link>
+              <Link href="#" className="hover:text-black">Contact</Link>
+            </div>
+            <div className="text-sm text-[#B2BEC3]">© 2026 CollabCanvas. All rights reserved.</div>
+          </div>
         </div>
-        <p style={{ fontSize: 13, color: "#c4bfba", fontFamily: "'Helvetica Neue', sans-serif" }}>© 2026 CollabCanvas</p>
       </footer>
-
-      <style>{`
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-
-        .cc-profile-menu {
-          position: absolute;
-          top: calc(100% + 10px);
-          right: 0;
-          min-width: 180px;
-          background: rgba(255, 255, 255, 0.95);
-          border: 1px solid #e4ddd4;
-          border-radius: 12px;
-          box-shadow: 0 16px 32px rgba(0, 0, 0, 0.14);
-          padding: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          z-index: 130;
-        }
-
-        .cc-profile-user {
-          margin: 0;
-          padding: 10px 10px 8px;
-          font-size: 12px;
-          color: #6b6560;
-          font-family: 'Helvetica Neue', sans-serif;
-          border-bottom: 1px solid #efe9e1;
-          word-break: break-all;
-        }
-
-        .cc-profile-action {
-          border: 0;
-          background: #f7f3ee;
-          color: #2d2823;
-          padding: 10px 12px;
-          border-radius: 8px;
-          text-align: left;
-          cursor: pointer;
-          font-size: 13px;
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        .cc-profile-primary {
-          background: #1a1a1a;
-          color: #fff;
-        }
-
-        .cc-auth-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(17, 14, 11, 0.55);
-          backdrop-filter: blur(6px);
-          display: grid;
-          place-items: center;
-          z-index: 220;
-          padding: 20px;
-        }
-
-        .cc-auth-modal {
-          width: min(430px, 100%);
-          border-radius: 18px;
-          border: 1px solid #d6c7b4;
-          background: linear-gradient(165deg, #fff, #f5f1eb);
-          padding: 18px;
-          box-shadow: 0 24px 42px rgba(0, 0, 0, 0.24);
-        }
-
-        .cc-auth-tabs {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          margin-bottom: 14px;
-        }
-
-        .cc-auth-tab {
-          border: 1px solid #dbd1c6;
-          border-radius: 10px;
-          background: #fff;
-          padding: 9px 12px;
-          cursor: pointer;
-          font-size: 13px;
-          font-family: 'Helvetica Neue', sans-serif;
-          color: #4b443d;
-        }
-
-        .cc-auth-tab.is-active {
-          background: #1a1a1a;
-          border-color: #1a1a1a;
-          color: #fff;
-        }
-
-        .cc-auth-form {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-
-        .cc-auth-name-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-
-        .cc-auth-input {
-          width: 100%;
-          border: 1px solid #ddd2c5;
-          border-radius: 10px;
-          padding: 11px 12px;
-          background: #fff;
-          color: #211d1a;
-          font-size: 14px;
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        .cc-auth-error {
-          margin: 2px 0;
-          color: #b13e3e;
-          font-size: 12px;
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        .cc-auth-remember {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          color: #4b443d;
-          font-size: 12px;
-          font-family: 'Helvetica Neue', sans-serif;
-          margin-top: 2px;
-        }
-
-        .cc-auth-remember input {
-          width: 14px;
-          height: 14px;
-          accent-color: #1a1a1a;
-        }
-
-        .cc-auth-message {
-          margin: 2px 0;
-          color: #2f6e4f;
-          font-size: 12px;
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        .cc-auth-rules {
-          border-radius: 10px;
-          border: 1px solid #e3d7c7;
-          background: #faf6f1;
-          color: #6a6257;
-          padding: 10px 12px;
-          font-size: 12px;
-          line-height: 1.6;
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        .cc-auth-rules-title {
-          margin: 0 0 4px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #4f453b;
-        }
-
-        .cc-auth-rules-list {
-          margin: 0;
-          padding-left: 16px;
-          list-style: disc;
-        }
-
-        .cc-auth-rules-list li {
-          margin: 0;
-        }
-
-        .cc-auth-submit {
-          border: 0;
-          border-radius: 10px;
-          background: #1a1a1a;
-          color: #fff;
-          padding: 11px 14px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 600;
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        .cc-auth-submit:disabled {
-          opacity: 0.7;
-          cursor: default;
-        }
-
-        .cc-utility-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 14px;
-        }
-
-        .cc-utility-card {
-          cursor: pointer;
-          position: relative;
-          width: 100%;
-          min-height: 312px;
-          border-radius: 20px;
-          border: 1px solid #ccb18f5e;
-          background: #0b0b0b;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -28px 40px rgba(0,0,0,0.18), 0 18px 34px rgba(27,20,15,0.18);
-          overflow: hidden;
-          transition: transform 260ms ease, box-shadow 260ms ease;
-        }
-
-        .cc-utility-card:hover {
-          transform: translateY(-4px) scale(1.02);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -30px 44px rgba(0,0,0,0.22), 0 24px 42px rgba(27,20,15,0.24);
-        }
-
-        .cc-utility-thumb-wrap {
-          position: relative;
-          height: 168px;
-          overflow: hidden;
-        }
-
-        .cc-utility-thumb {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-          transform: scale(1.01);
-          transition: transform 280ms ease;
-        }
-
-        .cc-utility-card:hover .cc-utility-thumb {
-          transform: scale(1.06);
-        }
-
-        .cc-utility-thumb-glow {
-          position: absolute;
-          inset: auto -30% -36% -30%;
-          height: 130px;
-          filter: blur(24px);
-          pointer-events: none;
-        }
-
-        .cc-utility-content {
-          padding: 16px 16px 18px;
-          text-align: left;
-          background: #090909;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .cc-utility-content h4 {
-          margin: 0;
-          font-size: 16px;
-          font-family: 'Helvetica Neue', sans-serif;
-          color: #f8ecda;
-          letter-spacing: 0;
-        }
-
-        .cc-utility-content p {
-          margin: 10px 0 0;
-          font-size: 13px;
-          line-height: 1.6;
-          font-family: 'Helvetica Neue', sans-serif;
-          color: rgba(243,231,214,0.8);
-        }
-
-        .cc-utility-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-          display: inline-block;
-          margin-bottom: 10px;
-          box-shadow: 0 0 16px rgba(255,255,255,0.4);
-        }
-
-        .cc-popup-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(16, 13, 10, 0.52);
-          backdrop-filter: blur(6px);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 24px;
-          z-index: 180;
-          animation: ccFadeIn 240ms ease;
-        }
-
-        .cc-popup-card {
-          position: relative;
-          width: min(760px, 100%);
-          border-radius: 22px;
-          overflow: hidden;
-          background: linear-gradient(165deg, rgba(255,255,255,0.28), rgba(255,255,255,0.1) 30%, rgba(20,16,13,0.94) 100%);
-          border: 1px solid rgba(219,187,146,0.34);
-          box-shadow: 0 34px 58px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.24);
-          animation: ccPopIn 300ms cubic-bezier(.2,.75,.2,1);
-          transform-origin: center;
-        }
-
-        .cc-popup-close {
-          position: absolute;
-          top: 12px;
-          right: 12px;
-          width: 34px;
-          height: 34px;
-          border: 0;
-          border-radius: 999px;
-          background: rgba(26,21,16,0.66);
-          color: #efe3d1;
-          font-size: 22px;
-          line-height: 1;
-          cursor: pointer;
-          z-index: 1;
-        }
-
-        .cc-popup-image {
-          width: 100%;
-          height: 280px;
-          object-fit: cover;
-          display: block;
-        }
-
-        .cc-popup-content {
-          padding: 24px 24px 28px;
-        }
-
-        .cc-popup-content h4 {
-          margin: 0 0 10px;
-          font-size: 26px;
-          font-weight: 700;
-          color: #f6e9d8;
-          letter-spacing: -0.02em;
-        }
-
-        .cc-popup-content p {
-          margin: 0;
-          font-size: 15px;
-          line-height: 1.8;
-          color: rgba(242,230,214,0.86);
-          font-family: 'Helvetica Neue', sans-serif;
-        }
-
-        @keyframes ccFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes ccPopIn {
-          from {
-            opacity: 0;
-            transform: scale(0.94) translateY(14px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-
-        @media (max-width: 980px) {
-          nav {
-            padding: 14px 20px !important;
-          }
-
-          .cc-utility-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .cc-popup-image {
-            height: 220px;
-          }
-        }
-
-        @media (max-width: 640px) {
-          nav {
-            flex-direction: column;
-            align-items: flex-start !important;
-            gap: 10px;
-          }
-
-          .cc-utility-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .cc-utility-card {
-            min-height: 294px;
-          }
-
-          .cc-popup-content h4 {
-            font-size: 22px;
-          }
-        }
-
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0); }
-          50% { transform: translate(15px, -15px); }
-        }
-      `}</style>
+      <AccumulatedPetals />
+      </div>
     </main>
   );
 }
+

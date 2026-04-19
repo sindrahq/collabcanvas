@@ -3,15 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Download, LoaderCircle, Pencil, Share2, X } from "lucide-react";
+import { Check, ChevronDown, Download, LoaderCircle, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
 import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { RightSidebar } from "@/components/editor/right-sidebar";
 import { ShareDialog } from "@/components/editor/share-dialog";
-import { WorkspaceSidebar } from "@/components/editor/workspace-sidebar";
+import { WorkspaceSidebar, type WorkspaceSidebarSection } from "@/components/editor/workspace-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
+import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import {
   initPresenceChannel,
   leavePresenceChannel,
@@ -25,6 +26,10 @@ import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
+import { CustomCursor } from "@/components/landing/custom-cursor";
+import { FallingPetals } from "@/components/landing/falling-petals";
+import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -45,6 +50,17 @@ type AutoSaveStatus = "saved" | "saving";
 const LOCAL_COMMENTS_STORAGE_PREFIX = "collabcanvas_workspace_comments_";
 
 const PRESENCE_COLORS = ["#0b6e66", "#b35c1c", "#1f6fd6", "#7a3eb3", "#a03a58", "#3d6f2f"];
+
+const NAV_SECTIONS: Array<{
+  id: WorkspaceSidebarSection;
+  label: string;
+  icon: any;
+}> = [
+  { id: "layers", label: "Layers", icon: Layers },
+  { id: "actions", label: "Add", icon: LayoutGrid },
+  { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
+  { id: "comments", label: "Comments", icon: MessageSquare },
+];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
   if (!message) return null;
@@ -154,6 +170,7 @@ export function EditorShell() {
   const [presences, setPresences] = useState<Record<string, PresenceMeta>>({});
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
+  const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -860,9 +877,25 @@ export function EditorShell() {
   }
 
   return (
-    <main className="editor-page">
+    <main className="editor-page cc-landing-theme relative">
+      {/* Mirror Landing Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-[0]"
+        style={{ 
+          backgroundImage: 'url("https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2500&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none bg-white/20 backdrop-blur-[2px] z-[1]" />
+
+      <PastelBlobBackground />
+      <FallingPetals variant="lavender" />
+      <AccumulatedPetals />
+      <div className="workspace-aura" aria-hidden="true" />
+      <CustomCursor />
       <motion.section
-        className="editor-shell"
+        className="editor-shell relative z-10"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28 }}
@@ -877,74 +910,112 @@ export function EditorShell() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.06, duration: 0.24 }}
         >
-          <div className="editor-topbar-left">
-            <p className="workspace-brand">CollabCanvas</p>
-            <div className="workspace-name-wrap">
-              {isRenamingWorkspace ? (
-                <>
-                  <input
-                    type="text"
-                    className="workspace-name-input"
-                    value={workspaceNameDraft}
-                    onChange={(event) => setWorkspaceNameDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void handleWorkspaceRenameSubmit();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        handleWorkspaceRenameCancel();
-                      }
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="workspace-name-action"
-                    onClick={() => void handleWorkspaceRenameSubmit()}
-                    disabled={workspaceRenameSaving}
-                    title="Save workspace name"
-                  >
-                    {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="workspace-name-action"
-                    onClick={handleWorkspaceRenameCancel}
-                    disabled={workspaceRenameSaving}
-                    title="Cancel rename"
-                  >
-                    <X size={14} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
-                  {canRenameWorkspace ? (
+          <div className="editor-topbar-left flex-1 min-w-0 pr-4">
+            <div className="flex items-center gap-3">
+              <div className="editor-logo-mark" />
+              <div className="workspace-name-wrap">
+                {isRenamingWorkspace ? (
+                  <>
+                    <input
+                      type="text"
+                      className="workspace-name-input"
+                      value={workspaceNameDraft}
+                      onChange={(event) => setWorkspaceNameDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleWorkspaceRenameSubmit();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleWorkspaceRenameCancel();
+                        }
+                      }}
+                      autoFocus
+                    />
                     <button
                       type="button"
                       className="workspace-name-action"
-                      onClick={() => setIsRenamingWorkspace(true)}
-                      title="Rename workspace"
+                      onClick={() => void handleWorkspaceRenameSubmit()}
+                      disabled={workspaceRenameSaving}
+                      title="Save workspace name"
                     >
-                      <Pencil size={14} />
+                      {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
                     </button>
-                  ) : null}
-                </>
-              )}
+                    <button
+                      type="button"
+                      className="workspace-name-action"
+                      onClick={handleWorkspaceRenameCancel}
+                      disabled={workspaceRenameSaving}
+                      title="Cancel rename"
+                    >
+                      <X size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
+                    {canRenameWorkspace ? (
+                      <button
+                        type="button"
+                        className="workspace-name-action"
+                        onClick={() => setIsRenamingWorkspace(true)}
+                        title="Rename workspace"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="editor-topbar-right">
-            <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-            {workspace?.owner_id !== authUser.id ? (
-              <span className="editor-access-pill">
-                {accessLevel === "comment" ? "Comment access" : canEdit ? "Edit access" : "View only"}
-              </span>
-            ) : (
-              <span className="editor-owner-pill">Owner</span>
-            )}
+          <div className="editor-topbar-center flex-shrink-0 flex justify-center px-2">
+            <div className="flex items-center gap-1 bg-[#D3A5B1]/5 rounded-full px-1 py-1 border border-[#D3A5B1]/10 backdrop-blur-md">
+              {NAV_SECTIONS.map((section) => {
+                const Icon = section.icon;
+                const active = activeSection === section.id;
+                return (
+                  <GlassTooltip key={section.id} content={section.label}>
+                    <motion.button
+                      type="button"
+                      onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
+                      className={`nav-pill-btn flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 ${
+                        active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
+                      }`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <Icon size={14} strokeWidth={active ? 2.5 : 2} />
+                      <span className="text-[12px] font-bold tracking-tight">{section.label}</span>
+                    </motion.button>
+                  </GlassTooltip>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="editor-topbar-right flex-1 flex justify-end items-center gap-4 min-w-0 pl-4">
+            <div className="flex flex-col items-start gap-1.5 mr-auto">
+              <div className="flex items-center gap-2">
+                <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+                {workspace?.owner_id !== authUser.id ? (
+                  <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
+                    {accessLevel}
+                  </span>
+                ) : (
+                  <span className="editor-owner-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#2d3436] text-white">Owner</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 opacity-60">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
+                <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+                  {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+                </span>
+              </div>
+            </div>
+            
             <button
               type="button"
               className="toolbar-button editor-share-button"
@@ -1028,9 +1099,14 @@ export function EditorShell() {
         <div className="workspace-layout">
           <motion.div
             className="workspace-dock-shell"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1, duration: 0.24 }}
+            initial={false}
+            animate={{ 
+              width: activeSection ? 'auto' : 0,
+              opacity: activeSection ? 1 : 0,
+              marginRight: activeSection ? 16 : 0
+            }}
+            transition={{ duration: 0.24 }}
+            style={{ overflow: 'hidden' }}
           >
             <WorkspaceSidebar
               workspaceName={workspaceName}
@@ -1041,6 +1117,8 @@ export function EditorShell() {
               currentUserId={authUser.id}
               canComment={accessLevel === "comment" || canEdit}
               onAddComment={handleAddComment}
+              activeSection={activeSection}
+              setActiveSection={setActiveSection}
             />
           </motion.div>
 

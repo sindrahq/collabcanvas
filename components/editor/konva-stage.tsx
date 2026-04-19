@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { AnimatePresence } from "framer-motion";
 import {
   Arrow as KonvaArrow,
   Ellipse,
@@ -13,9 +14,10 @@ import {
   Text as KonvaText,
   Transformer,
 } from "react-konva";
-import type Konva from "konva";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
+import type Konva from "konva";
 import { KonvaImage } from "./konva-image";
+import { CustomContextMenu } from "./context-menu";
 
 // Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
 function segmentCircleTs(
@@ -238,6 +240,36 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
     return { x: pos.x * STAGE_SCALE, y: pos.y * STAGE_SCALE };
   }, []);
 
+  // Context Menu State
+  const [menu, setMenu] = useState<{ x: number, y: number, visible: boolean } | null>(null);
+  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
+
+  const handleContextAction = (action: string) => {
+    if (!selectedElementId) return;
+    
+    switch (action) {
+      case "duplicate":
+        duplicateSelectedElement();
+        break;
+      case "delete":
+        deleteSelectedElement();
+        break;
+      case "lock":
+        const el = elements.find(e => e.id === selectedElementId);
+        if (el) updateElement(el.id, { locked: !el.locked });
+        break;
+      case "forward":
+        const maxLayer = Math.max(...elements.map(e => e.layerOrder), 0);
+        updateElement(selectedElementId, { layerOrder: maxLayer + 1 });
+        break;
+      case "backward":
+        const minLayer = Math.min(...elements.map(e => e.layerOrder), 0);
+        updateElement(selectedElementId, { layerOrder: minLayer - 1 });
+        break;
+    }
+  };
+
   useEffect(() => {
     const transformer = transformerRef.current;
     if (!transformer) return;
@@ -304,6 +336,20 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               addPencilElement(drawingPoints);
             }
             setDrawingPoints(null);
+          }}
+          onContextMenu={(e) => {
+            e.evt.preventDefault();
+            const stage = e.target.getStage();
+            if (!stage) return;
+            const pointer = stage.getPointerPosition();
+            if (!pointer) return;
+            if (e.target !== stage) {
+              const id = (e.target.attrs as any).id || (e.target.parent?.attrs as any).id;
+              if (id) selectElement(id);
+            } else {
+              selectElement(null);
+            }
+            setMenu({ x: e.evt.clientX, y: e.evt.clientY, visible: true });
           }}
         >
           <Layer>
@@ -716,13 +762,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
             <Transformer
               ref={transformerRef}
               rotateEnabled
-              borderStroke="#4f8cff"
+              borderStroke="#D3A5B1"
               borderStrokeWidth={2}
               anchorFill="#ffffff"
-              anchorStroke="#4f8cff"
+              anchorStroke="#D3A5B1"
               anchorSize={10}
-              anchorCornerRadius={3}
+              anchorCornerRadius={4}
               rotateAnchorCursor="grab"
+              padding={6}
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 36 || newBox.height < 28) return oldBox;
                 return newBox;
@@ -738,6 +785,18 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
             />
           </Layer>
         </Stage>
+
+        <AnimatePresence>
+          {menu?.visible && (
+            <CustomContextMenu
+              x={menu.x}
+              y={menu.y}
+              onClose={() => setMenu(null)}
+              onAction={handleContextAction}
+              isLocked={elements.find(e => e.id === selectedElementId)?.locked}
+            />
+          )}
+        </AnimatePresence>
       </div>
   );
 }
