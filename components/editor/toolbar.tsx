@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
 import { FramePicker } from "@/components/editor/frame-picker";
+import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import React, { useRef, useState } from "react";
 
 
@@ -54,16 +55,17 @@ function UploadPictureButton() {
         onChange={handleFileChange}
         disabled={uploading}
       />
-      <button
-        type="button"
-        className="toolbar-icon-btn toolbar-shape-btn"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-        title="Upload Picture"
-        style={{ position: "relative" }}
-      >
-        <ImageIcon size={15} />
-      </button>
+      <GlassTooltip content="Upload Picture">
+        <button
+          type="button"
+          className="toolbar-icon-btn toolbar-shape-btn"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          style={{ position: "relative" }}
+        >
+          <ImageIcon size={15} />
+        </button>
+      </GlassTooltip>
       {uploadError && <div style={{ color: "#c00", fontSize: 11 }}>{uploadError}</div>}
     </div>
   );
@@ -212,61 +214,78 @@ export function Toolbar({
 
       {/* Add section with requested order and layout */}
       {showAddActions ? (
-        <div className="toolbar-group toolbar-group-add" style={{ minWidth: 180 }}>
-          <span className="toolbar-label" style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Add</span>
-          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+        <div className="toolbar-group toolbar-group-add glass-panel-deep" style={{ minWidth: 200, padding: '16px', borderRadius: '24px', background: 'rgba(255, 255, 255, 0.35)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
+          <span className="toolbar-label" style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#8b7355', marginBottom: 4 }}>Add</span>
+          <div className="toolbar-divider" style={{ margin: '10px 0', opacity: 0.1, backgroundColor: '#8b7355' }} />
 
           {/* Shapes subheading and grid */}
-          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Shapes</span>
-          <div className="toolbar-shapes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '6px 0 10px 0' }}>
+          <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Shapes</span>
+          <div className="toolbar-shapes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, margin: '8px 0 16px 0' }}>
             {ADD_BUTTONS.filter(b => b.action !== 'text').map((item, i) => {
               const Icon = item.icon;
               return (
-                <motion.button
-                  key={item.label}
-                  type="button" className="toolbar-icon-btn toolbar-shape-btn"
-                  onClick={() => addElement(item.action)}
-                  disabled={!canEdit}
-                  title={`Add ${item.label}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 * i, duration: 0.2 }}
-                  whileHover={{ y: -2, scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                >
-                  <Icon size={16} />
-                </motion.button>
+                <GlassTooltip key={item.label} content={`Add ${item.label}`}>
+                  <motion.button
+                    type="button" className="toolbar-icon-btn"
+                    style={{ 
+                      backgroundColor: 'rgba(211, 165, 177, 0.15)', 
+                      color: '#8b7355', 
+                      border: '1px solid rgba(211, 165, 177, 0.2)',
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '12px'
+                    }}
+                    onClick={() => addElement(item.action)}
+                    disabled={!canEdit}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.05 * i }}
+                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(211, 165, 177, 0.25)', border: '1px solid rgba(211, 165, 177, 0.4)' }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Icon size={18} />
+                  </motion.button>
+                </GlassTooltip>
               );
             })}
           </div>
-          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+          <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
           {/* Text subheading and icon */}
-          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Text</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
+          <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Text</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
             <motion.button
               type="button"
-              className="toolbar-icon-btn toolbar-shape-btn"
+              className="toolbar-icon-btn"
+              style={{ 
+                backgroundColor: 'rgba(211, 165, 177, 0.15)', 
+                color: '#8b7355', 
+                border: '1px solid rgba(211, 165, 177, 0.2)',
+                width: '38px',
+                height: '38px',
+                borderRadius: '12px'
+              }}
               onClick={() => addElement('text')}
               disabled={!canEdit}
               title="Add Text"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * ADD_BUTTONS.length, duration: 0.2 }}
-              whileHover={{ y: -2, scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.1, backgroundColor: 'rgba(211, 165, 177, 0.25)', border: '1px solid rgba(211, 165, 177, 0.4)' }}
+              whileTap={{ scale: 0.9 }}
             >
-              <Type size={16} />
+              <Type size={18} />
             </motion.button>
           </div>
-          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+          <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
           {/* Upload subheading and icon */}
-          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Upload</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 10px 0' }}>
-            <UploadPictureButton />
+          <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Upload</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <UploadPictureButton />
+            </motion.div>
           </div>
-          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+          <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
           {/* Frame subheading and picker */}
           <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Frame</span>
@@ -313,25 +332,27 @@ export function Toolbar({
               ))}
             </select>
 
-            <button
-              type="button"
-              className={`toolbar-icon-btn${selectedElement.style.fontWeight === "bold" ? " active" : ""}`}
-              onClick={() => toggleStyle("fontWeight", "bold", "normal")}
-              disabled={!canEdit}
-              title="Bold"
-            >
-              <Bold size={14} />
-            </button>
+            <GlassTooltip content="Bold">
+              <button
+                type="button"
+                className={`toolbar-icon-btn${selectedElement.style.fontWeight === "bold" ? " active" : ""}`}
+                onClick={() => toggleStyle("fontWeight", "bold", "normal")}
+                disabled={!canEdit}
+              >
+                <Bold size={14} />
+              </button>
+            </GlassTooltip>
 
-            <button
-              type="button"
-              className={`toolbar-icon-btn${selectedElement.style.fontStyle === "italic" ? " active" : ""}`}
-              onClick={() => toggleStyle("fontStyle", "italic", "normal")}
-              disabled={!canEdit}
-              title="Italic"
-            >
-              <Italic size={14} />
-            </button>
+            <GlassTooltip content="Italic">
+              <button
+                type="button"
+                className={`toolbar-icon-btn${selectedElement.style.fontStyle === "italic" ? " active" : ""}`}
+                onClick={() => toggleStyle("fontStyle", "italic", "normal")}
+                disabled={!canEdit}
+              >
+                <Italic size={14} />
+              </button>
+            </GlassTooltip>
 
             {/* Text color */}
             <div className="toolbar-color-field" title="Text Color">
