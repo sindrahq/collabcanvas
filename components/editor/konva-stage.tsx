@@ -17,8 +17,81 @@ import type Konva from "konva";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import { KonvaImage } from "./konva-image";
 
-const PENCIL_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%231e1e1e'/%3E%3Cline x1='12' y1='1' x2='12' y2='8' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='12' y1='16' x2='12' y2='23' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='1' y1='12' x2='8' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='16' y1='12' x2='23' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair`;
-const ERASER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='16'%3E%3Crect x='1' y='1' width='18' height='14' rx='2' fill='white' stroke='%231e1e1e' stroke-width='2'/%3E%3Cline x1='1' y1='9' x2='19' y2='9' stroke='%231e1e1e' stroke-width='1'/%3E%3C/svg%3E") 10 8, cell`;
+// Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
+function segmentCircleTs(
+  ax: number, ay: number, bx: number, by: number,
+  cx: number, cy: number, r: number,
+): [number, number] | null {
+  const dx = bx - ax, dy = by - ay;
+  const fx = ax - cx, fy = ay - cy;
+  const a = dx * dx + dy * dy;
+  if (a === 0) return null;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return null;
+  const sq = Math.sqrt(disc);
+  const t1 = Math.max(0, (-b - sq) / (2 * a));
+  const t2 = Math.min(1, (-b + sq) / (2 * a));
+  if (t1 >= t2) return null;
+  return [t1, t2];
+}
+
+// Erase the portion of a pencil stroke that falls inside the eraser circle.
+// Returns surviving segments as point arrays (canvas coords).
+function eraseFromStroke(pts: number[], cx: number, cy: number, r: number): number[][] {
+  const n = pts.length / 2;
+  if (n < 2) return [];
+
+  const isIn = (x: number, y: number) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+
+  type MaybePoint = [number, number] | null;
+  const out: MaybePoint[] = [];
+
+  // Add first point if outside circle
+  if (!isIn(pts[0], pts[1])) out.push([pts[0], pts[1]]);
+
+  for (let i = 0; i < n - 1; i++) {
+    const ax = pts[i * 2], ay = pts[i * 2 + 1];
+    const bx = pts[(i + 1) * 2], by = pts[(i + 1) * 2 + 1];
+    const aIn = isIn(ax, ay), bIn = isIn(bx, by);
+    const ints = segmentCircleTs(ax, ay, bx, by, cx, cy, r);
+
+    if (!aIn && !bIn) {
+      if (!ints) {
+        out.push([bx, by]);
+      } else {
+        const [t1, t2] = ints;
+        // Segment passes through circle: keep A-entry and exit-B as separate pieces
+        out.push([ax + t1 * (bx - ax), ay + t1 * (by - ay)]);
+        out.push(null); // split
+        out.push([ax + t2 * (bx - ax), ay + t2 * (by - ay)]);
+        out.push([bx, by]);
+      }
+    } else if (!aIn && bIn) {
+      // Enter circle before reaching B — cut at entry, then break
+      if (ints) out.push([ax + ints[0] * (bx - ax), ay + ints[0] * (by - ay)]);
+      out.push(null);
+    } else if (aIn && !bIn) {
+      // Exit circle before reaching B — resume from exit point
+      if (ints) out.push([ax + ints[1] * (bx - ax), ay + ints[1] * (by - ay)]);
+      out.push([bx, by]);
+    }
+    // aIn && bIn: both inside, skip entirely
+  }
+
+  // Split at null markers into segments
+  const segments: number[][] = [];
+  let seg: number[] = [];
+  for (const p of out) {
+    if (!p) { if (seg.length >= 4) segments.push(seg); seg = []; }
+    else seg.push(p[0], p[1]);
+  }
+  if (seg.length >= 4) segments.push(seg);
+  return segments;
+}
+
+const PENCIL_CURSOR =`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%231e1e1e'/%3E%3Cline x1='12' y1='1' x2='12' y2='8' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='12' y1='16' x2='12' y2='23' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='1' y1='12' x2='8' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='16' y1='12' x2='23' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair`;
 
 const STAGE_SCALE = 1.6;
 
@@ -113,6 +186,14 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
   const deleteElement = useWorkspaceStore((state) => state.deleteElement);
   const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
+  const eraserSize = useWorkspaceStore((state) => state.eraserSize);
+
+  const eraserCursor = useMemo(() => {
+    const r = Math.max(4, eraserSize);
+    const size = r * 2 + 4;
+    const c = r + 2;
+    return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'%3E%3Ccircle cx='${c}' cy='${c}' r='${r}' fill='rgba(255%2C255%2C255%2C0.15)' stroke='%231e1e1e' stroke-width='1.5' stroke-dasharray='3%2C2'/%3E%3C/svg%3E") ${c} ${c}, crosshair`;
+  }, [eraserSize]);
 
   const STAGE_WIDTH  = canvasDimensions.width  / STAGE_SCALE;
   const STAGE_HEIGHT = canvasDimensions.height / STAGE_SCALE;
@@ -137,37 +218,16 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
 
     const eraserX = pos.x * STAGE_SCALE;
     const eraserY = pos.y * STAGE_SCALE;
-    const rr = (15 * STAGE_SCALE) ** 2;
+    const radius = eraserSize * STAGE_SCALE;
 
     for (const element of elements) {
       if (element.type !== "pencil" || !element.points || element.points.length < 4) continue;
-
-      const pts = element.points;
-      let touched = false;
-      const keep: boolean[] = [];
-      for (let i = 0; i < pts.length; i += 2) {
-        const dx = pts[i] - eraserX;
-        const dy = pts[i + 1] - eraserY;
-        const inRadius = dx * dx + dy * dy <= rr;
-        keep.push(!inRadius);
-        if (inRadius) touched = true;
+      const segments = eraseFromStroke(element.points, eraserX, eraserY, radius);
+      // Only update if something actually changed
+      const totalSegPts = segments.reduce((s, seg) => s + seg.length, 0);
+      if (totalSegPts !== element.points.length) {
+        partialErasePencilStroke(element.id, segments);
       }
-
-      if (!touched) continue;
-
-      const segments: number[][] = [];
-      let seg: number[] = [];
-      for (let i = 0; i < keep.length; i++) {
-        if (keep[i]) {
-          seg.push(pts[i * 2], pts[i * 2 + 1]);
-        } else {
-          if (seg.length >= 4) segments.push(seg);
-          seg = [];
-        }
-      }
-      if (seg.length >= 4) segments.push(seg);
-
-      partialErasePencilStroke(element.id, segments);
     }
   }
 
@@ -202,7 +262,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
           className="konva-stage"
           style={{
             cursor: activeTool === "pencil" ? PENCIL_CURSOR
-              : activeTool === "eraser" ? ERASER_CURSOR
+              : activeTool === "eraser" ? eraserCursor
               : "default",
           }}
           onMouseDown={(event) => {

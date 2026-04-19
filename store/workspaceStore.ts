@@ -93,6 +93,8 @@ type WorkspaceState = {
   canvasDimensions: { width: number; height: number };
   activeTool: "select" | "pencil" | "eraser";
   setActiveTool: (tool: "select" | "pencil" | "eraser") => void;
+  eraserSize: number;
+  setEraserSize: (size: number) => void;
   addPencilElement: (points: number[]) => void;
   selectElement: (elementId: string | null) => void;
   setSelectedElementId: (elementId: string | null) => void;
@@ -246,8 +248,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       canvasBackground: "#fffdf8",
       canvasDimensions: { width: 1280, height: 800 },
       activeTool: "select",
+      eraserSize: 10,
 
       setActiveTool: (tool) => set({ activeTool: tool }),
+      setEraserSize: (eraserSize) => set({ eraserSize }),
 
       addPencilElement: (points) =>
         set((state) => {

@@ -119,6 +119,8 @@ export function Toolbar({
   const history                  = useWorkspaceStore((s) => s.history);
   const activeTool               = useWorkspaceStore((s) => s.activeTool);
   const setActiveTool            = useWorkspaceStore((s) => s.setActiveTool);
+  const eraserSize               = useWorkspaceStore((s) => s.eraserSize);
+  const setEraserSize            = useWorkspaceStore((s) => s.setEraserSize);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -296,6 +298,21 @@ export function Toolbar({
               <Eraser size={16} />
             </motion.button>
           </div>
+          {activeTool === "eraser" && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '0 0 10px 0' }}>
+              <span style={{ fontSize: 11, color: '#888' }}>Size: {eraserSize}px</span>
+              <input
+                type="range"
+                min={4}
+                max={60}
+                step={1}
+                value={eraserSize}
+                onChange={(e) => setEraserSize(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#4f8cff' }}
+                title="Eraser size"
+              />
+            </div>
+          )}
           <div className="toolbar-divider" style={{ margin: '8px 0' }} />
 
           {/* Frame subheading and picker */}
