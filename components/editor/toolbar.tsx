@@ -3,8 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
-  Baseline, Bold, Circle, Copy,
-  Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
+  Baseline, Bold, Circle, Copy, Eraser,
+  Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
@@ -119,6 +119,10 @@ export function Toolbar({
   const redo                     = useWorkspaceStore((s) => s.redo);
   const historyIndex             = useWorkspaceStore((s) => s.historyIndex);
   const history                  = useWorkspaceStore((s) => s.history);
+  const activeTool               = useWorkspaceStore((s) => s.activeTool);
+  const setActiveTool            = useWorkspaceStore((s) => s.setActiveTool);
+  const eraserSize               = useWorkspaceStore((s) => s.eraserSize);
+  const setEraserSize            = useWorkspaceStore((s) => s.setEraserSize);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -286,6 +290,49 @@ export function Toolbar({
             </motion.div>
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
+
+          {/* Draw subheading and pencil tool toggle */}
+          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Draw</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 10px 0' }}>
+            <motion.button
+              type="button"
+              className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "pencil" ? " active" : ""}`}
+              onClick={() => setActiveTool(activeTool === "pencil" ? "select" : "pencil")}
+              disabled={!canEdit}
+              title={activeTool === "pencil" ? "Pencil (active — click to deactivate)" : "Pencil tool"}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Pencil size={16} />
+            </motion.button>
+            <motion.button
+              type="button"
+              className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "eraser" ? " active" : ""}`}
+              onClick={() => setActiveTool(activeTool === "eraser" ? "select" : "eraser")}
+              disabled={!canEdit}
+              title={activeTool === "eraser" ? "Eraser (active — click to deactivate)" : "Eraser tool"}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Eraser size={16} />
+            </motion.button>
+          </div>
+          {activeTool === "eraser" && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '0 0 10px 0' }}>
+              <span style={{ fontSize: 11, color: '#888' }}>Size: {eraserSize}px</span>
+              <input
+                type="range"
+                min={4}
+                max={60}
+                step={1}
+                value={eraserSize}
+                onChange={(e) => setEraserSize(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#4f8cff' }}
+                title="Eraser size"
+              />
+            </div>
+          )}
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
 
           {/* Frame subheading and picker */}
           <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Frame</span>

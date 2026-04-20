@@ -152,6 +152,8 @@ export function EditorShell() {
   const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
   const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
   const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
+  const copySelectedElement = useWorkspaceStore((s) => s.copySelectedElement);
+  const pasteElement = useWorkspaceStore((s) => s.pasteElement);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const workspaceName = useWorkspaceStore((s) => s.workspaceName);
   const accessLevel = useWorkspaceStore((s) => s.accessLevel);
@@ -804,6 +806,17 @@ export function EditorShell() {
         return;
       }
 
+      if (ctrl && event.key.toLowerCase() === "c") {
+        if (selectedElementId) copySelectedElement();
+        return;
+      }
+
+      if (ctrl && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        if (canEdit) pasteElement();
+        return;
+      }
+
       if (ctrl && event.key.toLowerCase() === "d") {
         event.preventDefault();
         if (selectedElementId) duplicateSelectedElement();
@@ -835,7 +848,7 @@ export function EditorShell() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteSelectedElement, duplicateSelectedElement, elements, selectedElementId, undo, redo, updateElement]);
+  }, [canEdit, copySelectedElement, deleteSelectedElement, duplicateSelectedElement, elements, pasteElement, selectedElementId, undo, redo, updateElement]);
 
   const mobileTabs = [
     { key: "canvas", label: "Canvas" },
