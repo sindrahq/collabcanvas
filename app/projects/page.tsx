@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import { ProfileMenu } from "@/components/profile/ProfileMenu";
-import { supabase } from "@/lib/supabaseClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { CustomCursor } from "@/components/landing/custom-cursor";
@@ -357,13 +356,25 @@ function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
           );
         }
 
+        if (element.type === "image" && (element.style as any)?.imageUrl) {
+          return (
+            <div key={element.id} className="absolute overflow-hidden" style={{ ...style, border: 'none' }}>
+              <img 
+                src={(element.style as any).imageUrl} 
+                className="h-full w-full object-cover"
+                alt=""
+              />
+            </div>
+          );
+        }
+
         return <div key={element.id} className="absolute" style={style} />;
       })}
     </div>
   );
 }
 
-export default function ProjectsDashboard() {
+function ProjectsDashboardContent() {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<SectionKey>("my-projects");
   const [searchQuery, setSearchQuery] = useState("");
@@ -390,6 +401,10 @@ export default function ProjectsDashboard() {
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
+  const searchParams = useSearchParams();
+  const templateName = searchParams.get("template");
+  const templateImage = searchParams.get("image");
+  const [templateApplied, setTemplateApplied] = useState(false);
 
   useEffect(() => {
     if (!browserClient) {
@@ -453,13 +468,26 @@ export default function ProjectsDashboard() {
   }, [router]);
 
   useEffect(() => {
+    if (authReady && currentUserId && templateName && templateImage && !templateApplied) {
+      setTemplateApplied(true);
+      handleCreateProject(templateName, templateImage);
+      
+      // Clean up URL params without refreshing
+      const nextUrl = window.location.pathname;
+      window.history.replaceState({ ...window.history.state, as: nextUrl, url: nextUrl }, '', nextUrl);
+    }
+  }, [authReady, currentUserId, templateName, templateImage, templateApplied]);
+
+  useEffect(() => {
     async function fetchProjects() {
       if (!authReady || !currentUserId) return;
 
       setLoadingProjects(true);
       setErrorMessage(null);
 
-      const { data, error } = await supabase
+      if (!browserClient) return;
+
+      const { data, error } = await browserClient
         .from("workspaces")
         .select("*")
         .eq("owner_id", currentUserId)
@@ -485,7 +513,9 @@ export default function ProjectsDashboard() {
       let sharedRows: ProjectRow[] = [];
       const sharedIds = new Set<string>();
 
-      const { data: idShareData, error: idShareError } = await supabase
+      if (!browserClient) return;
+
+      const { data: idShareData, error: idShareError } = await browserClient
         .from("workspace_shares")
         .select("workspace_id")
         .eq("shared_with_id", currentUserId);
@@ -495,7 +525,7 @@ export default function ProjectsDashboard() {
       }
 
       if (currentUserEmail) {
-        const { data: emailShareData, error: emailShareError } = await supabase
+        const { data: emailShareData, error: emailShareError } = await browserClient
           .from("workspace_shares")
           .select("workspace_id")
           .eq("shared_with_email", currentUserEmail);
@@ -506,7 +536,8 @@ export default function ProjectsDashboard() {
       }
 
       if (sharedIds.size) {
-        const { data: sharedWorkspaceData, error: sharedWorkspaceError } = await supabase
+        if (!browserClient) return;
+        const { data: sharedWorkspaceData, error: sharedWorkspaceError } = await browserClient
           .from("workspaces")
           .select("*")
           .in("id", [...sharedIds])
@@ -525,7 +556,9 @@ export default function ProjectsDashboard() {
       setSharedProjects(sharedRows);
       setUsingLocalMode(false);
 
-      const { data: trashData, error: trashError } = await supabase
+      if (!browserClient) return;
+
+      const { data: trashData, error: trashError } = await browserClient
         .from("workspace_trash")
         .select("workspace_id, source, deleted_at")
         .eq("user_id", currentUserId)
@@ -551,7 +584,9 @@ export default function ProjectsDashboard() {
         return;
       }
 
-      const { data: canvasData, error: canvasError } = await supabase
+      if (!browserClient) return;
+
+      const { data: canvasData, error: canvasError } = await browserClient
         .from("canvas_elements")
         .select("*")
         .in("workspace_id", workspaceIds)
@@ -565,7 +600,8 @@ export default function ProjectsDashboard() {
       const missingPreviewWorkspaceIds = workspaceIds.filter((workspaceId) => !(nextPreviewMap[workspaceId]?.length));
 
       if (missingPreviewWorkspaceIds.length) {
-        const { data: historyData, error: historyError } = await supabase
+        if (!browserClient) return;
+        const { data: historyData, error: historyError } = await browserClient
           .from("workspace_history")
           .select("workspace_id, created_at, snapshot")
           .in("workspace_id", missingPreviewWorkspaceIds)
@@ -664,13 +700,12 @@ export default function ProjectsDashboard() {
     );
   }
 
-  async function handleCreateProject() {
+  async function handleCreateProject(initialName?: string, initialImageUrl?: string) {
     if (!currentUserId) {
       setErrorMessage("Unable to create project right now. Please refresh once.");
       return;
     }
 
-    // New projects always belong in My Projects.
     if (activeSection !== "my-projects") {
       setActiveSection("my-projects");
     }
@@ -679,7 +714,7 @@ export default function ProjectsDashboard() {
     setErrorMessage(null);
 
     const projectCount = myProjects.length + 1;
-    const name = `Untitled Project ${projectCount}`;
+    const name = initialName ? `My ${initialName}` : `Untitled Project ${projectCount}`;
     const nowIso = new Date().toISOString();
 
     if (usingLocalMode) {
@@ -699,33 +734,62 @@ export default function ProjectsDashboard() {
       return;
     }
 
-    const { data, error } = await supabase
+    if (!browserClient) return;
+
+    const { data: workspace, error: workspaceError } = await browserClient
       .from("workspaces")
       .insert({ name, owner_id: currentUserId })
       .select("*")
       .single();
 
-    if (error || !data) {
-      const localProject: ProjectRow = {
-        id: `local-${Date.now()}`,
-        name,
-        owner_id: currentUserId,
-        created_at: nowIso,
-        updated_at: nowIso,
-        storage: "local",
-      };
-
-      upsertLocalProject(localProject);
-      setMyProjects((prev) => [localProject, ...prev]);
-      setPreviewMap((prev) => ({ ...prev, [localProject.id]: [] }));
-      setUsingLocalMode(true);
-      setErrorMessage(null);
+    if (workspaceError || !workspace) {
+      setErrorMessage("Could not create project. Please try again.");
       setCreatingProject(false);
       return;
     }
 
-    setMyProjects((prev) => [{ ...(data as ProjectRow), storage: "remote" }, ...prev]);
-    setPreviewMap((prev) => ({ ...prev, [data.id]: [] }));
+    if (initialImageUrl) {
+      // Add the template image element
+      if (!browserClient) return;
+      const { error: elementError } = await browserClient
+        .from("canvas_elements")
+        .insert({
+          workspace_id: workspace.id,
+          type: "image",
+          position: { x: 340, y: 150, width: 600, height: 500 },
+          style_ext: {
+            fill: "#ffffff",
+            stroke: "transparent",
+            strokeWidth: 0,
+            opacity: 1,
+            imageUrl: initialImageUrl,
+            shadowEnabled: true,
+            shadowBlur: 20,
+            shadowColor: "rgba(0,0,0,0.15)",
+            shadowOffsetX: 0,
+            shadowOffsetY: 10
+          },
+          layer_order: 0,
+          visible: true,
+          locked: false
+        });
+        
+      if (elementError) {
+        console.error("Error adding template element:", elementError);
+      }
+    }
+
+    setMyProjects((prev) => [{ ...(workspace as ProjectRow), storage: "remote" }, ...prev]);
+    setPreviewMap((prev) => ({ 
+      ...prev, 
+      [workspace.id]: initialImageUrl ? [{
+        id: 'initial-img',
+        workspace_id: workspace.id,
+        type: 'image',
+        position: { x: 340, y: 150, width: 600, height: 500 },
+        style: { imageUrl: initialImageUrl } as any
+      }] : [] 
+    }));
     setCreatingProject(false);
   }
 
@@ -756,7 +820,9 @@ export default function ProjectsDashboard() {
     setBusyProjectId(projectId);
     setErrorMessage(null);
 
-    const query = supabase
+    if (!browserClient) return;
+
+    const query = browserClient
       .from("workspaces")
       .update({ name: nextName })
       .eq("id", projectId);
@@ -796,13 +862,15 @@ export default function ProjectsDashboard() {
       ];
 
       if (!usingLocalTrashMode && currentUserId) {
-        await supabase
+        if (!browserClient) return;
+        await browserClient
           .from("workspace_trash")
           .delete()
           .eq("user_id", currentUserId)
           .eq("workspace_id", projectId);
 
-        const { error: addTrashError } = await supabase
+        if (!browserClient) return;
+        const { error: addTrashError } = await browserClient
           .from("workspace_trash")
           .insert({
             user_id: currentUserId,
@@ -846,7 +914,8 @@ export default function ProjectsDashboard() {
     // If this is a shared project in trash, only remove it from this user's trash.
     if (source === "shared") {
       if (!usingLocalTrashMode && currentUserId) {
-        const { error: removeSharedTrashError } = await supabase
+        if (!browserClient) return;
+        const { error: removeSharedTrashError } = await browserClient
           .from("workspace_trash")
           .delete()
           .eq("user_id", currentUserId)
@@ -871,7 +940,9 @@ export default function ProjectsDashboard() {
     setBusyProjectId(projectId);
     setErrorMessage(null);
 
-    const query = supabase
+    if (!browserClient) return;
+
+    const query = browserClient
       .from("workspaces")
       .delete()
       .eq("id", projectId);
@@ -894,7 +965,8 @@ export default function ProjectsDashboard() {
     setSharedProjects((prev) => prev.filter((project) => project.id !== projectId));
 
     if (!usingLocalTrashMode && currentUserId) {
-      await supabase
+      if (!browserClient) return;
+      await browserClient
         .from("workspace_trash")
         .delete()
         .eq("user_id", currentUserId)
@@ -1098,7 +1170,7 @@ export default function ProjectsDashboard() {
                       {viewMode === "grid" ? (
                         <button
                           type="button"
-                          onClick={handleCreateProject}
+                          onClick={() => handleCreateProject()}
                           disabled={creatingProject}
                           className="group relative flex h-48 w-72 flex-none flex-col items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] text-sm font-semibold text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-10px_24px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px"
                         >
@@ -1109,7 +1181,7 @@ export default function ProjectsDashboard() {
                       ) : (
                         <button
                           type="button"
-                          onClick={handleCreateProject}
+                          onClick={() => handleCreateProject()}
                           disabled={creatingProject}
                           className="group relative inline-flex items-center gap-2 overflow-hidden rounded-[14px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] px-5 py-2.5 text-sm text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-8px_18px_rgba(0,0,0,0.18),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all hover:-translate-y-px"
                         >
@@ -1132,7 +1204,7 @@ export default function ProjectsDashboard() {
                       {activeSection === "my-projects" && viewMode === "grid" ? (
                         <button
                           type="button"
-                          onClick={handleCreateProject}
+                          onClick={() => handleCreateProject()}
                           disabled={creatingProject}
                           className="group relative flex h-48 w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] text-sm font-semibold text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-10px_24px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px"
                         >
@@ -1145,7 +1217,7 @@ export default function ProjectsDashboard() {
                       {activeSection === "my-projects" && viewMode === "list" ? (
                         <button
                           type="button"
-                          onClick={handleCreateProject}
+                          onClick={() => handleCreateProject()}
                           disabled={creatingProject}
                           className="group relative inline-flex w-fit items-center gap-2 overflow-hidden rounded-[14px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] px-5 py-2.5 text-sm text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-8px_18px_rgba(0,0,0,0.18),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all hover:-translate-y-px"
                         >
@@ -1160,19 +1232,21 @@ export default function ProjectsDashboard() {
                           key={project.id}
                           className={
                             viewMode === "grid"
-                              ? "group/card relative isolate w-full cursor-pointer overflow-hidden rounded-xl border border-[#f4e9d9]/26 bg-[linear-gradient(148deg,rgba(46,46,46,0.74),rgba(20,20,20,0.84))] p-3 text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-14px_28px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:border-[#f4e9d9]/42 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_-18px_30px_rgba(0,0,0,0.25),0_28px_52px_rgba(0,0,0,0.24)]"
-                              : "group/card relative isolate flex w-full cursor-pointer items-center justify-between overflow-hidden rounded-lg border border-[#f4e9d9]/26 bg-[linear-gradient(148deg,rgba(46,46,46,0.74),rgba(20,20,20,0.84))] px-4 py-3 text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-10px_20px_rgba(0,0,0,0.2),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.01] hover:border-[#f4e9d9]/42 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_-12px_24px_rgba(0,0,0,0.22),0_24px_40px_rgba(0,0,0,0.22)]"
+                              ? "group/card relative isolate w-full cursor-pointer rounded-xl border border-[#f4e9d9]/26 bg-[linear-gradient(148deg,rgba(46,46,46,0.74),rgba(20,20,20,0.84))] p-3 text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-14px_28px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:border-[#f4e9d9]/42 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_-18px_30px_rgba(0,0,0,0.25),0_28px_52px_rgba(0,0,0,0.24)]"
+                              : "group/card relative isolate flex w-full cursor-pointer items-center justify-between rounded-lg border border-[#f4e9d9]/26 bg-[linear-gradient(148deg,rgba(46,46,46,0.74),rgba(20,20,20,0.84))] px-4 py-3 text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-10px_20px_rgba(0,0,0,0.2),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.01] hover:border-[#f4e9d9]/42 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_-12px_24px_rgba(0,0,0,0.22),0_24px_40px_rgba(0,0,0,0.22)]"
                           }
                           onClick={() => handleOpenProject(project.id)}
                         >
-                          <span
-                            className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_100%_at_5%_0%,rgba(255,255,255,0.16),transparent_45%),radial-gradient(120%_100%_at_100%_100%,rgba(139,115,85,0.2),transparent_56%)] opacity-80 transition-opacity duration-300 group-hover/card:opacity-100"
-                            aria-hidden="true"
-                          />
-                          <span
-                            className="pointer-events-none absolute -top-8 left-10 h-24 w-48 rotate-[-8deg] bg-white/20 blur-2xl opacity-25 transition-all duration-300 group-hover/card:translate-x-5 group-hover/card:opacity-40"
-                            aria-hidden="true"
-                          />
+                          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+                            <span
+                              className="absolute inset-0 bg-[radial-gradient(120%_100%_at_5%_0%,rgba(255,255,255,0.16),transparent_45%),radial-gradient(120%_100%_at_100%_100%,rgba(139,115,85,0.2),transparent_56%)] opacity-80 transition-opacity duration-300 group-hover/card:opacity-100"
+                              aria-hidden="true"
+                            />
+                            <span
+                              className="absolute -top-8 left-10 h-24 w-48 rotate-[-8deg] bg-white/20 blur-2xl opacity-25 transition-all duration-300 group-hover/card:translate-x-5 group-hover/card:opacity-40"
+                              aria-hidden="true"
+                            />
+                          </div>
                           {viewMode === "grid" ? (
                             <>
                               <div className="relative z-10 aspect-[16/10] w-full overflow-hidden rounded-lg border border-[#f4e9d9]/26">
@@ -1375,5 +1449,13 @@ export default function ProjectsDashboard() {
         </nav>
       </div>
     </>
+  );
+}
+
+export default function ProjectsDashboard() {
+  return (
+    <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-[#FAF9F6] text-sm text-[#645C52]">Loading...</div>}>
+      <ProjectsDashboardContent />
+    </React.Suspense>
   );
 }

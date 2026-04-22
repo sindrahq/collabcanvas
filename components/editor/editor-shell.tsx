@@ -711,6 +711,7 @@ export function EditorShell() {
               shadowColor: element.style.shadowColor,
               shadowOffsetX: element.style.shadowOffsetX,
               shadowOffsetY: element.style.shadowOffsetY,
+              imageUrl: (element.style as any).imageUrl ?? null,
             },
             layer_order: element.layerOrder,
             visible: element.visible,

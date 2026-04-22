@@ -23,43 +23,49 @@ type TemplateItem = {
 };
 
 const templates: TemplateItem[] = [
-  { img: "https://images.unsplash.com/photo-1544377193-33dce4d95d0c?q=80&w=1000&auto=format&fit=crop", label: "Invitation", query: "invitation", aspectClass: "aspect-[3/4]" },
-  { img: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business", aspectClass: "aspect-[1.58/1]" },
-  { img: "https://images.unsplash.com/photo-1563298723-dcfebaa392e3?q=80&w=1000&auto=format&fit=crop", label: "Poster", query: "poster", aspectClass: "aspect-[3/4]" },
-  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation", aspectClass: "aspect-video" },
-  { img: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop", label: "Social Media", query: "social-media", aspectClass: "aspect-square" },
+  { img: "https://images.unsplash.com/photo-1510076857177-7470076d4098?q=80&w=1000&auto=format&fit=crop", label: "Invitation", query: "invitation", aspectClass: "aspect-square" },
+  { img: "https://images.unsplash.com/photo-1556761175-b413da4baf72?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business", aspectClass: "aspect-square" },
+  { img: "/templates/poster-1.png", label: "Poster", query: "poster", aspectClass: "aspect-square" },
+  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation", aspectClass: "aspect-square" },
+  { img: "/templates/social-media-1.png", label: "Social Media", query: "social-media", aspectClass: "aspect-square" },
 ];
 
 const TEMPLATE_DESIGNS: Record<string, string[]> = {
   "invitation": [
-    "https://images.unsplash.com/photo-1544377193-33dce4d95d0c",
-    "https://images.unsplash.com/photo-1510076857177-7470076d4098",
-    "https://images.unsplash.com/photo-1531058020387-3be344556be6",
-    "https://images.unsplash.com/photo-1519225421980-715cb0215aed",
+    "https://images.unsplash.com/photo-1517457373958-b7bdd4587205",
     "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8",
-    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3",
+    "https://images.unsplash.com/photo-1520854221256-17451cc331bf",
+    "https://images.unsplash.com/photo-1510076857177-7470076d4098",
+    "https://images.unsplash.com/photo-1509315811345-672d83ef2fbc",
+    "https://images.unsplash.com/photo-1519225421980-715cb0215aed",
     "https://images.unsplash.com/photo-1469334031218-e382a71b716b",
-    "https://images.unsplash.com/photo-1520854221256-17451cc331bf"
+    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3",
+    "https://images.unsplash.com/photo-1507915977619-6ccfe8003ae6",
+    "https://images.unsplash.com/photo-1527529482837-4698179dc6ce"
   ],
   "business": [
     "https://images.unsplash.com/photo-1589829085413-56de8ae18c73",
-    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
-    "https://images.unsplash.com/photo-1552664730-d307ca884978",
-    "https://images.unsplash.com/photo-1553484771-047a44eee27b",
-    "https://images.unsplash.com/photo-1558403194-611308249627",
-    "https://images.unsplash.com/photo-1542744094-3a31f272c490",
     "https://images.unsplash.com/photo-1556761175-b413da4baf72",
-    "https://images.unsplash.com/photo-1454165833767-131ef248c5de"
+    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab",
+    "https://images.unsplash.com/photo-1497366216548-37526070297c",
+    "https://images.unsplash.com/photo-1557426272-fc759fdf7a8d",
+    "https://images.unsplash.com/photo-1552664730-d307ca884978",
+    "https://images.unsplash.com/photo-1454165833222-d1d44d26e9b2",
+    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
+    "https://images.unsplash.com/photo-1517048676732-d65bc937f952",
+    "https://images.unsplash.com/photo-1497215728101-856f4ea42174"
   ],
   "poster": [
-    "https://images.unsplash.com/photo-1563298723-dcfebaa392e3",
+    "/templates/poster-1.png",
     "https://images.unsplash.com/photo-1531206715517-5c0ba140b2b8",
     "https://images.unsplash.com/photo-1541185933-ef5d8ed016c2",
     "https://images.unsplash.com/photo-1515462277126-2dd0c162007a",
     "https://images.unsplash.com/photo-1558655146-d09347e92766",
     "https://images.unsplash.com/photo-1483058712412-4245e9b90334",
     "https://images.unsplash.com/photo-1542626991-cbc4e32524cc",
-    "https://images.unsplash.com/photo-1544928147-79a2dbc1f389"
+    "https://images.unsplash.com/photo-1544928147-79a2dbc1f389",
+    "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea",
+    "https://images.unsplash.com/photo-1550684848-fac1c5b4e853"
   ],
   "presentation": [
     "https://images.unsplash.com/photo-1557804506-669a67965ba0",
@@ -67,19 +73,23 @@ const TEMPLATE_DESIGNS: Record<string, string[]> = {
     "https://images.unsplash.com/photo-1551434678-e076c223a692",
     "https://images.unsplash.com/photo-1542744173-8e7e53415bb0",
     "https://images.unsplash.com/photo-1555066931-4365d14bab8c",
-    "https://images.unsplash.com/photo-1551288049-bbbda536339a",
+    "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4",
     "https://images.unsplash.com/photo-1553877522-43269d4ea984",
-    "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23"
+    "https://images.unsplash.com/photo-1460925895917-afdab827c52f",
+    "https://images.unsplash.com/photo-1542744173-05336fcc7ad4",
+    "https://images.unsplash.com/photo-1531482615713-2afd69097998"
   ],
   "social-media": [
-    "https://images.unsplash.com/photo-1611162617474-5b21e879e113",
+    "/templates/social-media-1.png",
     "https://images.unsplash.com/photo-1611224923853-80b023f02d71",
-    "https://images.unsplash.com/photo-1611605698335-8b156981043e",
+    "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0",
     "https://images.unsplash.com/photo-1611606063065-ee7946f0787a",
     "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6",
     "https://images.unsplash.com/photo-1492724441997-5dc865305da7",
     "https://images.unsplash.com/photo-1533750349088-cd871a92f312",
-    "https://images.unsplash.com/photo-1563986768609-322da13575f3"
+    "https://images.unsplash.com/photo-1563986768609-322da13575f3",
+    "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6",
+    "https://images.unsplash.com/photo-1611224923853-80b023f02d71"
   ]
 };
 
@@ -355,7 +365,7 @@ export function LandingHero() {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#FDFBFB]">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 md:gap-8">
                       {(TEMPLATE_DESIGNS[selectedTemplate.query] || []).map((imgUrl, i) => (
                         <motion.div
                           key={i}
@@ -366,12 +376,15 @@ export function LandingHero() {
                         >
                           <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                            <Link 
-                              href={`/projects?template=${selectedTemplate.query}`}
-                              className="bg-white text-[#D3A5B1] px-6 py-3 rounded-full text-sm font-bold shadow-xl scale-95 group-hover:scale-100 transition-transform hover:bg-[#FFF5F8]"
+                            <button
+                              className="group/btn relative px-8 py-3 rounded-full bg-white text-black font-semibold text-sm transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg overflow-hidden"
+                              onClick={() => {
+                                // User requested to disable interaction
+                                console.log("Use Design clicked - disabled by request");
+                              }}
                             >
                               Use Design
-                            </Link>
+                            </button>
                           </div>
                         </motion.div>
                       ))}
