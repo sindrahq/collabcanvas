@@ -3,13 +3,14 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight,
-  Baseline, Bold, Circle, Copy,
+  Baseline, Bold, Circle, Copy, Crop,
   Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
-  Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
+  Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
+  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
-import { FramePicker } from "@/components/editor/frame-picker";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
+import { SmartCropModal } from "./smart-crop";
 import React, { useRef, useState } from "react";
 
 
@@ -87,6 +88,17 @@ const ADD_BUTTONS = [
   { label: "Arrow",     action: "arrow"     as const, icon: ArrowRight },
   { label: "Line",      action: "line"      as const, icon: Minus },
   { label: "Text",      action: "text"      as const, icon: Type },
+  { label: "Diamond",   action: "diamond"   as const, icon: Diamond },
+  { label: "Hexagon",   action: "hexagon"   as const, icon: Hexagon },
+  { label: "Pentagon",  action: "pentagon"  as const, icon: LayoutGrid }, // fallback to frame/layout icon
+  { label: "Heart",     action: "heart"     as const, icon: Heart },
+  { label: "Cloud",     action: "cloud"     as const, icon: Cloud },
+  { label: "Shield",    action: "shield"    as const, icon: Shield },
+  { label: "Octagon",   action: "octagon"   as const, icon: Octagon },
+  { label: "Zap",       action: "zap"       as const, icon: Zap },
+  { label: "Sun",       action: "sun"       as const, icon: Sun },
+  { label: "Moon",      action: "moon"      as const, icon: Moon },
+  { label: "Frame",     action: "frame"     as const, icon: LayoutGrid },
 ];
 
 const ALIGNMENTS = [
@@ -119,6 +131,11 @@ export function Toolbar({
   const redo                     = useWorkspaceStore((s) => s.redo);
   const historyIndex             = useWorkspaceStore((s) => s.historyIndex);
   const history                  = useWorkspaceStore((s) => s.history);
+  const snapToGrid               = useWorkspaceStore((s) => s.snapToGrid);
+  const toggleSnapToGrid         = useWorkspaceStore((s) => s.toggleSnapToGrid);
+  const updateElement            = useWorkspaceStore((s) => s.updateElement);
+
+  const [isCropping, setIsCropping] = useState(false);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -287,10 +304,31 @@ export function Toolbar({
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
-          {/* Frame subheading and picker */}
-          <span className="toolbar-subheading" style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>Frame</span>
-          <div style={{ margin: '6px 0 0 0' }}>
-            <FramePicker />
+          {/* Grid Snap Toggle */}
+          <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Grid</span>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
+            <GlassTooltip content={snapToGrid ? "Disable Grid Snapping" : "Enable Grid Snapping"}>
+              <motion.button
+                type="button"
+                className={`toolbar-icon-btn ${snapToGrid ? "active" : ""}`}
+                style={{ 
+                  backgroundColor: snapToGrid ? 'rgba(139, 115, 85, 0.25)' : 'rgba(211, 165, 177, 0.15)', 
+                  color: snapToGrid ? '#1A1A1A' : '#8b7355', 
+                  border: snapToGrid ? '1px solid rgba(139, 115, 85, 0.4)' : '1px solid rgba(211, 165, 177, 0.2)',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '12px'
+                }}
+                onClick={toggleSnapToGrid}
+                title="Toggle Grid Snapping"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.1, backgroundColor: 'rgba(211, 165, 177, 0.25)', border: '1px solid rgba(211, 165, 177, 0.4)' }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <Magnet size={18} />
+              </motion.button>
+            </GlassTooltip>
           </div>
         </div>
       ) : null}
@@ -398,6 +436,20 @@ export function Toolbar({
             <div className="toolbar-divider" />
             <span className="toolbar-label">Edit</span>
 
+            {/* Crop button for Shapes & Images */}
+            {selectedElement && (selectedElement.type !== "text" && selectedElement.type !== "line" && selectedElement.type !== "arrow") && (
+              <GlassTooltip content="Smart Crop">
+                <button
+                  type="button"
+                  className="toolbar-icon-btn"
+                  onClick={() => setIsCropping(true)}
+                  disabled={!canEdit}
+                >
+                  <Crop size={14} />
+                </button>
+              </GlassTooltip>
+            )}
+
             {/* Opacity slider for images, text, and shapes */}
             {selectedElement && (selectedElement.type === "image" || selectedElement.type === "text" || ["rectangle","circle","triangle","star","arrow","line"].includes(selectedElement.type)) && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 12px 0 0" }}>
@@ -427,6 +479,18 @@ export function Toolbar({
               <Sparkles size={14} />
               <span>3D</span>
             </motion.button>
+            {selectedElement && selectedElement.type === "image" && (
+              <motion.button
+                type="button" className="toolbar-button toolbar-button-compact"
+                onClick={() => setIsCropping(true)}
+                disabled={!canEdit}
+                title="Crop and Filter Image"
+                whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.96 }}
+              >
+                <Crop size={14} />
+                <span>Crop</span>
+              </motion.button>
+            )}
             <motion.button
               type="button" className="toolbar-button toolbar-button-compact"
               onClick={remove3DFromSelected}
@@ -458,6 +522,32 @@ export function Toolbar({
           </motion.div>
         ) : null}
       </AnimatePresence>
+      
+      {isCropping && selectedElement && (
+        <SmartCropModal
+          imageUrl={selectedElement.type === "image" ? (selectedElement as any).imageUrl : "https://placehold.co/600x400/f7f2ea/2f2f2f?text=Shape+Crop"}
+          onClose={() => setIsCropping(false)}
+          onApply={(newImageUrl, filters) => {
+            const mappedFilters = {
+              brightness: (filters.brightness - 100) / 100, // Map 50-150 to -0.5 to 0.5
+              contrast: filters.contrast - 100,            // Map 50-150 to -50 to 50
+              tint: filters.tint / 100,
+            };
+
+            if (selectedElement.type === "image") {
+              updateElement(selectedElement.id, { 
+                imageUrl: newImageUrl,
+                style: { ...selectedElement.style, ...mappedFilters }
+              } as any);
+            } else {
+              updateElement(selectedElement.id, {
+                style: { ...selectedElement.style, ...mappedFilters }
+              });
+            }
+            setIsCropping(false);
+          }}
+        />
+      )}
     </motion.div>
   );
 }
