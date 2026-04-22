@@ -50,12 +50,6 @@ export function InteractiveTutorial() {
 
   // Check if it's the first visit or manual trigger
   useEffect(() => {
-    const hasSeenTutorial = localStorage.getItem("canvas_tutorial_seen");
-    if (!hasSeenTutorial) {
-      const timer = setTimeout(() => setHasShownPrompt(true), 2000);
-      return () => clearTimeout(timer);
-    }
-
     const handleManualStart = () => {
       setHasShownPrompt(false);
       setIsActive(true);
@@ -63,7 +57,17 @@ export function InteractiveTutorial() {
     };
 
     window.addEventListener("start-tutorial", handleManualStart);
-    return () => window.removeEventListener("start-tutorial", handleManualStart);
+
+    const hasSeenTutorial = localStorage.getItem("canvas_tutorial_seen");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (!hasSeenTutorial) {
+      timer = setTimeout(() => setHasShownPrompt(true), 2000);
+    }
+
+    return () => {
+      window.removeEventListener("start-tutorial", handleManualStart);
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const step = TUTORIAL_STEPS[currentStep];

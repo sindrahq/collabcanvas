@@ -40,7 +40,7 @@ export type CanvasElementType =
   | "rectangle" | "circle" | "text"
   | "triangle" | "star" | "arrow" | "line" | "image"
   | "diamond" | "hexagon" | "pentagon" | "heart" | "cloud"
-  | "shield" | "octagon" | "zap" | "sun" | "moon" | "frame";
+  | "shield" | "octagon" | "zap" | "sun" | "moon" | "frame" | "pencil";
 
 export type CanvasElementStyle = {
   fill: string;
@@ -87,6 +87,7 @@ export type CanvasElement = {
     gap: number;
     autoResize: boolean;
   };
+  points?: number[];
 };
 
 type WorkspaceState = {
@@ -97,11 +98,17 @@ type WorkspaceState = {
   selectedElementId: string | null;
   elements: CanvasElement[];
   elementList: CanvasElement[];
+  clipboard: CanvasElement | null;
   loading: boolean;
   history: CanvasElement[][];
   historyIndex: number;
   canvasBackground: string;
   canvasDimensions: { width: number; height: number };
+  activeTool: "select" | "pencil" | "eraser";
+  setActiveTool: (tool: "select" | "pencil" | "eraser") => void;
+  eraserSize: number;
+  setEraserSize: (size: number) => void;
+  addPencilElement: (points: number[]) => void;
   selectElement: (elementId: string | null) => void;
   setSelectedElementId: (elementId: string | null) => void;
   setWorkspace: (workspace: WorkspaceMeta | null) => void;
@@ -113,8 +120,12 @@ type WorkspaceState = {
   updateElement: (elementId: string, updates: Partial<CanvasElement>) => void;
   updateElementStyle: (elementId: string, style: Partial<CanvasElementStyle>) => void;
   reorderElement: (elementId: string, direction: "forward" | "backward") => void;
+  copySelectedElement: () => void;
+  pasteElement: () => void;
   duplicateSelectedElement: () => void;
   deleteSelectedElement: () => void;
+  deleteElement: (id: string) => void;
+  partialErasePencilStroke: (id: string, segments: number[][]) => void;
   toggleVisibility: (elementId: string) => void;
   toggleLock: (elementId: string) => void;
   updateLayerOrder: (elements: CanvasElement[]) => void;
@@ -174,6 +185,7 @@ const defaultElementStyle: Record<CanvasElementType, CanvasElementStyle> = {
   sun:       { fill: "#fef3c7", stroke: "#b45309", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
   moon:      { fill: "#f1f5f9", stroke: "#1e293b", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
   frame:     { fill: "rgba(255, 255, 255, 0.15)", stroke: "rgba(211, 165, 177, 0.3)", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  pencil:    { fill: "transparent", stroke: "#2f2f2f", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
 } satisfies Record<CanvasElementType, CanvasElementStyle>;
 
 const DEFAULT_LAYOUT = {
@@ -317,12 +329,35 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       selectedElementId: starterElements[2]?.id ?? null,
       elements: starterElements,
       elementList: starterElements,
+      clipboard: null,
       loading: false,
       history: [cloneElements(starterElements)],
       historyIndex: 0,
       canvasBackground: "#fffdf8",
       canvasDimensions: { width: 1280, height: 800 },
       snapToGrid: false,
+      activeTool: "select",
+      eraserSize: 10,
+
+      setActiveTool: (tool) => set({ activeTool: tool }),
+      setEraserSize: (eraserSize) => set({ eraserSize }),
+
+      addPencilElement: (points) =>
+        set((state) => {
+          const layerOrder = state.elements.length;
+          const name = `Pencil ${layerOrder + 1}`;
+          const element: CanvasElement = withCompatFields({
+            id: createId("pencil"),
+            name, label: name, type: "pencil",
+            x: 0, y: 0, width: 0, height: 0,
+            rotation: 0, visible: true, locked: false,
+            layerOrder, layer_order: layerOrder,
+            points,
+            style: { ...defaultElementStyle.pencil },
+          });
+          const nextElements = [...state.elements, element];
+          return { ...withHistory(state, nextElements), selectedElementId: element.id };
+        }),
 
       selectElement: (selectedElementId) => set({ selectedElementId }),
       setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
@@ -398,6 +433,31 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return withHistory(state, nextElements);
         }),
 
+      copySelectedElement: () => {
+        const state = get();
+        const selected = state.elements.find((el) => el.id === state.selectedElementId);
+        if (!selected) return;
+        set({ clipboard: { ...selected, style: { ...selected.style } } });
+      },
+
+      pasteElement: () =>
+        set((state) => {
+          if (!state.clipboard) return state;
+          const pasted: CanvasElement = withCompatFields({
+            ...state.clipboard,
+            id: createId(state.clipboard.type),
+            name: `${state.clipboard.name} Copy`,
+            label: `${state.clipboard.label} Copy`,
+            x: state.clipboard.x + 24,
+            y: state.clipboard.y + 24,
+            layerOrder: state.elements.length,
+            layer_order: state.elements.length,
+            style: { ...state.clipboard.style },
+          });
+          const nextElements = [...state.elements, pasted];
+          return { ...withHistory(state, nextElements), selectedElementId: pasted.id };
+        }),
+
       duplicateSelectedElement: () =>
         set((state) => {
           const selected = state.elements.find((el) => el.id === state.selectedElementId);
@@ -425,6 +485,42 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
           );
           return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null };
+        }),
+
+      deleteElement: (id) =>
+        set((state) => {
+          const remaining = normalizeElements(
+            state.elements
+              .filter((el) => el.id !== id)
+              .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
+          );
+          const selectedElementId = state.selectedElementId === id
+            ? (remaining.at(-1)?.id ?? null)
+            : state.selectedElementId;
+          return { ...withHistory(state, remaining), selectedElementId };
+        }),
+
+      partialErasePencilStroke: (id, segments) =>
+        set((state) => {
+          const element = state.elements.find((el) => el.id === id);
+          if (!element) return state;
+          const without = state.elements.filter((el) => el.id !== id);
+          const newElements = segments.map((pts, i) => {
+            const layerOrder = without.length + i;
+            const name = `Pencil ${layerOrder + 1}`;
+            return withCompatFields({
+              id: createId("pencil"),
+              name, label: name, type: "pencil" as const,
+              x: 0, y: 0, width: 0, height: 0,
+              rotation: 0, visible: true, locked: false,
+              layerOrder, layer_order: layerOrder,
+              points: pts,
+              style: { ...element.style },
+            });
+          });
+          const nextElements = normalizeElements([...without, ...newElements]);
+          const selectedElementId = state.selectedElementId === id ? null : state.selectedElementId;
+          return { ...withHistory(state, nextElements), selectedElementId };
         }),
 
       toggleVisibility: (elementId) =>

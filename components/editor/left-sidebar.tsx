@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
   Layers, Lock, Layout, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock,
-  Hexagon, Heart, Cloud, Square, Diamond, Shield, Octagon, Zap, Sun, Moon
+  Hexagon, Heart, Cloud, Square, Diamond, Shield, Octagon, Zap, Sun, Moon, Pencil
 } from "lucide-react";
 import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
 
@@ -17,10 +17,10 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   star: Star,
   arrow: ArrowRight,
   line: Minus,
-  image: RectangleHorizontal, // fallback icon for image type
+  image: RectangleHorizontal,
   diamond: Diamond,
   hexagon: Hexagon,
-  pentagon: Hexagon, // fallback to Hexagon for pentagon if icon missing
+  pentagon: Hexagon,
   heart: Heart,
   cloud: Cloud,
   shield: Shield,
@@ -29,6 +29,7 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   sun: Sun,
   moon: Moon,
   frame: Layout,
+  pencil: Pencil,
 };
 
 

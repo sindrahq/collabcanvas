@@ -176,6 +176,13 @@ body.cc-workspace-theme .editor-export-menu .toolbar-menu-list {
   left: auto;
   right: 0;
   top: calc(100% + 12px);
+  z-index: 9999 !important;
+  display: block !important;
+}
+
+body.cc-workspace-theme .editor-export-menu {
+  position: relative;
+  z-index: 2000 !important;
 }
 
 body.cc-workspace-theme .editor-topbar-left {
