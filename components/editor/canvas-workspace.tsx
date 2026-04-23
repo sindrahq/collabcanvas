@@ -113,6 +113,27 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
     return () => node.removeEventListener("wheel", handleWheel);
   }, []);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key === "=" || event.key === "+") {
+        event.preventDefault();
+        setAutoFitEnabled(false);
+        setZoom((z) => Math.min(MAX_ZOOM, parseFloat((z + ZOOM_STEP).toFixed(2))));
+      } else if (event.key === "-") {
+        event.preventDefault();
+        setAutoFitEnabled(false);
+        setZoom((z) => Math.max(MIN_ZOOM, parseFloat((z - ZOOM_STEP).toFixed(2))));
+      } else if (event.key === "0") {
+        event.preventDefault();
+        setAutoFitEnabled(false);
+        setZoom(1);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
 function getTouchDistance(touches: React.TouchList) {
   if (touches.length < 2) return 0;
   const first = touches.item(0);

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
-  Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
+  Layers, Lock, Minus, Pencil, RectangleHorizontal, Star, Triangle, Type, Unlock
 } from "lucide-react";
 import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
 
@@ -16,7 +16,8 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number;
   star: Star,
   arrow: ArrowRight,
   line: Minus,
-  image: RectangleHorizontal, // fallback icon for image type
+  image: RectangleHorizontal,
+  pencil: Pencil,
 };
 
 

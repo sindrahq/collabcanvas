@@ -6,6 +6,7 @@ import { Layers, LayoutGrid, MessageSquare, SlidersHorizontal } from "lucide-rea
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { RightSidebar } from "@/components/editor/right-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
+import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import type { WorkspaceComment } from "@/lib/comments";
 
 export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments";
@@ -19,48 +20,9 @@ type WorkspaceSidebarProps = {
   currentUserId?: string | null;
   canComment?: boolean;
   onAddComment: (message: string, targetElementId: string | null) => Promise<void>;
+  activeSection: WorkspaceSidebarSection | null;
+  setActiveSection: (section: WorkspaceSidebarSection | null) => void;
 };
-
-const SECTIONS: Array<{
-  id: WorkspaceSidebarSection;
-  label: string;
-  icon: typeof LayoutGrid;
-}> = [
-  { id: "layers", label: "Layers", icon: Layers },
-  { id: "actions", label: "Add", icon: LayoutGrid },
-  { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
-  { id: "comments", label: "Comments", icon: MessageSquare },
-];
-
-function WorkspaceSidebarSectionButton({
-  section,
-  expanded,
-  active,
-  onClick,
-}: {
-  section: (typeof SECTIONS)[number];
-  expanded: boolean;
-  active: boolean;
-  onClick: (section: WorkspaceSidebarSection) => void;
-}) {
-  const Icon = section.icon;
-  return (
-    <button
-      type="button"
-      className={`workspace-sidebar-button${active ? " active" : ""}`}
-      onClick={() => onClick(section.id)}
-      aria-pressed={active}
-      title={section.label}
-    >
-      <span className="workspace-sidebar-button-icon">
-        <Icon size={18} />
-      </span>
-      <span className={`workspace-sidebar-button-label${expanded ? " visible" : ""}`}>
-        {section.label}
-      </span>
-    </button>
-  );
-}
 
 export function WorkspaceSidebar({
   workspaceName,
@@ -71,37 +33,15 @@ export function WorkspaceSidebar({
   currentUserId,
   canComment = false,
   onAddComment,
+  activeSection,
+  setActiveSection,
 }: WorkspaceSidebarProps) {
-  const [hovered, setHovered] = useState(false);
-  const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
-
   const panelVisible = activeSection !== null;
-  const railExpanded = hovered && !panelVisible;
-  const expanded = railExpanded || panelVisible;
-
-  function handleSectionClick(section: WorkspaceSidebarSection) {
-    setActiveSection((current) => (current === section ? null : section));
-    setHovered(true);
-  }
 
   return (
     <aside
-      className={`workspace-sidebar${expanded ? " expanded" : " collapsed"}${railExpanded ? " hover-expanded" : ""}${panelVisible ? " panel-open" : ""}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className={`workspace-sidebar${panelVisible ? " panel-open" : " collapsed"}`}
     >
-      <div className="workspace-sidebar-rail">
-        {SECTIONS.map((section) => (
-          <WorkspaceSidebarSectionButton
-            key={section.id}
-            section={section}
-            expanded={railExpanded}
-            active={activeSection === section.id}
-            onClick={handleSectionClick}
-          />
-        ))}
-      </div>
-
       <motion.div
         className="workspace-sidebar-panel"
         initial={false}

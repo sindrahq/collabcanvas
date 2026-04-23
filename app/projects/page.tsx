@@ -8,6 +8,8 @@ import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { supabase } from "@/lib/supabaseClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
+import { CustomCursor } from "@/components/landing/custom-cursor";
+import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import "../globals.css";
 
 type ProjectRow = {
@@ -284,7 +286,7 @@ function saveTrashEntries(entries: TrashEntry[]): void {
 function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
   if (!elements.length) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_12%_18%,rgba(139,115,85,0.18),transparent_46%),linear-gradient(150deg,#f7f4ef,#eee8de)] text-xs text-[#6f6558]">
+      <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_12%_18%,rgba(211,165,177,0.18),transparent_46%),linear-gradient(150deg,rgba(255,255,255,0.4),rgba(255,255,255,0.2))] backdrop-blur-md text-xs text-[#6f6558]">
         No preview yet
       </div>
     );
@@ -441,9 +443,12 @@ export default function ProjectsDashboard() {
       setAuthReady(true);
     });
 
+    document.body.classList.add("cc-workspace-theme");
+
     return () => {
       active = false;
       subscription.unsubscribe();
+      document.body.classList.remove("cc-workspace-theme");
     };
   }, [router]);
 
@@ -916,24 +921,37 @@ export default function ProjectsDashboard() {
   }
 
   return (
-    <div
-      className={`${bodySans.className} flex h-screen flex-col overflow-hidden bg-[var(--projects-bg)] text-[var(--projects-text)]`}
-      style={{
-        ["--projects-bg" as string]: "#FAF9F6",
-        ["--projects-surface" as string]: "#F3EFE8",
-        ["--projects-panel" as string]: "#F8F5EF",
-        ["--projects-text" as string]: "#1A1A1A",
-        ["--projects-muted" as string]: "#645C52",
-        ["--projects-line" as string]: "rgba(26,26,26,0.14)",
-        ["--projects-accent" as string]: "#8B7355",
-        ["--projects-success" as string]: "#4ADE80",
-      } as React.CSSProperties}
-      onClick={() => {
-        setOpenMenuProjectId(null);
-        setFilterMenuOpen(false);
-        setViewMenuOpen(false);
-      }}
-    >
+    <>
+      <div 
+        className="fixed inset-0 pointer-events-none z-[0]"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2670&auto=format&fit=crop')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none bg-white/30 backdrop-blur-[2px] z-[1]" />
+      <PastelBlobBackground />
+      <CustomCursor />
+
+      <div
+        className={`${bodySans.className} flex h-screen flex-col overflow-hidden text-[var(--projects-text)] relative z-10`}
+        style={{
+          ["--projects-bg" as string]: "transparent",
+          ["--projects-surface" as string]: "rgba(255, 255, 255, 0.4)",
+          ["--projects-panel" as string]: "rgba(255, 255, 255, 0.6)",
+          ["--projects-text" as string]: "#1A1A1A",
+          ["--projects-muted" as string]: "#645C52",
+          ["--projects-line" as string]: "rgba(211, 165, 177, 0.14)",
+          ["--projects-accent" as string]: "#FF94B4",
+          ["--projects-success" as string]: "#4ADE80",
+        } as React.CSSProperties}
+        onClick={() => {
+          setOpenMenuProjectId(null);
+          setFilterMenuOpen(false);
+          setViewMenuOpen(false);
+        }}
+      >
       {/* Top Menu Bar */}
       <nav className="flex w-full items-center justify-between border-b border-[var(--projects-line)] bg-[var(--projects-bg)] px-6 py-4 text-[var(--projects-text)]">
         <div className="flex items-center gap-5">
@@ -1357,5 +1375,6 @@ export default function ProjectsDashboard() {
           </a>
         </nav>
       </div>
-    );
-  }
+    </>
+  );
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { AnimatePresence } from "framer-motion";
 import {
   Arrow as KonvaArrow,
   Ellipse,
@@ -13,9 +14,86 @@ import {
   Text as KonvaText,
   Transformer,
 } from "react-konva";
-import type Konva from "konva";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
+import type Konva from "konva";
 import { KonvaImage } from "./konva-image";
+import { CustomContextMenu } from "./context-menu";
+
+// Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
+function segmentCircleTs(
+  ax: number, ay: number, bx: number, by: number,
+  cx: number, cy: number, r: number,
+): [number, number] | null {
+  const dx = bx - ax, dy = by - ay;
+  const fx = ax - cx, fy = ay - cy;
+  const a = dx * dx + dy * dy;
+  if (a === 0) return null;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return null;
+  const sq = Math.sqrt(disc);
+  const t1 = Math.max(0, (-b - sq) / (2 * a));
+  const t2 = Math.min(1, (-b + sq) / (2 * a));
+  if (t1 >= t2) return null;
+  return [t1, t2];
+}
+
+// Erase the portion of a pencil stroke that falls inside the eraser circle.
+// Returns surviving segments as point arrays (canvas coords).
+function eraseFromStroke(pts: number[], cx: number, cy: number, r: number): number[][] {
+  const n = pts.length / 2;
+  if (n < 2) return [];
+
+  const isIn = (x: number, y: number) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+
+  type MaybePoint = [number, number] | null;
+  const out: MaybePoint[] = [];
+
+  // Add first point if outside circle
+  if (!isIn(pts[0], pts[1])) out.push([pts[0], pts[1]]);
+
+  for (let i = 0; i < n - 1; i++) {
+    const ax = pts[i * 2], ay = pts[i * 2 + 1];
+    const bx = pts[(i + 1) * 2], by = pts[(i + 1) * 2 + 1];
+    const aIn = isIn(ax, ay), bIn = isIn(bx, by);
+    const ints = segmentCircleTs(ax, ay, bx, by, cx, cy, r);
+
+    if (!aIn && !bIn) {
+      if (!ints) {
+        out.push([bx, by]);
+      } else {
+        const [t1, t2] = ints;
+        // Segment passes through circle: keep A-entry and exit-B as separate pieces
+        out.push([ax + t1 * (bx - ax), ay + t1 * (by - ay)]);
+        out.push(null); // split
+        out.push([ax + t2 * (bx - ax), ay + t2 * (by - ay)]);
+        out.push([bx, by]);
+      }
+    } else if (!aIn && bIn) {
+      // Enter circle before reaching B — cut at entry, then break
+      if (ints) out.push([ax + ints[0] * (bx - ax), ay + ints[0] * (by - ay)]);
+      out.push(null);
+    } else if (aIn && !bIn) {
+      // Exit circle before reaching B — resume from exit point
+      if (ints) out.push([ax + ints[1] * (bx - ax), ay + ints[1] * (by - ay)]);
+      out.push([bx, by]);
+    }
+    // aIn && bIn: both inside, skip entirely
+  }
+
+  // Split at null markers into segments
+  const segments: number[][] = [];
+  let seg: number[] = [];
+  for (const p of out) {
+    if (!p) { if (seg.length >= 4) segments.push(seg); seg = []; }
+    else seg.push(p[0], p[1]);
+  }
+  if (seg.length >= 4) segments.push(seg);
+  return segments;
+}
+
+const PENCIL_CURSOR =`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%231e1e1e'/%3E%3Cline x1='12' y1='1' x2='12' y2='8' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='12' y1='16' x2='12' y2='23' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='1' y1='12' x2='8' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='16' y1='12' x2='23' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair`;
 
 const STAGE_SCALE = 1.6;
 
@@ -106,6 +184,18 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
   const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
   const canEdit = useWorkspaceStore((state) => state.canEdit);
+  const activeTool = useWorkspaceStore((state) => state.activeTool);
+  const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
+  const deleteElement = useWorkspaceStore((state) => state.deleteElement);
+  const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
+  const eraserSize = useWorkspaceStore((state) => state.eraserSize);
+
+  const eraserCursor = useMemo(() => {
+    const r = Math.max(4, eraserSize);
+    const size = r * 2 + 4;
+    const c = r + 2;
+    return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'%3E%3Ccircle cx='${c}' cy='${c}' r='${r}' fill='rgba(255%2C255%2C255%2C0.15)' stroke='%231e1e1e' stroke-width='1.5' stroke-dasharray='3%2C2'/%3E%3C/svg%3E") ${c} ${c}, crosshair`;
+  }, [eraserSize]);
 
   const STAGE_WIDTH  = canvasDimensions.width  / STAGE_SCALE;
   const STAGE_HEIGHT = canvasDimensions.height / STAGE_SCALE;
@@ -116,9 +206,69 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   );
 
   const transformerRef = useRef<Konva.Transformer>(null);
+  const stageRef = useRef<Konva.Stage>(null);
   const nodeRefs = useRef<Record<string, Konva.Shape | Konva.Text | null>>({});
   const editingRef = useRef<HTMLTextAreaElement | null>(null);
+  const isErasingRef = useRef(false);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [drawingPoints, setDrawingPoints] = useState<number[] | null>(null);
+
+  function eraseAtCurrentPos() {
+    const stage = stageRef.current;
+    const pos = stage?.getPointerPosition();
+    if (!stage || !pos) return;
+
+    const eraserX = pos.x * STAGE_SCALE;
+    const eraserY = pos.y * STAGE_SCALE;
+    const radius = eraserSize * STAGE_SCALE;
+
+    for (const element of elements) {
+      if (element.type !== "pencil" || !element.points || element.points.length < 4) continue;
+      const segments = eraseFromStroke(element.points, eraserX, eraserY, radius);
+      // Only update if something actually changed
+      const totalSegPts = segments.reduce((s, seg) => s + seg.length, 0);
+      if (totalSegPts !== element.points.length) {
+        partialErasePencilStroke(element.id, segments);
+      }
+    }
+  }
+
+  const getStagePos = useCallback((event: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = event.target.getStage();
+    const pos = stage?.getPointerPosition();
+    if (!pos) return null;
+    return { x: pos.x * STAGE_SCALE, y: pos.y * STAGE_SCALE };
+  }, []);
+
+  // Context Menu State
+  const [menu, setMenu] = useState<{ x: number, y: number, visible: boolean } | null>(null);
+  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
+
+  const handleContextAction = (action: string) => {
+    if (!selectedElementId) return;
+    
+    switch (action) {
+      case "duplicate":
+        duplicateSelectedElement();
+        break;
+      case "delete":
+        deleteSelectedElement();
+        break;
+      case "lock":
+        const el = elements.find(e => e.id === selectedElementId);
+        if (el) updateElement(el.id, { locked: !el.locked });
+        break;
+      case "forward":
+        const maxLayer = Math.max(...elements.map(e => e.layerOrder), 0);
+        updateElement(selectedElementId, { layerOrder: maxLayer + 1 });
+        break;
+      case "backward":
+        const minLayer = Math.min(...elements.map(e => e.layerOrder), 0);
+        updateElement(selectedElementId, { layerOrder: minLayer - 1 });
+        break;
+    }
+  };
 
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -138,13 +288,68 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   return (
     <div className="konva-frame">
         <Stage
+          ref={stageRef}
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
           className="konva-stage"
+          style={{
+            cursor: activeTool === "pencil" ? PENCIL_CURSOR
+              : activeTool === "eraser" ? eraserCursor
+              : "default",
+          }}
           onMouseDown={(event) => {
+            if (activeTool === "eraser" && canEdit) {
+              isErasingRef.current = true;
+              eraseAtCurrentPos();
+              return;
+            }
+            if (activeTool === "pencil" && canEdit) {
+              const pos = getStagePos(event);
+              if (pos) setDrawingPoints([pos.x, pos.y]);
+              return;
+            }
             if (event.target === event.target.getStage()) {
               selectElement(null);
             }
+          }}
+          onMouseMove={(event) => {
+            if (activeTool === "eraser" && isErasingRef.current && canEdit) {
+              eraseAtCurrentPos();
+              return;
+            }
+            if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
+            const pos = getStagePos(event);
+            if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
+          }}
+          onMouseUp={() => {
+            if (activeTool === "eraser") {
+              isErasingRef.current = false;
+              return;
+            }
+            if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
+            if (drawingPoints.length >= 4) addPencilElement(drawingPoints);
+            setDrawingPoints(null);
+          }}
+          onMouseLeave={() => {
+            isErasingRef.current = false;
+            if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
+              addPencilElement(drawingPoints);
+            }
+            setDrawingPoints(null);
+          }}
+          onContextMenu={(e) => {
+            e.evt.preventDefault();
+            const stage = e.target.getStage();
+            if (!stage) return;
+            const pointer = stage.getPointerPosition();
+            if (!pointer) return;
+            if (e.target !== stage) {
+              const id = (e.target.attrs as any).id || (e.target.parent?.attrs as any).id;
+              if (id) selectElement(id);
+            } else {
+              selectElement(null);
+            }
+            setMenu({ x: e.evt.clientX, y: e.evt.clientY, visible: true });
           }}
         >
           <Layer>
@@ -406,6 +611,38 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 );
               }
 
+              if (element.type === "pencil") {
+                return (
+                  <KonvaLine
+                    key={element.id}
+                    ref={(node) => { nodeRefs.current[element.id] = node as unknown as Konva.Shape; }}
+                    points={(element.points ?? []).map((p) => p / STAGE_SCALE)}
+                    stroke={element.style.stroke}
+                    strokeWidth={element.style.strokeWidth / STAGE_SCALE}
+                    tension={0.4}
+                    lineCap="round"
+                    lineJoin="round"
+                    draggable={canEdit && !element.locked}
+                    visible={element.visible}
+                    opacity={element.style.opacity}
+                    hitStrokeWidth={12}
+                    onClick={() => selectElement(element.id)}
+                    onTap={() => selectElement(element.id)}
+                    onDragEnd={(event) => {
+                      if (!canEdit) return;
+                      const dx = event.target.x() * STAGE_SCALE;
+                      const dy = event.target.y() * STAGE_SCALE;
+                      const newPoints = (element.points ?? []).map((p, i) =>
+                        i % 2 === 0 ? p + dx : p + dy
+                      );
+                      event.target.x(0);
+                      event.target.y(0);
+                      updateElement(element.id, { points: newPoints });
+                    }}
+                  />
+                );
+              }
+
               return (
                 <KonvaText
                   key={element.id}
@@ -509,16 +746,30 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               );
             })}
 
+            {/* In-progress pencil stroke */}
+            {drawingPoints && drawingPoints.length >= 4 && (
+              <KonvaLine
+                points={drawingPoints.map((p) => p / STAGE_SCALE)}
+                stroke="#2f2f2f"
+                strokeWidth={3 / STAGE_SCALE}
+                tension={0.4}
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            )}
+
             <Transformer
               ref={transformerRef}
               rotateEnabled
-              borderStroke="#4f8cff"
+              borderStroke="#D3A5B1"
               borderStrokeWidth={2}
               anchorFill="#ffffff"
-              anchorStroke="#4f8cff"
+              anchorStroke="#D3A5B1"
               anchorSize={10}
-              anchorCornerRadius={3}
+              anchorCornerRadius={4}
               rotateAnchorCursor="grab"
+              padding={6}
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 36 || newBox.height < 28) return oldBox;
                 return newBox;
@@ -534,6 +785,18 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
             />
           </Layer>
         </Stage>
+
+        <AnimatePresence>
+          {menu?.visible && (
+            <CustomContextMenu
+              x={menu.x}
+              y={menu.y}
+              onClose={() => setMenu(null)}
+              onAction={handleContextAction}
+              isLocked={elements.find(e => e.id === selectedElementId)?.locked}
+            />
+          )}
+        </AnimatePresence>
       </div>
   );
 }
