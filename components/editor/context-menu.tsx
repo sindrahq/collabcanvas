@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Copy, Lock, Trash2, Unlock, Layers, ArrowUp, ArrowDown, LayoutGrid } from "lucide-react";
+import { Copy, Lock, Trash2, Unlock, Layers, ArrowUp, ArrowDown, LayoutGrid, BookmarkPlus } from "lucide-react";
 
 interface ContextMenuProps {
   x: number;
@@ -47,6 +47,7 @@ export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: Context
     { id: "lock", label: isLocked ? "Unlock" : "Lock", icon: isLocked ? Unlock : Lock },
     { id: "divider-frame", type: "divider" },
     { id: "group-frame", label: "Group into Smart Frame", icon: LayoutGrid },
+    { id: "save-template", label: "Save as Template", icon: BookmarkPlus },
     { id: "divider1", type: "divider" },
     { id: "forward", label: "Bring to Front", icon: ArrowUp },
     { id: "backward", label: "Send to Back", icon: ArrowDown },

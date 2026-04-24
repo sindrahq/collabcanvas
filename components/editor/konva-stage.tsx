@@ -283,6 +283,27 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
           setTimeout(() => updateElement(target.id, { parentId: frameId }), 60);
         }
         break;
+      case "save-template":
+        const elToSave = elements.find(e => e.id === selectedElementId);
+        if (elToSave) {
+          const name = prompt("Enter template name:", elToSave.name) || "New Template";
+          // If it's a frame, save it and its children
+          const elementsToSave = [elToSave];
+          if (elToSave.type === 'frame') {
+            const children = elements.filter(child => child.parentId === elToSave.id);
+            elementsToSave.push(...children);
+          }
+          
+          import("@/lib/services/templateService").then(({ templateService }) => {
+            templateService.save({
+              name,
+              elements: elementsToSave,
+              user_id: "current-user", // In a real app, get from auth
+            });
+            alert("Template saved!");
+          });
+        }
+        break;
     }
   };
 

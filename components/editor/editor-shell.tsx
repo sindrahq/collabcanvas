@@ -31,6 +31,8 @@ import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
 import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 import { InteractiveTutorial } from "@/components/ui/interactive-tutorial";
+import { VoiceCommandManager } from "@/components/voice/VoiceCommandManager";
+import { Bookmark } from "lucide-react";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -61,6 +63,7 @@ const NAV_SECTIONS: Array<{
   { id: "actions", label: "Add", icon: LayoutGrid },
   { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
   { id: "comments", label: "Comments", icon: MessageSquare },
+  { id: "templates", label: "Templates", icon: Bookmark },
 ];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
@@ -1224,6 +1227,8 @@ export function EditorShell() {
             onClose={() => setShareDialogOpen(false)}
           />
         ) : null}
+
+        <VoiceCommandManager />
       </motion.section>
     </main>
   );
