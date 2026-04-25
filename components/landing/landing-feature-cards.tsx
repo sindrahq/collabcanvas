@@ -54,66 +54,51 @@ const defaultItems: FeatureCardItem[] = [
 ];
 
 export function LandingFeatureCards() {
-  const [flippedId, setFlippedId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 perspective-1000">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {defaultItems.map((item, index) => (
-        <div key={item.id} className="relative h-[320px] w-full cursor-pointer" onClick={() => setFlippedId(flippedId === item.id ? null : item.id)}>
-          <motion.div
-            className="w-full h-full relative preserve-3d"
-            initial={false}
-            animate={{ rotateY: flippedId === item.id ? 180 : 0 }}
-            transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
+        <motion.div
+          key={item.id}
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.1 }}
+          viewport={{ once: true }}
+          className="group bento-card border border-white/50 bg-white/20 backdrop-blur-xl shadow-[0_8px_32px_rgba(211,165,177,0.2)] overflow-hidden h-full hover:bg-white/30 transition-all duration-300 p-8 flex flex-col cursor-pointer"
+          onClick={() => setActiveId(activeId === item.id ? null : item.id)}
+        >
+          <div 
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
+            style={{ backgroundColor: item.bg, color: item.accent }}
           >
-            {/* Front Side */}
-            <div className="absolute inset-0 backface-hidden">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="group bento-card border border-white/50 bg-white/20 backdrop-blur-xl shadow-[0_8px_32px_rgba(211,165,177,0.2)] overflow-hidden h-full hover:bg-white/30 transition-all duration-300 p-8 flex flex-col"
-              >
-                <div 
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
-                  style={{ backgroundColor: item.bg, color: item.accent }}
-                >
-                  {item.icon}
-                </div>
-                <h3 className="text-xl font-bold text-[#2D3436] mb-3">{item.title}</h3>
-                <p className="text-[#636E72] leading-relaxed text-sm">
-                  {item.description}
-                </p>
-                
-                <div className="mt-auto pt-6 border-t border-black/[0.03] flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#636E72]">Click to flip</span>
-                  <div className="w-8 h-8 rounded-full border border-black/[0.05] flex items-center justify-center">
-                    <Zap size={14} className="text-[#D4B595]" />
-                  </div>
-                </div>
-              </motion.div>
+            {item.icon}
+          </div>
+          <h3 className="text-xl font-bold text-[#2D3436] mb-3">{item.title}</h3>
+          
+          {activeId === item.id ? (
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-[#636E72] leading-relaxed text-sm"
+            >
+              {item.longDescription}
+            </motion.p>
+          ) : (
+            <p className="text-[#636E72] leading-relaxed text-sm">
+              {item.description}
+            </p>
+          )}
+          
+          <div className="mt-auto pt-6 border-t border-black/[0.03] flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#636E72]">
+              {activeId === item.id ? "Click to collapse" : "Click to read more"}
+            </span>
+            <div className="w-8 h-8 rounded-full border border-black/[0.05] flex items-center justify-center">
+              {activeId === item.id ? <RotateCcw size={14} className="text-[#D4B595]" /> : <Zap size={14} className="text-[#D4B595]" />}
             </div>
-
-            {/* Back Side */}
-            <div className="absolute inset-0 backface-hidden [transform:rotateY(180deg)]">
-              <div className="bento-card border border-[#D3A5B1]/30 bg-[#fffdf9]/90 backdrop-blur-xl shadow-[0_8px_48px_rgba(211,165,177,0.3)] overflow-hidden h-full p-8 flex flex-col">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-[#FADBD8] text-[#8b7355]">
-                  <Zap size={24} />
-                </div>
-                <h3 className="text-lg font-bold text-[#2D3436] mb-3">About {item.title}</h3>
-                <p className="text-[#636E72] leading-relaxed text-sm flex-1">
-                  {item.longDescription}
-                </p>
-                
-                <div className="mt-6 pt-4 border-t border-black/[0.05] flex items-center justify-between text-[#D3A5B1]">
-                  <span className="text-xs font-bold uppercase tracking-wider">Tap to return</span>
-                  <RotateCcw size={16} />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
       ))}
     </div>
   );
