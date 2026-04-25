@@ -118,6 +118,9 @@ type WorkspaceState = {
   updateLayerOrder: (elements: CanvasElement[]) => void;
   setCanvasBackground: (color: string) => void;
   setCanvasDimensions: (dimensions: { width: number; height: number }) => void;
+  elementHistory: Record<string, CanvasElement[]>;
+  travelElementTo: (elementId: string, historyIndex: number) => void;
+  restoreElementToCurrent: (elementId: string) => void;
   undo: () => void;
   redo: () => void;
 };
@@ -249,6 +252,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       canvasDimensions: { width: 1280, height: 800 },
       activeTool: "select",
       eraserSize: 10,
+      elementHistory: {},
 
       setActiveTool: (tool) => set({ activeTool: tool }),
       setEraserSize: (eraserSize) => set({ eraserSize }),
@@ -306,6 +310,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       updateElement: (elementId, updates) =>
         set((state) => {
+          const currentEl = state.elements.find((el) => el.id === elementId);
+          const prevHist = state.elementHistory[elementId] ?? [];
+          const elementHistory = currentEl
+            ? { ...state.elementHistory, [elementId]: [...prevHist, { ...currentEl, style: { ...currentEl.style } }].slice(-20) }
+            : state.elementHistory;
           const nextElements = state.elements.map((el) => {
             if (el.id !== elementId) return el;
             const u = updates as Partial<CanvasElement> & { style?: Partial<CanvasElementStyle> };
@@ -318,15 +327,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               style: u.style ? { ...el.style, ...u.style } : el.style,
             });
           });
-          return withHistory(state, nextElements);
+          return { ...withHistory(state, nextElements), elementHistory };
         }),
 
       updateElementStyle: (elementId, style) =>
         set((state) => {
+          const currentEl = state.elements.find((el) => el.id === elementId);
+          const prevHist = state.elementHistory[elementId] ?? [];
+          const elementHistory = currentEl
+            ? { ...state.elementHistory, [elementId]: [...prevHist, { ...currentEl, style: { ...currentEl.style } }].slice(-20) }
+            : state.elementHistory;
           const nextElements = state.elements.map((el) =>
             el.id === elementId ? withCompatFields({ ...el, style: { ...el.style, ...style } }) : el
           );
-          return withHistory(state, nextElements);
+          return { ...withHistory(state, nextElements), elementHistory };
         }),
 
       reorderElement: (elementId, direction) =>
@@ -390,12 +404,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       deleteSelectedElement: () =>
         set((state) => {
           if (!state.selectedElementId) return state;
+          const id = state.selectedElementId;
           const remaining = normalizeElements(
             state.elements
-              .filter((el) => el.id !== state.selectedElementId)
+              .filter((el) => el.id !== id)
               .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
           );
-          return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null };
+          const { [id]: _r1, ...restH1 } = state.elementHistory;
+          return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null, elementHistory: restH1 };
         }),
 
       deleteElement: (id) =>
@@ -408,7 +424,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const selectedElementId = state.selectedElementId === id
             ? (remaining.at(-1)?.id ?? null)
             : state.selectedElementId;
-          return { ...withHistory(state, remaining), selectedElementId };
+          const { [id]: _r2, ...restH2 } = state.elementHistory;
+          return { ...withHistory(state, remaining), selectedElementId, elementHistory: restH2 };
         }),
 
       partialErasePencilStroke: (id, segments) =>
@@ -431,7 +448,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           });
           const nextElements = normalizeElements([...without, ...newElements]);
           const selectedElementId = state.selectedElementId === id ? null : state.selectedElementId;
-          return { ...withHistory(state, nextElements), selectedElementId };
+          const { [id]: _r3, ...restH3 } = state.elementHistory;
+          return { ...withHistory(state, nextElements), selectedElementId, elementHistory: restH3 };
         }),
 
       toggleVisibility: (elementId) =>
@@ -455,6 +473,28 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       setCanvasBackground: (canvasBackground) => set({ canvasBackground }),
       setCanvasDimensions: (canvasDimensions) => set({ canvasDimensions }),
+
+      travelElementTo: (elementId, historyIndex) =>
+        set((state) => {
+          const history = state.elementHistory[elementId] ?? [];
+          if (historyIndex >= history.length) return state;
+          const snapshot = history[historyIndex];
+          if (!snapshot) return state;
+          const nextElements = state.elements.map((el) =>
+            el.id === elementId ? withCompatFields({ ...snapshot, style: { ...snapshot.style } }) : el
+          );
+          return setElementCollections(nextElements);
+        }),
+
+      restoreElementToCurrent: (elementId) =>
+        set((state) => {
+          const snap = (state.history[state.historyIndex] ?? []).find((e) => e.id === elementId);
+          if (!snap) return state;
+          const nextElements = state.elements.map((e) =>
+            e.id === elementId ? withCompatFields({ ...snap, style: { ...snap.style } }) : e
+          );
+          return setElementCollections(nextElements);
+        }),
 
       undo: () =>
         set((state) => {
