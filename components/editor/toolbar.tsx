@@ -7,17 +7,18 @@ import {
   Italic, Minus, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon
 } from "lucide-react";
-import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
+import { type CanvasElementStyle, useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { FramePicker } from "@/components/editor/frame-picker";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import React, { useRef, useState } from "react";
 
 
-function UploadPictureButton() {
+function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const addElement = useWorkspaceStore((s) => s.addElement);
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const addElement = store((s) => s.addElement);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,29 +97,32 @@ const ALIGNMENTS = [
 ];
 
 export function Toolbar({
+  workspaceId,
   workspaceName,
   layout = "horizontal",
   showHistoryActions = true,
   showAddActions = true,
   showSelectionActions = true,
 }: {
+  workspaceId: string;
   workspaceName: string;
   layout?: "horizontal" | "vertical";
   showHistoryActions?: boolean;
   showAddActions?: boolean;
   showSelectionActions?: boolean;
 }) {
-  const selectedElementId        = useWorkspaceStore((s) => s.selectedElementId);
-  const elements                 = useWorkspaceStore((s) => s.elements);
-  const canEdit                  = useWorkspaceStore((s) => s.canEdit);
-  const addElement               = useWorkspaceStore((s) => s.addElement);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement    = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const updateElementStyle       = useWorkspaceStore((s) => s.updateElementStyle);
-  const undo                     = useWorkspaceStore((s) => s.undo);
-  const redo                     = useWorkspaceStore((s) => s.redo);
-  const historyIndex             = useWorkspaceStore((s) => s.historyIndex);
-  const history                  = useWorkspaceStore((s) => s.history);
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const selectedElementId        = store((s) => s.selectedElementId);
+  const elements                 = store((s) => s.elements);
+  const canEdit                  = store((s) => s.canEdit);
+  const addElement               = store((s) => s.addElement);
+  const duplicateSelectedElement = store((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement    = store((s) => s.deleteSelectedElement);
+  const updateElementStyle       = store((s) => s.updateElementStyle);
+  const undo                     = store((s) => s.undo);
+  const redo                     = store((s) => s.redo);
+  const historyIndex             = store((s) => s.historyIndex);
+  const history                  = store((s) => s.history);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -282,7 +286,7 @@ export function Toolbar({
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Upload</span>
           <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <UploadPictureButton />
+              <UploadPictureButton workspaceId={workspaceId} />
             </motion.div>
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />

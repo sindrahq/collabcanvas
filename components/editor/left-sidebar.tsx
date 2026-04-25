@@ -6,7 +6,7 @@ import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
   Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
 } from "lucide-react";
-import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
+import { type CanvasElement, type CanvasElementType, useWorkspaceStoreFactory } from "@/store/workspaceStore";
 
 const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   rectangle: RectangleHorizontal,
@@ -20,9 +20,10 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
 };
 
 
-export function LeftSidebar() {
-  const elements = useWorkspaceStore((state) => state.elements);
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+export function LeftSidebar({ workspaceId }: { workspaceId: string }) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const elements = store((state) => state.elements);
+  const selectedElementId = store((state) => state.selectedElementId);
   const orderedElements = useMemo(
     () => [...elements].sort((a, b) => b.layerOrder - a.layerOrder),
     [elements]
@@ -63,6 +64,7 @@ export function LeftSidebar() {
               key={element.id}
               element={element}
               isSelected={element.id === selectedElementId}
+              workspaceId={workspaceId}
             />
           ))}
         </AnimatePresence>
@@ -74,12 +76,13 @@ export function LeftSidebar() {
   );
 }
 
-function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
-  const selectElement = useWorkspaceStore((state) => state.selectElement);
-  const reorderElement = useWorkspaceStore((state) => state.reorderElement);
-  const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
-  const toggleLock = useWorkspaceStore((state) => state.toggleLock);
-  const canEdit = useWorkspaceStore((state) => state.canEdit);
+function LayerRow({ element, isSelected, workspaceId }: { element: CanvasElement; isSelected: boolean; workspaceId: string }) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const selectElement = store((state) => state.selectElement);
+  const reorderElement = store((state) => state.reorderElement);
+  const toggleVisibility = store((state) => state.toggleVisibility);
+  const toggleLock = store((state) => state.toggleLock);
+  const canEdit = store((state) => state.canEdit);
   const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
 
   return (

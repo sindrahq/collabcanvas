@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { type CanvasElement, useWorkspaceStore } from "../store/workspaceStore";
 import type { CanvasElement as DbCanvasElement, WorkspaceMeta } from "../types/canvas";
 
@@ -44,6 +44,7 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
 
 export async function loadWorkspace(workspaceId: string, redirect404?: () => void): Promise<boolean> {
   const store = useWorkspaceStore.getState();
+  const supabase = createSupabaseBrowserClient();
 
   store.setLoading(true);
 
@@ -58,7 +59,6 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       if (redirect404) {
         redirect404();
       }
-
       return false;
     }
 
@@ -76,8 +76,12 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       return false;
     }
 
-    store.setElements(((elements as DbCanvasElement[] | null) ?? []).map(mapDbElement));
+    const loadedElements = ((elements as DbCanvasElement[] | null) ?? []).map(mapDbElement);
+    store.setElements(loadedElements);
     store.setSelectedElementId(null);
+    // Reset history and historyIndex to match loaded elements (prevents local rehydration from overwriting remote data)
+    store.history = [loadedElements.map((el) => ({ ...el, style: { ...el.style } }))];
+    store.historyIndex = 0;
     return true;
   } catch {
     return false;

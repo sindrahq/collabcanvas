@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { type CanvasElement, useWorkspaceStore } from "../store/workspaceStore";
 
 export type WorkspaceHistorySnapshot = {
@@ -48,6 +48,9 @@ export async function saveWorkspaceHistorySnapshot(
 	payload: SnapshotPayload,
 	label = "Autosave"
 ): Promise<WorkspaceHistorySnapshot | null> {
+
+	const supabase = createSupabaseBrowserClient();
+	if (!supabase) return null;
 	const { data, error } = await supabase
 		.from("workspace_history")
 		.insert({
@@ -69,6 +72,9 @@ export async function loadWorkspaceHistorySnapshots(
 	workspaceId: string,
 	limit = 20
 ): Promise<WorkspaceHistorySnapshot[]> {
+
+	const supabase = createSupabaseBrowserClient();
+	if (!supabase) return [];
 	const { data, error } = await supabase
 		.from("workspace_history")
 		.select("id, workspace_id, label, created_at, snapshot")

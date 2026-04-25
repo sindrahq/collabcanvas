@@ -10,7 +10,7 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { FramePicker } from "@/components/editor/frame-picker";
 
 const KonvaStageWorkspace = dynamic(
@@ -32,17 +32,19 @@ const MOBILE_BREAKPOINT = 860;
 const STAGE_SCALE = 1.6;
 
 type CanvasWorkspaceProps = {
+  workspaceId: string;
   currentUserId: string;
   presences: Record<string, PresenceMeta>;
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
 };
 
-export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
-  const elementCount        = useWorkspaceStore((s) => s.elements.length);
-  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
-  const canEdit             = useWorkspaceStore((s) => s.canEdit);
+export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const elementCount        = store((s) => s.elements.length);
+  const canvasBackground    = store((s) => s.canvasBackground);
+  const setCanvasBackground = store((s) => s.setCanvasBackground);
+  const canvasDimensions    = store((s) => s.canvasDimensions);
+  const canEdit             = store((s) => s.canEdit);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;

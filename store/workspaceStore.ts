@@ -1,3 +1,17 @@
+      resetWorkspaceState: () => set({
+        workspace: null,
+        workspaceName: "My Workspace",
+        accessLevel: "edit",
+        canEdit: true,
+        selectedElementId: null,
+        elements: [],
+        elementList: [],
+        loading: false,
+        history: [],
+        historyIndex: -1,
+        canvasBackground: "#fffdf8",
+        canvasDimensions: { width: 1280, height: 800 },
+      }),
 
 "use client";
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -29,6 +43,7 @@ function withCompatFields(element: CanvasElement): CanvasElement {
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useRef } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -116,43 +131,165 @@ type WorkspaceState = {
 const BASE_FONT = {
   fontFamily: "Inter",
   fontStyle: "normal" as const,
-  fontWeight: "normal" as const,
-  textAlign: "left" as const,
-  shadowEnabled: false,
-  shadowBlur: 16,
-  shadowColor: "rgba(20,32,28,0.3)",
-  shadowOffsetX: 0,
-  shadowOffsetY: 6,
-};
+  // Factory for per-workspace Zustand stores
+  const storeMap = new Map<string, ReturnType<typeof create<WorkspaceState>>>();
 
-const BASE_SHADOW = {
-  shadowEnabled: true,
-  shadowBlur: 16,
-  shadowColor: "rgba(20,32,28,0.3)",
-  shadowOffsetX: 0,
-  shadowOffsetY: 6,
-};
-
-const defaultElementStyle: Record<CanvasElementType, CanvasElementStyle> = {
-  rectangle: { fill: "#f7f2ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  circle:    { fill: "#e3f7ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  text:      { fill: "#1e2523", stroke: "#2f2f2f", strokeWidth: 0, opacity: 1, fontSize: 28, ...BASE_FONT },
-  triangle:  { fill: "#d4c3f0", stroke: "#6b3fa0", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  star:      { fill: "#f5e6a3", stroke: "#b89600", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  arrow:     { fill: "#a8d4f0", stroke: "#1a6fa0", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  line:      { fill: "transparent", stroke: "#637069", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-  image:     { fill: "#fff", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW },
-} satisfies Record<CanvasElementType, CanvasElementStyle>;
-
-function normalizeElements(elements: CanvasElement[]): CanvasElement[] {
-  return elements.map((el, i) =>
-    withCompatFields({
-      ...el,
-      layerOrder: el.layerOrder ?? i,
-      layer_order: el.layer_order ?? el.layerOrder ?? i,
-      label: el.label ?? el.name,
-      name: el.name ?? el.label,
-    })
+  export function useWorkspaceStoreFactory(workspaceId: string) {
+    const storeRef = useRef<ReturnType<typeof create<WorkspaceState>>>();
+    if (!storeRef.current) {
+      if (!storeMap.has(workspaceId)) {
+        storeMap.set(
+          workspaceId,
+          create<WorkspaceState>()(
+            persist(
+              (set, get) => ({
+                workspace: null,
+                workspaceName: "My Workspace",
+                accessLevel: "edit",
+                canEdit: true,
+                selectedElementId: starterElements[2]?.id ?? null,
+                elements: starterElements,
+                elementList: starterElements,
+                loading: false,
+                history: [cloneElements(starterElements)],
+                historyIndex: 0,
+                canvasBackground: "#fffdf8",
+                canvasDimensions: { width: 1280, height: 800 },
+                // ...existing actions...
+                selectElement: (selectedElementId) => set({ selectedElementId }),
+                setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
+                setWorkspace: (workspace) => set({ workspace, workspaceName: workspace?.name ?? get().workspaceName }),
+                setWorkspaceAccess: (accessLevel) => set({ accessLevel, canEdit: accessLevel === "edit" }),
+                setElements: (elements) => set((state) => {
+                  const next = normalizeElements(elements);
+                  const selectedElementId = next.find((el) => el.id === state.selectedElementId)
+                    ? state.selectedElementId : null;
+                  return { ...setElementCollections(next), selectedElementId };
+                }),
+                setLoading: (loading) => set({ loading }),
+                clear: () => set({
+                  workspace: null, workspaceName: "My Workspace",
+                  accessLevel: "edit", canEdit: true,
+                  elements: [], elementList: [], selectedElementId: null,
+                  loading: false, history: [], historyIndex: -1,
+                }),
+                addElement: (type, extra) => set((state) => {
+                  const nextElement = createElement(type, state.elements.length, extra);
+                  const nextElements = [...state.elements, nextElement];
+                  return { ...withHistory(state, nextElements), selectedElementId: nextElement.id };
+                }),
+                updateElement: (elementId, updates) => set((state) => {
+                  const nextElements = state.elements.map((el) => {
+                    if (el.id !== elementId) return el;
+                    const u = updates as Partial<CanvasElement> & { style?: Partial<CanvasElementStyle> };
+                    return withCompatFields({
+                      ...el, ...u,
+                      label: u.label ?? u.name ?? el.label,
+                      name: u.name ?? u.label ?? el.name,
+                      layerOrder: u.layerOrder ?? u.layer_order ?? el.layerOrder,
+                      layer_order: u.layer_order ?? u.layerOrder ?? el.layer_order,
+                      style: u.style ? { ...el.style, ...u.style } : el.style,
+                    });
+                  });
+                  return withHistory(state, nextElements);
+                }),
+                updateElementStyle: (elementId, style) => set((state) => {
+                  const nextElements = state.elements.map((el) =>
+                    el.id === elementId ? withCompatFields({ ...el, style: { ...el.style, ...style } }) : el
+                  );
+                  return withHistory(state, nextElements);
+                }),
+                reorderElement: (elementId, direction) => set((state) => {
+                  const ordered = [...state.elements].sort((a, b) => a.layerOrder - b.layerOrder);
+                  const currentIndex = ordered.findIndex((el) => el.id === elementId);
+                  if (currentIndex === -1) return state;
+                  const targetIndex = direction === "forward" ? currentIndex + 1 : currentIndex - 1;
+                  if (targetIndex < 0 || targetIndex >= ordered.length) return state;
+                  const [moved] = ordered.splice(currentIndex, 1);
+                  ordered.splice(targetIndex, 0, moved);
+                  const nextElements = ordered.map((el, i) =>
+                    withCompatFields({ ...el, layerOrder: i, layer_order: i })
+                  );
+                  return withHistory(state, nextElements);
+                }),
+                duplicateSelectedElement: () => set((state) => {
+                  const selected = state.elements.find((el) => el.id === state.selectedElementId);
+                  if (!selected) return state;
+                  const duplicate: CanvasElement = withCompatFields({
+                    ...selected,
+                    id: createId(selected.type),
+                    name: `${selected.name} Copy`,
+                    label: `${selected.label} Copy`,
+                    x: selected.x + 24, y: selected.y + 24,
+                    layerOrder: state.elements.length,
+                    layer_order: state.elements.length,
+                    style: { ...selected.style },
+                  });
+                  const nextElements = [...state.elements, duplicate];
+                  return { ...withHistory(state, nextElements), selectedElementId: duplicate.id };
+                }),
+                deleteSelectedElement: () => set((state) => {
+                  if (!state.selectedElementId) return state;
+                  const remaining = normalizeElements(
+                    state.elements
+                      .filter((el) => el.id !== state.selectedElementId)
+                      .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
+                  );
+                  return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null };
+                }),
+                toggleVisibility: (elementId) => set((state) => {
+                  const nextElements = state.elements.map((el) =>
+                    el.id === elementId ? withCompatFields({ ...el, visible: !el.visible }) : el
+                  );
+                  return withHistory(state, nextElements);
+                }),
+                toggleLock: (elementId) => set((state) => {
+                  const nextElements = state.elements.map((el) =>
+                    el.id === elementId ? withCompatFields({ ...el, locked: !el.locked }) : el
+                  );
+                  return withHistory(state, nextElements);
+                }),
+                updateLayerOrder: (elements) => set((state) => withHistory(state, normalizeElements(elements))),
+                setCanvasBackground: (canvasBackground) => set({ canvasBackground }),
+                setCanvasDimensions: (canvasDimensions) => set({ canvasDimensions }),
+                undo: () => set((state) => {
+                  if (state.historyIndex <= 0) return state;
+                  const prevIndex = state.historyIndex - 1;
+                  const prevElements = cloneElements(state.history[prevIndex]);
+                  return { ...setElementCollections(prevElements), historyIndex: prevIndex };
+                }),
+                redo: () => set((state) => {
+                  if (state.historyIndex >= state.history.length - 1) return state;
+                  const nextIndex = state.historyIndex + 1;
+                  const nextElements = cloneElements(state.history[nextIndex]);
+                  return { ...setElementCollections(nextElements), historyIndex: nextIndex };
+                }),
+              }),
+              {
+                name: `collabcanvas-workspace-${workspaceId}`,
+                partialize: (state) => ({
+                  elements: state.elements,
+                  elementList: state.elementList,
+                  workspaceName: state.workspaceName,
+                  canvasBackground: state.canvasBackground,
+                  canvasDimensions: state.canvasDimensions,
+                }),
+                onRehydrateStorage: () => (state) => {
+                  if (state && state.workspace && state.workspace.id && state.workspace.id.startsWith('local-')) {
+                    state.elementList = normalizeElements(state.elements);
+                    state.history = [cloneElements(state.elements)];
+                    state.historyIndex = 0;
+                  }
+                },
+              }
+            )
+          )
+        );
+      }
+      storeRef.current = storeMap.get(workspaceId)!;
+    }
+    return storeRef.current;
+  }
   );
 }
 
@@ -386,7 +523,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         canvasDimensions: state.canvasDimensions,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state) {
+        // Only rehydrate for local workspaces
+        if (state && state.workspace && state.workspace.id && state.workspace.id.startsWith('local-')) {
           state.elementList = normalizeElements(state.elements);
           state.history = [cloneElements(state.elements)];
           state.historyIndex = 0;

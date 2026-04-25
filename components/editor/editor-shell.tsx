@@ -25,7 +25,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
-import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { type WorkspaceAccessLevel, useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -149,18 +149,25 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
 export function EditorShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const workspace = useWorkspaceStore((s) => s.workspace);
-  const workspaceName = useWorkspaceStore((s) => s.workspaceName);
-  const accessLevel = useWorkspaceStore((s) => s.accessLevel);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
-  const setWorkspaceAccess = useWorkspaceStore((s) => s.setWorkspaceAccess);
-  const undo = useWorkspaceStore((s) => s.undo);
-  const redo = useWorkspaceStore((s) => s.redo);
-  const elements = useWorkspaceStore((s) => s.elements);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
+  const workspaceIdFromUrl =
+    searchParams.get("workspaceId") ??
+    searchParams.get("projectId") ??
+    searchParams.get("id") ??
+    searchParams.get("workspace") ??
+    "";
+  const store = useWorkspaceStoreFactory(workspaceIdFromUrl);
+  const selectedElementId = store((s) => s.selectedElementId);
+  const duplicateSelectedElement = store((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = store((s) => s.deleteSelectedElement);
+  const workspace = store((s) => s.workspace);
+  const workspaceName = store((s) => s.workspaceName);
+  const accessLevel = store((s) => s.accessLevel);
+  const canEdit = store((s) => s.canEdit);
+  const setWorkspaceAccess = store((s) => s.setWorkspaceAccess);
+  const undo = store((s) => s.undo);
+  const redo = store((s) => s.redo);
+  const elements = store((s) => s.elements);
+  const updateElement = store((s) => s.updateElement);
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -179,12 +186,7 @@ export function EditorShell() {
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState(workspaceName);
   const [workspaceRenameSaving, setWorkspaceRenameSaving] = useState(false);
   const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
-  const workspaceIdFromUrl =
-    searchParams.get("workspaceId") ??
-    searchParams.get("projectId") ??
-    searchParams.get("id") ??
-    searchParams.get("workspace") ??
-    "";
+  // Duplicate declaration removed
   const nextPath = useMemo(() => {
     const query = searchParams.toString();
     return query ? `/workspace-editor?${query}` : "/workspace-editor";
@@ -256,44 +258,10 @@ export function EditorShell() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: nextName }),
         });
-
         const payload = (await response.json()) as {
           error?: string;
           workspace?: { id: string; name: string; owner_id: string };
         };
-
-        if (!response.ok || !payload.workspace) {
-          return;
-        }
-
-        useWorkspaceStore.getState().setWorkspace(payload.workspace);
-        setIsRenamingWorkspace(false);
-        return;
-      }
-
-      useWorkspaceStore.getState().setWorkspace({
-        id: workspace.id,
-        name: nextName,
-        owner_id: workspace.owner_id,
-      });
-      setIsRenamingWorkspace(false);
-    } finally {
-      setWorkspaceRenameSaving(false);
-    }
-  }
-
-  function handleWorkspaceRenameCancel() {
-    setWorkspaceNameDraft(workspaceName);
-    setIsRenamingWorkspace(false);
-  }
-
-  useEffect(() => {
-    document.body.classList.add("cc-workspace-theme");
-    return () => {
-      document.body.classList.remove("cc-workspace-theme");
-    };
-  }, []);
-
   useEffect(() => {
     if (!browserClient) {
       setAuthChecked(true);
@@ -339,6 +307,8 @@ export function EditorShell() {
     if (!workspaceIdFromUrl || !authUser) return;
 
     const store = useWorkspaceStore.getState();
+    // Reset all workspace state before loading a new workspace
+    store.resetWorkspaceState();
     store.setWorkspace({
       id: workspaceIdFromUrl,
       name: store.workspaceName || "Untitled Project",
@@ -1126,16 +1096,18 @@ export function EditorShell() {
                   transition={{ duration: 0.18 }}
                 >
                   <Toolbar
-                    workspaceName={workspaceName}
-                    showHistoryActions={false}
-                    showAddActions={false}
-                    showSelectionActions
-                  />
+                      workspaceId={workspaceIdFromUrl}
+                      workspaceName={workspaceName}
+                      showHistoryActions={false}
+                      showAddActions={false}
+                      showSelectionActions
+                    />
                 </motion.div>
               ) : null}
             </AnimatePresence>
 
             <CanvasWorkspace
+              workspaceId={workspaceIdFromUrl}
               currentUserId={currentUserMeta.user_id}
               presences={presences}
               remoteCursors={remoteCursors}
@@ -1161,8 +1133,9 @@ export function EditorShell() {
           <div className="editor-mobile-panel">
             {mobilePanel === "canvas" ? (
               <div className="editor-mobile-panel-inner">
-                <Toolbar workspaceName={workspaceName} />
+                <Toolbar workspaceId={workspaceIdFromUrl} workspaceName={workspaceName} />
                 <CanvasWorkspace
+                  workspaceId={workspaceIdFromUrl}
                   currentUserId={currentUserMeta.user_id}
                   presences={presences}
                   remoteCursors={remoteCursors}
@@ -1172,7 +1145,7 @@ export function EditorShell() {
 
             {mobilePanel === "layers" ? (
               <div className="editor-mobile-panel-inner">
-                <LeftSidebar />
+                <LeftSidebar workspaceId={workspaceIdFromUrl} />
               </div>
             ) : null}
 

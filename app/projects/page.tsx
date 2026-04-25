@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import { ProfileMenu } from "@/components/profile/ProfileMenu";
-import { supabase } from "@/lib/supabaseClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { CustomCursor } from "@/components/landing/custom-cursor";
@@ -365,6 +364,7 @@ function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
 
 export default function ProjectsDashboard() {
   const router = useRouter();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [activeSection, setActiveSection] = useState<SectionKey>("my-projects");
   const [searchQuery, setSearchQuery] = useState("");
   const [myProjects, setMyProjects] = useState<ProjectRow[]>([]);
@@ -666,7 +666,7 @@ export default function ProjectsDashboard() {
 
   async function handleCreateProject() {
     if (!currentUserId) {
-      setErrorMessage("Unable to create project right now. Please refresh once.");
+      setErrorMessage("Unable to create project: user not authenticated. Please refresh or log in again.");
       return;
     }
 
@@ -682,7 +682,9 @@ export default function ProjectsDashboard() {
     const name = `Untitled Project ${projectCount}`;
     const nowIso = new Date().toISOString();
 
+    // Only allow local mode if explicitly offline
     if (usingLocalMode) {
+      setErrorMessage("You are in offline/local mode. New projects will only be saved locally and will not sync to your account until you are back online.");
       const localProject: ProjectRow = {
         id: `local-${Date.now()}`,
         name,
@@ -706,20 +708,7 @@ export default function ProjectsDashboard() {
       .single();
 
     if (error || !data) {
-      const localProject: ProjectRow = {
-        id: `local-${Date.now()}`,
-        name,
-        owner_id: currentUserId,
-        created_at: nowIso,
-        updated_at: nowIso,
-        storage: "local",
-      };
-
-      upsertLocalProject(localProject);
-      setMyProjects((prev) => [localProject, ...prev]);
-      setPreviewMap((prev) => ({ ...prev, [localProject.id]: [] }));
-      setUsingLocalMode(true);
-      setErrorMessage(null);
+      setErrorMessage("Failed to create project on the server. Please check your connection or try again. Your project was NOT saved.");
       setCreatingProject(false);
       return;
     }
