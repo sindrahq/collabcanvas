@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import type { WorkspaceComment } from "@/lib/comments";
+import { ElementTimeTravelSlider } from "@/components/editor/element-time-travel";
 
 const TYPE_ICONS = {
   rectangle: RectangleHorizontal,
@@ -480,6 +481,8 @@ export function RightSidebar({
                 </div>
               </div>
             )}
+
+            <ElementTimeTravelSlider />
 
             {selectedElement.locked && (
               <div className="inspector-lock-notice">

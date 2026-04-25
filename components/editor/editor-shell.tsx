@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Download, LoaderCircle, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
+import { Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -26,6 +26,7 @@ import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -175,6 +176,7 @@ export function EditorShell() {
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -656,6 +658,21 @@ export function EditorShell() {
     return unsubscribe;
   }, [currentUserMeta.user_id]);
 
+  // Remove stale cursors after 3 seconds of inactivity
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemoteCursors((prev) => {
+        const now = Date.now();
+        const next: typeof prev = {};
+        for (const [uid, cursor] of Object.entries(prev)) {
+          if (now - cursor.updatedAt < 3000) next[uid] = cursor;
+        }
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser || !canEdit) return;
 
@@ -1020,6 +1037,15 @@ export function EditorShell() {
             
             <button
               type="button"
+              className="toolbar-button"
+              onClick={() => setPreviewOpen(true)}
+              title="Multi-screen preview"
+            >
+              <Monitor size={14} />
+              <span>Preview</span>
+            </button>
+            <button
+              type="button"
               className="toolbar-button editor-share-button"
               onClick={() => setShareDialogOpen(true)}
               title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
@@ -1217,6 +1243,8 @@ export function EditorShell() {
             ) : null}
           </div>
         </div>
+
+        <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
 
         {workspace?.id ? (
           <ShareDialog

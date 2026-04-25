@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
   Arrow as KonvaArrow,
+  Circle,
   Ellipse,
   Layer,
   Line as KonvaLine,
@@ -16,6 +17,7 @@ import {
   Path as KonvaPath,
 } from "react-konva";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
+import type { PresenceMeta } from "@/lib/collaboration";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { CustomContextMenu } from "./context-menu";
@@ -98,6 +100,15 @@ const PENCIL_CURSOR =`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 
 const STAGE_SCALE = 1.6;
 
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -177,7 +188,15 @@ function getKonvaFontStyle(element: CanvasElement) {
   return parts.length ? parts.join(" ") : "normal";
 }
 
-export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
+export function KonvaStageWorkspace({
+  zoom = 1,
+  remoteCursors,
+  presences,
+}: {
+  zoom?: number;
+  remoteCursors?: Record<string, { x: number; y: number; updatedAt: number }>;
+  presences?: Record<string, PresenceMeta>;
+}) {
   const elements = useWorkspaceStore((state) => state.elements);
   const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
   const selectElement = useWorkspaceStore((state) => state.selectElement);
@@ -978,6 +997,30 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               ]}
             />
           </Layer>
+
+          {remoteCursors && Object.keys(remoteCursors).length > 0 && (
+            <Layer listening={false}>
+              {Object.entries(remoteCursors).map(([userId, cursor]) => {
+                const color = presences?.[userId]?.color ?? "#D3A5B1";
+                const x = cursor.x * STAGE_WIDTH;
+                const y = cursor.y * STAGE_HEIGHT;
+                return (
+                  <Circle
+                    key={userId}
+                    x={x}
+                    y={y}
+                    radius={88}
+                    fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                    fillRadialGradientStartRadius={0}
+                    fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                    fillRadialGradientEndRadius={88}
+                    fillRadialGradientColorStops={[0, hexToRgba(color, 0.45), 0.45, hexToRgba(color, 0.2), 1, hexToRgba(color, 0)]}
+                    listening={false}
+                  />
+                );
+              })}
+            </Layer>
+          )}
         </Stage>
 
         <AnimatePresence>

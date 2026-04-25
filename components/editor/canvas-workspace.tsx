@@ -262,7 +262,7 @@ function getTouchDistance(touches: React.TouchList) {
             broadcastCursor(currentUserId, x, y);
           }}
         >
-          <KonvaStageWorkspace zoom={zoom} />
+          <KonvaStageWorkspace zoom={zoom} remoteCursors={remoteCursors} presences={presences} />
           <RemoteCursors
             cursors={remoteCursors}
             presences={presences}
