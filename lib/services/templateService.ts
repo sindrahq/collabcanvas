@@ -9,6 +9,8 @@ export const templateService = {
   async getAll(): Promise<LayoutTemplate[]> {
     // BACKEND (Friend's part)
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) return [];
+    
     const { data, error } = await supabase
       .from('templates')
       .select('*')
@@ -26,6 +28,8 @@ export const templateService = {
 
     // BACKEND (Friend's part)
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) throw new Error("Supabase client not initialized");
+    
     const { data, error } = await supabase
       .from('templates')
       .insert([newTemplate])
@@ -38,6 +42,6 @@ export const templateService = {
   async delete(id: string): Promise<void> {
     // BACKEND
     const supabase = createSupabaseBrowserClient();
-    await supabase.from('templates').delete().eq('id', id);
+    if (supabase) await supabase.from('templates').delete().eq('id', id);
   }
 };

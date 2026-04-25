@@ -109,6 +109,7 @@ type WorkspaceState = {
   redo: () => void;
   snapToGrid: boolean;
   toggleSnapToGrid: () => void;
+  resetWorkspaceState: () => void;
 };
 
 // ── Defaults ───────────────────────────────────────────────────────────────
@@ -627,6 +628,22 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const selectedElementId = next.find((el) => el.id === state.selectedElementId)
             ? state.selectedElementId : null;
           return { ...setElementCollections(next), selectedElementId };
+        }),
+
+      resetWorkspaceState: () =>
+        set({
+          workspace: null,
+          workspaceName: "My Workspace",
+          accessLevel: "edit",
+          canEdit: true,
+          elements: [],
+          elementList: [],
+          selectedElementId: null,
+          loading: false,
+          history: [],
+          historyIndex: -1,
+          canvasBackground: "#fffdf8",
+          canvasDimensions: { width: 1280, height: 800 },
         }),
 
       setLoading: (loading) => set({ loading }),

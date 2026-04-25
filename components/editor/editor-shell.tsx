@@ -283,6 +283,11 @@ export function EditorShell() {
     }
   }
 
+  function handleWorkspaceRenameCancel() {
+    setWorkspaceNameDraft(workspaceName);
+    setIsRenamingWorkspace(false);
+  }
+
   useEffect(() => {
     if (!browserClient) {
       setAuthChecked(true);
@@ -332,7 +337,7 @@ export function EditorShell() {
     currentStore.resetWorkspaceState();
     currentStore.setWorkspace({
       id: workspaceIdFromUrl,
-      name: store.workspaceName || "Untitled Project",
+      name: currentStore.workspaceName || "Untitled Project",
       owner_id: "__loading__",
     });
 
@@ -1216,7 +1221,7 @@ export function EditorShell() {
           />
         ) : null}
 
-        <VoiceCommandManager workspaceId={workspace.id} />
+        {workspace && <VoiceCommandManager workspaceId={workspace.id} />}
       </motion.section>
     </main>
   );

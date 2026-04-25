@@ -4,7 +4,7 @@ import type { PresenceMeta } from "@/lib/collaboration";
 import { useState, useEffect } from "react";
 import { AudioIndicator } from "./AudioIndicator";
 import { Mic } from "lucide-react";
-// import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
+import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
 
 type AvatarStackProps = {
 	presences: Record<string, PresenceMeta>;
@@ -28,19 +28,17 @@ function LiveKitConnection({ room, identity }: { room: string; identity: string 
 		})();
 	}, [room, identity]);
 
-	// if (!token) return null;
+	if (!token) return null;
 
 	return (
-        null
-		// <!-- LiveKit temporarily disabled to fix uninstalled module error -->
-		// <LiveKitRoom
-		// 	token={token}
-		// 	serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-		// 	connect={true}
-		// 	audio={true}
-		// >
-		// 	<RoomAudioRenderer />
-		// </LiveKitRoom>
+		<LiveKitRoom
+			token={token}
+			serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+			connect={true}
+			audio={true}
+		>
+			<RoomAudioRenderer />
+		</LiveKitRoom>
 	);
 }
 

@@ -7,7 +7,7 @@ import {
   Circle, Clock3, Italic, Lock, Minus, MessageSquare, MousePointer2, Palette,
   RectangleHorizontal, RotateCw, Send, Star, Triangle, Type, LayoutGrid
 } from "lucide-react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import type { WorkspaceComment } from "@/lib/comments";
 
 const TYPE_ICONS = {
