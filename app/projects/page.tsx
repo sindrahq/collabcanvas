@@ -745,13 +745,8 @@ function ProjectsDashboardContent() {
       .select("*")
       .single();
 
-<<<<<<< HEAD
-    if (error || !data) {
-      setErrorMessage("Failed to create project on the server. Please check your connection or try again. Your project was NOT saved.");
-=======
     if (workspaceError || !workspace) {
-      setErrorMessage("Could not create project. Please try again.");
->>>>>>> develop
+      setErrorMessage("Failed to create project on the server. Please check your connection or try again. Your project was NOT saved.");
       setCreatingProject(false);
       return;
     }

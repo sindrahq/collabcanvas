@@ -108,6 +108,7 @@ const ALIGNMENTS = [
   { align: "right" as const, icon: AlignRight },
 ];
 
+export function Toolbar({
   workspaceId,
   workspaceName,
   layout = "horizontal",

@@ -4,14 +4,15 @@ import React, { useEffect, useState } from "react";
 import { Layout, Plus, Trash2, Search } from "lucide-react";
 import { templateService } from "@/lib/services/templateService";
 import { LayoutTemplate } from "@/types/template";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function TemplatePanel() {
+export function TemplatePanel({ workspaceId }: { workspaceId: string }) {
   const [templates, setTemplates] = useState<LayoutTemplate[]>([]);
   const [search, setSearch] = useState("");
-  const addElement = useWorkspaceStore((state) => state.addElement);
-  const elements = useWorkspaceStore((state) => state.elements);
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const addElement = store((state) => state.addElement);
+  const elements = store((state) => state.elements);
 
   const loadTemplates = async () => {
     const data = await templateService.getAll();
@@ -37,7 +38,7 @@ export function TemplatePanel() {
 
     template.elements.forEach((el) => {
       const { id, ...rest } = el;
-      useWorkspaceStore.getState().addElement(el.type, {
+      store.getState().addElement(el.type, {
         ...rest,
         id: idMap[el.id],
         x: el.x + offset,

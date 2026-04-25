@@ -120,13 +120,14 @@ export function RightSidebar({
   onAddComment: (message: string, targetElementId: string | null) => Promise<void>;
   mode?: "full" | "inspector" | "comments";
 }) {
-  const elements           = useWorkspaceStore((s) => s.elements);
-  const selectedElementId  = useWorkspaceStore((s) => s.selectedElementId);
-  const updateElementStyle = useWorkspaceStore((s) => s.updateElementStyle);
-  const updateElement      = useWorkspaceStore((s) => s.updateElement);
-  const canvasBackground   = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canEdit            = useWorkspaceStore((s) => s.canEdit);
+  const store = useWorkspaceStoreFactory(workspaceId ?? "default");
+  const elements           = store((s) => s.elements);
+  const selectedElementId  = store((s) => s.selectedElementId);
+  const updateElementStyle = store((s) => s.updateElementStyle);
+  const updateElement      = store((s) => s.updateElement);
+  const canvasBackground   = store((s) => s.canvasBackground);
+  const setCanvasBackground = store((s) => s.setCanvasBackground);
+  const canEdit            = store((s) => s.canEdit);
 
   const selectedElement = useMemo(
     () => elements.find((el) => el.id === selectedElementId) ?? null,

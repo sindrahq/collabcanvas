@@ -1,5 +1,5 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { type CanvasElement, useWorkspaceStore } from "../store/workspaceStore";
+import { type CanvasElement, getOrCreateWorkspaceStore } from "../store/workspaceStore";
 
 export type WorkspaceHistorySnapshot = {
 	id: string;
@@ -92,7 +92,7 @@ export async function loadWorkspaceHistorySnapshots(
 }
 
 export function restoreWorkspaceHistorySnapshot(snapshot: WorkspaceHistorySnapshot): void {
-	const store = useWorkspaceStore.getState();
+	const store = getOrCreateWorkspaceStore(snapshot.workspaceId).getState();
 	store.setElements(snapshot.elements);
 	store.setSelectedElementId(snapshot.selectedElementId);
 }

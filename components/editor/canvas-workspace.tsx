@@ -10,11 +10,7 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
-<<<<<<< HEAD
 import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
-=======
-import { useWorkspaceStore } from "@/store/workspaceStore";
->>>>>>> develop
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -41,7 +37,6 @@ type CanvasWorkspaceProps = {
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
 };
 
-<<<<<<< HEAD
 export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
   const store = useWorkspaceStoreFactory(workspaceId);
   const elementCount        = store((s) => s.elements.length);
@@ -49,15 +44,7 @@ export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteC
   const setCanvasBackground = store((s) => s.setCanvasBackground);
   const canvasDimensions    = store((s) => s.canvasDimensions);
   const canEdit             = store((s) => s.canEdit);
-=======
-export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
-  const elementCount        = useWorkspaceStore((s) => s.elements.length);
-  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
-  const canEdit             = useWorkspaceStore((s) => s.canEdit);
-  const elements            = useWorkspaceStore((s) => s.elements);
->>>>>>> develop
+  const elements            = store((s) => s.elements);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -277,7 +264,7 @@ function getTouchDistance(touches: React.TouchList) {
             broadcastCursor(currentUserId, x, y);
           }}
         >
-          <KonvaStageWorkspace zoom={zoom} />
+          <KonvaStageWorkspace workspaceId={workspaceId} zoom={zoom} />
           <RemoteCursors
             cursors={remoteCursors}
             presences={presences}

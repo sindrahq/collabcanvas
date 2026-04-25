@@ -268,6 +268,21 @@ export function EditorShell() {
           error?: string;
           workspace?: { id: string; name: string; owner_id: string };
         };
+        if (payload.error || !payload.workspace) {
+          throw new Error(payload.error || "Update failed");
+        }
+      }
+
+      setWorkspaceNameDraft(nextName);
+      store.getState().setWorkspace({ ...workspace, name: nextName });
+      setIsRenamingWorkspace(false);
+    } catch (e) {
+      setWorkspaceNameDraft(workspaceName);
+    } finally {
+      setWorkspaceRenameSaving(false);
+    }
+  }
+
   useEffect(() => {
     if (!browserClient) {
       setAuthChecked(true);
@@ -312,10 +327,10 @@ export function EditorShell() {
   useEffect(() => {
     if (!workspaceIdFromUrl || !authUser) return;
 
-    const store = useWorkspaceStore.getState();
+    const currentStore = store.getState();
     // Reset all workspace state before loading a new workspace
-    store.resetWorkspaceState();
-    store.setWorkspace({
+    currentStore.resetWorkspaceState();
+    currentStore.setWorkspace({
       id: workspaceIdFromUrl,
       name: store.workspaceName || "Untitled Project",
       owner_id: "__loading__",
@@ -555,7 +570,7 @@ export function EditorShell() {
       window.localStorage.removeItem(localCommentsKey);
     }
 
-    useWorkspaceStore.getState().setWorkspace({
+    store.getState().setWorkspace({
       id: createdWorkspace.id,
       name: createdWorkspace.name,
       owner_id: createdWorkspace.owner_id,
@@ -1036,7 +1051,7 @@ export function EditorShell() {
                       className="toolbar-menu-item"
                       onClick={() => {
                         setExportMenuOpen(false);
-                        void exportWorkspaceAsPng(`${fileBase}.png`);
+                        if (workspace) void exportWorkspaceAsPng(workspace.id, `${fileBase}.png`);
                       }}
                     >
                       PNG
@@ -1046,7 +1061,7 @@ export function EditorShell() {
                       className="toolbar-menu-item"
                       onClick={() => {
                         setExportMenuOpen(false);
-                        void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                        if (workspace) void exportWorkspaceAsJpeg(workspace.id, `${fileBase}.jpeg`);
                       }}
                     >
                       JPEG
@@ -1056,7 +1071,7 @@ export function EditorShell() {
                       className="toolbar-menu-item"
                       onClick={() => {
                         setExportMenuOpen(false);
-                        void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                        if (workspace) void exportWorkspaceAsPdf(workspace.id, `${fileBase}.pdf`);
                       }}
                     >
                       PDF
@@ -1201,7 +1216,7 @@ export function EditorShell() {
           />
         ) : null}
 
-        <VoiceCommandManager />
+        <VoiceCommandManager workspaceId={workspace.id} />
       </motion.section>
     </main>
   );

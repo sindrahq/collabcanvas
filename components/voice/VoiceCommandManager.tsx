@@ -5,7 +5,7 @@ import { Mic, MicOff, Volume2 } from "lucide-react";
 import { processVoiceCommand } from "@/lib/voice/commandProcessor";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function VoiceCommandManager() {
+export function VoiceCommandManager({ workspaceId }: { workspaceId: string }) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export function VoiceCommandManager() {
       const text = current[0].transcript.toLowerCase();
       setTranscript(text);
 
-      const actionResult = processVoiceCommand(text);
+      const actionResult = processVoiceCommand(workspaceId, text);
       if (actionResult) {
         setFeedback(actionResult);
         setTimeout(() => setFeedback(null), 3000);
