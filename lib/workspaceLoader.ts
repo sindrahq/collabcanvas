@@ -37,8 +37,9 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
       shadowBlur: 12,
       shadowColor: "#00000033",
       shadowOffsetX: 0,
-      shadowOffsetY: 4
-    }
+      shadowOffsetY: 4,
+      imageUrl: (style as any).imageUrl ?? undefined
+    } as any
   };
 }
 

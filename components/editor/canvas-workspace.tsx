@@ -10,8 +10,11 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
+<<<<<<< HEAD
 import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
-import { FramePicker } from "@/components/editor/frame-picker";
+=======
+import { useWorkspaceStore } from "@/store/workspaceStore";
+>>>>>>> develop
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -38,6 +41,7 @@ type CanvasWorkspaceProps = {
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
 };
 
+<<<<<<< HEAD
 export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
   const store = useWorkspaceStoreFactory(workspaceId);
   const elementCount        = store((s) => s.elements.length);
@@ -45,6 +49,15 @@ export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteC
   const setCanvasBackground = store((s) => s.setCanvasBackground);
   const canvasDimensions    = store((s) => s.canvasDimensions);
   const canEdit             = store((s) => s.canEdit);
+=======
+export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+  const elementCount        = useWorkspaceStore((s) => s.elements.length);
+  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
+  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
+  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
+  const canEdit             = useWorkspaceStore((s) => s.canEdit);
+  const elements            = useWorkspaceStore((s) => s.elements);
+>>>>>>> develop
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -114,6 +127,27 @@ export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteC
     return () => node.removeEventListener("wheel", handleWheel);
   }, []);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key === "=" || event.key === "+") {
+        event.preventDefault();
+        setAutoFitEnabled(false);
+        setZoom((z) => Math.min(MAX_ZOOM, parseFloat((z + ZOOM_STEP).toFixed(2))));
+      } else if (event.key === "-") {
+        event.preventDefault();
+        setAutoFitEnabled(false);
+        setZoom((z) => Math.max(MIN_ZOOM, parseFloat((z - ZOOM_STEP).toFixed(2))));
+      } else if (event.key === "0") {
+        event.preventDefault();
+        setAutoFitEnabled(false);
+        setZoom(1);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
 function getTouchDistance(touches: React.TouchList) {
   if (touches.length < 2) return 0;
   const first = touches.item(0);
@@ -180,7 +214,6 @@ function getTouchDistance(touches: React.TouchList) {
             <strong>{elementCount}</strong>
             <span>{elementCount === 1 ? "element" : "elements"}</span>
           </div>
-          <FramePicker />
           <div className="canvas-bg-picker" title="Canvas background color">
             <Palette size={13} />
             <input

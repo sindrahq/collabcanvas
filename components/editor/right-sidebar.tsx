@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowRight, Bold,
   Circle, Clock3, Italic, Lock, Minus, MessageSquare, MousePointer2, Palette,
-  RectangleHorizontal, RotateCw, Send, Star, Triangle, Type,
+  RectangleHorizontal, RotateCw, Send, Star, Triangle, Type, LayoutGrid
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import type { WorkspaceComment } from "@/lib/comments";
@@ -245,6 +245,75 @@ export function RightSidebar({
                 ))}
               </div>
             </div>
+
+            {/* Smart Frame Layout */}
+            {selectedElement.type === "frame" && selectedElement.layoutProps && (
+              <div className="inspector-section">
+                <div className="inspector-section-title">
+                  <LayoutGrid size={12} /><span>Auto-Layout</span>
+                </div>
+                
+                <div className="inspector-row" style={{ marginBottom: 10 }}>
+                  <label className="inspector-label">Direction</label>
+                  <div className="inspector-toggle-group">
+                    <button
+                      type="button"
+                      className={`inspector-toggle-btn${selectedElement.layoutProps.direction === "horizontal" ? " active" : ""}`}
+                      onClick={() => updateElement(selectedElement.id, { 
+                        layoutProps: { ...selectedElement.layoutProps!, direction: "horizontal" } 
+                      })}
+                      disabled={!canEdit}
+                    >
+                      Horizontal
+                    </button>
+                    <button
+                      type="button"
+                      className={`inspector-toggle-btn${selectedElement.layoutProps.direction === "vertical" ? " active" : ""}`}
+                      onClick={() => updateElement(selectedElement.id, { 
+                        layoutProps: { ...selectedElement.layoutProps!, direction: "vertical" } 
+                      })}
+                      disabled={!canEdit}
+                    >
+                      Vertical
+                    </button>
+                  </div>
+                </div>
+
+                <SliderRow 
+                  label="Padding" 
+                  value={selectedElement.layoutProps.padding}
+                  min={0} max={100} display={`${selectedElement.layoutProps.padding}px`}
+                  onChange={(v) => updateElement(selectedElement.id, { 
+                    layoutProps: { ...selectedElement.layoutProps!, padding: v } 
+                  })}
+                  disabled={!canEdit} 
+                />
+                
+                <SliderRow 
+                  label="Gap" 
+                  value={selectedElement.layoutProps.gap}
+                  min={0} max={100} display={`${selectedElement.layoutProps.gap}px`}
+                  onChange={(v) => updateElement(selectedElement.id, { 
+                    layoutProps: { ...selectedElement.layoutProps!, gap: v } 
+                  })}
+                  disabled={!canEdit} 
+                />
+
+                <div className="inspector-row">
+                  <label className="inspector-label">Auto Resize</label>
+                  <button
+                    type="button"
+                    className={`inspector-toggle-btn${selectedElement.layoutProps.autoResize ? " active" : ""}`}
+                    onClick={() => updateElement(selectedElement.id, { 
+                      layoutProps: { ...selectedElement.layoutProps!, autoResize: !selectedElement.layoutProps!.autoResize } 
+                    })}
+                    disabled={!canEdit}
+                  >
+                    {selectedElement.layoutProps.autoResize ? "On" : "Off"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Appearance */}
             <div className="inspector-section">
