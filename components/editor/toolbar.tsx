@@ -11,6 +11,7 @@ import {
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { SmartCropModal } from "./smart-crop";
+import { FramePicker } from "./frame-picker";
 import React, { useRef, useState } from "react";
 
 
@@ -384,8 +385,8 @@ export function Toolbar({
 
           {/* Frame subheading */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Frame</span>
-          <div style={{ margin: '6px 0 0 0' }}>
-             <motion.button
+          <div style={{ margin: '6px 0 0 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <motion.button
               type="button"
               className="toolbar-icon-btn"
               style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(211, 165, 177, 0.15)', color: '#8b7355' }}
@@ -396,6 +397,7 @@ export function Toolbar({
             >
               <LayoutGrid size={18} />
             </motion.button>
+            <FramePicker />
           </div>
         </div>
       ) : null}
