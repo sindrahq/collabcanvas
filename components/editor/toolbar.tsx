@@ -2,11 +2,11 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlignCenter, AlignLeft, AlignRight, ArrowRight,
+  AlignCenter, AlignLeft, AlignRight, ArrowRight, BarChart2,
   Baseline, Bold, Circle, Copy, Crop, Eraser,
   Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
-  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon
+  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
@@ -69,6 +69,52 @@ function UploadPictureButton() {
         </button>
       </GlassTooltip>
       {uploadError && <div style={{ color: "#c00", fontSize: 11 }}>{uploadError}</div>}
+    </div>
+  );
+}
+
+function AddVideoButton() {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const addElement = useWorkspaceStore((s) => s.addElement);
+
+  function handleAdd() {
+    if (!url.trim()) return;
+    addElement("video", { videoUrl: url.trim(), trimStart: 0, trimEnd: 0 } as never);
+    setUrl("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <GlassTooltip content="Add Video">
+        <button
+          type="button"
+          className="toolbar-icon-btn toolbar-shape-btn"
+          onClick={() => setOpen(true)}
+        >
+          <Video size={15} />
+        </button>
+      </GlassTooltip>
+    );
+  }
+
+  return (
+    <div className="video-url-popover">
+      <input
+        type="url"
+        className="video-url-input"
+        placeholder="Paste video URL…"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleAdd();
+          if (e.key === "Escape") setOpen(false);
+        }}
+        autoFocus
+      />
+      <button type="button" className="video-url-add-btn" onClick={handleAdd} disabled={!url.trim()}>Add</button>
+      <button type="button" className="video-url-cancel-btn" onClick={() => setOpen(false)}>✕</button>
     </div>
   );
 }
@@ -302,10 +348,11 @@ export function Toolbar({
 
           {/* Upload subheading and icon */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Upload</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <UploadPictureButton />
             </motion.div>
+            <AddVideoButton />
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
@@ -382,6 +429,28 @@ export function Toolbar({
             </div>
           )}
           <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Charts */}
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+          <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Charts</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(["bar", "line", "pie"] as const).map((ct) => (
+              <GlassTooltip key={ct} content={`${ct.charAt(0).toUpperCase() + ct.slice(1)} Chart`}>
+                <motion.button
+                  type="button"
+                  className="toolbar-icon-btn"
+                  style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(211, 165, 177, 0.15)', color: '#8b7355', fontSize: 10, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}
+                  onClick={() => addElement("chart", { chartType: ct } as any)}
+                  disabled={!canEdit}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <BarChart2 size={14} />
+                  <span style={{ fontSize: 8 }}>{ct}</span>
+                </motion.button>
+              </GlassTooltip>
+            ))}
+          </div>
 
           {/* Frame subheading */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Frame</span>
