@@ -955,7 +955,24 @@ export function EditorShell() {
         >
           <div className="editor-topbar-left min-w-0">
             <div className="flex items-center gap-3">
-              <div className="editor-logo-mark" />
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+                  {workspace?.owner_id !== authUser.id ? (
+                    <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
+                      {accessLevel}
+                    </span>
+                  ) : (
+                    <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 opacity-60">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
+                  <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+                    {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+                  </span>
+                </div>
+              </div>
               <div className="workspace-name-wrap">
                 {isRenamingWorkspace ? (
                   <>
@@ -1015,7 +1032,7 @@ export function EditorShell() {
           </div>
 
           <div className="editor-topbar-center">
-            <div className="flex items-center gap-1 bg-[#D3A5B1]/5 rounded-full px-1 py-1 border border-[#D3A5B1]/10 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
               {NAV_SECTIONS.map((section) => {
                 const Icon = section.icon;
                 const active = activeSection === section.id;
@@ -1024,13 +1041,13 @@ export function EditorShell() {
                     <motion.button
                       type="button"
                       onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ${
+                      className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
                         active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
                       }`}
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.93 }}
                     >
-                      <Icon size={15} strokeWidth={active ? 2.5 : 2} />
+                      <Icon size={18} strokeWidth={active ? 2.5 : 2} />
                     </motion.button>
                   </GlassTooltip>
                 );
@@ -1039,25 +1056,6 @@ export function EditorShell() {
           </div>
 
           <div className="editor-topbar-right min-w-0">
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2">
-                <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-                {workspace?.owner_id !== authUser.id ? (
-                  <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
-                    {accessLevel}
-                  </span>
-                ) : (
-                  <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 opacity-60 hidden lg:flex">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
-                <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
-                  {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
-                </span>
-              </div>
-            </div>
-            
             <button
               type="button"
               className="toolbar-button"
@@ -1097,61 +1095,49 @@ export function EditorShell() {
             </motion.button>
 
             <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
-              <motion.button
+              <button
                 type="button"
                 className="toolbar-button toolbar-button-compact editor-export-button"
                 onClick={() => setExportMenuOpen((open) => !open)}
                 title="Export workspace"
-                whileHover={{ y: -1, scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
               >
                 <Download size={14} />
                 <span className="">Export</span>
                 <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-              </motion.button>
+              </button>
 
-              <AnimatePresence>
-                {exportMenuOpen ? (
-                  <motion.div
-                    className="toolbar-menu-list"
-                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.16 }}
-                  >
-                    <button
-                      type="button"
-                      className="toolbar-menu-item"
-                      onClick={() => {
-                        setExportMenuOpen(false);
-                        void exportWorkspaceAsPng(`${fileBase}.png`);
-                      }}
-                    >
-                      PNG
-                    </button>
-                    <button
-                      type="button"
-                      className="toolbar-menu-item"
-                      onClick={() => {
-                        setExportMenuOpen(false);
-                        void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                      }}
-                    >
-                      JPEG
-                    </button>
-                    <button
-                      type="button"
-                      className="toolbar-menu-item"
-                      onClick={() => {
-                        setExportMenuOpen(false);
-                        void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                      }}
-                    >
-                      PDF
-                    </button>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
+              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsPng(`${fileBase}.png`);
+                  }}
+                >
+                  PNG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                  }}
+                >
+                  JPEG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                  }}
+                >
+                  PDF
+                </button>
+              </div>
             </div>
             <AutoSaveBadge status={saveStatus} />
             <ProfileMenu

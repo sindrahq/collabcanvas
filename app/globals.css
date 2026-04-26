@@ -165,24 +165,25 @@ body.cc-workspace-theme .editor-topbar {
   justify-content: space-between !important;
   position: relative;
   z-index: 1000;
-  height: 64px;
-  gap: 0 !important;
-  isolation: isolate;
-  overflow: visible !important; /* Allow dropdowns to show */
+  height: 72px;
+  gap: 8px !important;
+  overflow: visible !important;
 }
 
-/* Ensure the export menu aligns correctly to the right edge */
+/* Export dropdown */
+body.cc-workspace-theme .editor-export-menu {
+  position: relative;
+  z-index: 2000;
+}
 body.cc-workspace-theme .editor-export-menu .toolbar-menu-list {
   left: auto;
   right: 0;
   top: calc(100% + 12px);
-  z-index: 9999 !important;
-  display: block !important;
+  z-index: 9999;
+  display: none;
 }
-
-body.cc-workspace-theme .editor-export-menu {
-  position: relative;
-  z-index: 2000 !important;
+body.cc-workspace-theme .editor-export-menu .toolbar-menu-list.open {
+  display: block;
 }
 
 body.cc-workspace-theme .editor-topbar-left {
@@ -211,9 +212,9 @@ body.cc-workspace-theme .editor-topbar-center {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 20;
-  min-width: 0;
+  flex-shrink: 0;
   overflow: visible;
+  margin-right: 40px;
 }
 
 body.cc-workspace-theme .editor-topbar-center > div {
@@ -238,10 +239,6 @@ body.cc-workspace-theme .editor-topbar-right {
   justify-self: end;
 }
 
-body.cc-workspace-theme .editor-export-menu {
-  position: relative;
-  z-index: 1001;
-}
 
 @media (max-width: 1550px) {
   body.cc-workspace-theme .workspace-name-wrap {
@@ -2193,11 +2190,10 @@ body.cc-workspace-theme .editor-topbar {
 }
 
 .editor-topbar-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  position: static;
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .nav-pill-btn {
@@ -2223,7 +2219,7 @@ body.cc-workspace-theme .editor-topbar-right {
   flex-wrap: nowrap;
   justify-content: flex-end;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 body.cc-workspace-theme .workspace-brand,
