@@ -11,7 +11,6 @@ import {
   type PresenceMeta
 } from "@/lib/collaboration";
 import { useWorkspaceStore } from "@/store/workspaceStore";
-import { FramePicker } from "@/components/editor/frame-picker";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -43,6 +42,7 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
   const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
   const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
   const canEdit             = useWorkspaceStore((s) => s.canEdit);
+  const elements            = useWorkspaceStore((s) => s.elements);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -200,7 +200,6 @@ function getTouchDistance(touches: React.TouchList) {
             <strong>{elementCount}</strong>
             <span>{elementCount === 1 ? "element" : "elements"}</span>
           </div>
-          <FramePicker />
           <div className="canvas-bg-picker" title="Canvas background color">
             <Palette size={13} />
             <input
@@ -264,7 +263,7 @@ function getTouchDistance(touches: React.TouchList) {
             broadcastCursor(currentUserId, x, y);
           }}
         >
-          <KonvaStageWorkspace zoom={zoom} />
+          <KonvaStageWorkspace zoom={zoom} remoteCursors={remoteCursors} presences={presences} />
           <RemoteCursors
             cursors={remoteCursors}
             presences={presences}

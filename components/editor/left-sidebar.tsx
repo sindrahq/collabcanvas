@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
-  Layers, Lock, Minus, Pencil, RectangleHorizontal, Star, Triangle, Type, Unlock
+  Layers, Lock, Layout, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock,
+  Hexagon, Heart, Cloud, Square, Diamond, Shield, Octagon, Zap, Sun, Moon, Pencil
 } from "lucide-react";
 import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
 
@@ -17,6 +18,17 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number;
   arrow: ArrowRight,
   line: Minus,
   image: RectangleHorizontal,
+  diamond: Diamond,
+  hexagon: Hexagon,
+  pentagon: Hexagon,
+  heart: Heart,
+  cloud: Cloud,
+  shield: Shield,
+  octagon: Octagon,
+  zap: Zap,
+  sun: Sun,
+  moon: Moon,
+  frame: Layout,
   pencil: Pencil,
 };
 

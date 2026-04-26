@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Download, LoaderCircle, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal } from "lucide-react";
+import { Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -26,10 +26,14 @@ import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
 import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
+import { InteractiveTutorial } from "@/components/ui/interactive-tutorial";
+import { VoiceCommandManager } from "@/components/voice/VoiceCommandManager";
+import { Bookmark } from "lucide-react";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -60,6 +64,7 @@ const NAV_SECTIONS: Array<{
   { id: "actions", label: "Add", icon: LayoutGrid },
   { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
   { id: "comments", label: "Comments", icon: MessageSquare },
+  { id: "templates", label: "Templates", icon: Bookmark },
 ];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
@@ -171,6 +176,7 @@ export function EditorShell() {
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -652,6 +658,21 @@ export function EditorShell() {
     return unsubscribe;
   }, [currentUserMeta.user_id]);
 
+  // Remove stale cursors after 3 seconds of inactivity
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemoteCursors((prev) => {
+        const now = Date.now();
+        const next: typeof prev = {};
+        for (const [uid, cursor] of Object.entries(prev)) {
+          if (now - cursor.updatedAt < 3000) next[uid] = cursor;
+        }
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser || !canEdit) return;
 
@@ -713,6 +734,7 @@ export function EditorShell() {
               shadowColor: element.style.shadowColor,
               shadowOffsetX: element.style.shadowOffsetX,
               shadowOffsetY: element.style.shadowOffsetY,
+              imageUrl: (element.style as any).imageUrl ?? null,
             },
             layer_order: element.layerOrder,
             visible: element.visible,
@@ -894,6 +916,7 @@ export function EditorShell() {
       <AccumulatedPetals />
       <div className="workspace-aura" aria-hidden="true" />
       <CustomCursor />
+      <InteractiveTutorial />
       <motion.section
         className="editor-shell relative z-10"
         initial={{ opacity: 0, y: 12 }}
@@ -902,15 +925,11 @@ export function EditorShell() {
       >
         <motion.header
           className="editor-topbar"
-          style={{
-            transition: 'margin-left 0.3s cubic-bezier(0.4,0,0.2,1)',
-            marginLeft: typeof window !== 'undefined' && document.body.classList.contains('sidebar-open') ? 220 : 0,
-          }}
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.06, duration: 0.24 }}
         >
-          <div className="editor-topbar-left flex-1 min-w-0 pr-4">
+          <div className="editor-topbar-left min-w-0">
             <div className="flex items-center gap-3">
               <div className="editor-logo-mark" />
               <div className="workspace-name-wrap">
@@ -971,7 +990,7 @@ export function EditorShell() {
             </div>
           </div>
 
-          <div className="editor-topbar-center flex-shrink-0 flex justify-center px-2">
+          <div className="editor-topbar-center">
             <div className="flex items-center gap-1 bg-[#D3A5B1]/5 rounded-full px-1 py-1 border border-[#D3A5B1]/10 backdrop-blur-md">
               {NAV_SECTIONS.map((section) => {
                 const Icon = section.icon;
@@ -996,8 +1015,8 @@ export function EditorShell() {
             </div>
           </div>
 
-          <div className="editor-topbar-right flex-1 flex justify-end items-center gap-4 min-w-0 pl-4">
-            <div className="flex flex-col items-start gap-1.5 mr-auto">
+          <div className="editor-topbar-right min-w-0">
+            <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
                 <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
                 {workspace?.owner_id !== authUser.id ? (
@@ -1005,10 +1024,10 @@ export function EditorShell() {
                     {accessLevel}
                   </span>
                 ) : (
-                  <span className="editor-owner-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#2d3436] text-white">Owner</span>
+                  <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 opacity-60">
+              <div className="flex items-center gap-1.5 opacity-60 hidden lg:flex">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
                 <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
                   {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
@@ -1018,13 +1037,33 @@ export function EditorShell() {
             
             <button
               type="button"
+              className="toolbar-button"
+              onClick={() => setPreviewOpen(true)}
+              title="Multi-screen preview"
+            >
+              <Monitor size={14} />
+              <span>Preview</span>
+            </button>
+            <button
+              type="button"
               className="toolbar-button editor-share-button"
               onClick={() => setShareDialogOpen(true)}
               title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
             >
               <Share2 size={14} />
-              <span>Share</span>
+              <span className="">Share</span>
             </button>
+            <motion.button
+              type="button"
+              className="toolbar-button"
+              onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
+              title="Help & Tutorial"
+              whileHover={{ y: -1, scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <HelpCircle size={14} />
+            </motion.button>
+
             <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
               <motion.button
                 type="button"
@@ -1035,7 +1074,7 @@ export function EditorShell() {
                 whileTap={{ scale: 0.97 }}
               >
                 <Download size={14} />
-                <span>Export</span>
+                <span className="">Export</span>
                 <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
               </motion.button>
 
@@ -1205,6 +1244,8 @@ export function EditorShell() {
           </div>
         </div>
 
+        <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
+
         {workspace?.id ? (
           <ShareDialog
             workspaceId={workspace.id}
@@ -1214,6 +1255,8 @@ export function EditorShell() {
             onClose={() => setShareDialogOpen(false)}
           />
         ) : null}
+
+        <VoiceCommandManager />
       </motion.section>
     </main>
   );

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
   Arrow as KonvaArrow,
+  Circle,
   Ellipse,
   Layer,
   Line as KonvaLine,
@@ -13,9 +14,11 @@ import {
   Star as KonvaStar,
   Text as KonvaText,
   Transformer,
+  Path as KonvaPath,
 } from "react-konva";
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
-import type Konva from "konva";
+import type { PresenceMeta } from "@/lib/collaboration";
+import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { CustomContextMenu } from "./context-menu";
 
@@ -97,6 +100,15 @@ const PENCIL_CURSOR =`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 
 const STAGE_SCALE = 1.6;
 
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -176,7 +188,15 @@ function getKonvaFontStyle(element: CanvasElement) {
   return parts.length ? parts.join(" ") : "normal";
 }
 
-export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
+export function KonvaStageWorkspace({
+  zoom = 1,
+  remoteCursors,
+  presences,
+}: {
+  zoom?: number;
+  remoteCursors?: Record<string, { x: number; y: number; updatedAt: number }>;
+  presences?: Record<string, PresenceMeta>;
+}) {
   const elements = useWorkspaceStore((state) => state.elements);
   const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
   const selectElement = useWorkspaceStore((state) => state.selectElement);
@@ -184,6 +204,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
   const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
   const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
   const canEdit = useWorkspaceStore((state) => state.canEdit);
+  const snapToGrid = useWorkspaceStore((state) => state.snapToGrid);
   const activeTool = useWorkspaceStore((state) => state.activeTool);
   const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
   const deleteElement = useWorkspaceStore((state) => state.deleteElement);
@@ -267,6 +288,41 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
         const minLayer = Math.min(...elements.map(e => e.layerOrder), 0);
         updateElement(selectedElementId, { layerOrder: minLayer - 1 });
         break;
+      case "group-frame":
+        const target = elements.find(e => e.id === selectedElementId);
+        if (target) {
+          const frameId = `frame-${Math.random().toString(36).substring(2, 11)}`;
+          useWorkspaceStore.getState().addElement("frame", {
+            id: frameId,
+            x: target.x - 20,
+            y: target.y - 20,
+            width: target.width + 40,
+            height: target.height + 40,
+          });
+          setTimeout(() => updateElement(target.id, { parentId: frameId }), 60);
+        }
+        break;
+      case "save-template":
+        const elToSave = elements.find(e => e.id === selectedElementId);
+        if (elToSave) {
+          const name = prompt("Enter template name:", elToSave.name) || "New Template";
+          // If it's a frame, save it and its children
+          const elementsToSave = [elToSave];
+          if (elToSave.type === 'frame') {
+            const children = elements.filter(child => child.parentId === elToSave.id);
+            elementsToSave.push(...children);
+          }
+          
+          import("@/lib/services/templateService").then(({ templateService }) => {
+            templateService.save({
+              name,
+              elements: elementsToSave,
+              user_id: "current-user", // In a real app, get from auth
+            });
+            alert("Template saved!");
+          });
+        }
+        break;
     }
   };
 
@@ -274,6 +330,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
     const transformer = transformerRef.current;
     if (!transformer) return;
 
+    const selectedElement = elements.find(e => e.id === selectedElementId);
     if (!canEdit || !selectedElementId) {
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
@@ -283,7 +340,27 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
     const node = nodeRefs.current[selectedElementId];
     transformer.nodes(node ? [node] : []);
     transformer.getLayer()?.batchDraw();
-  }, [canEdit, orderedElements, selectedElementId]);
+  }, [canEdit, orderedElements, selectedElementId, elements]);
+
+  // Apply filters to shapes
+  useEffect(() => {
+    orderedElements.forEach((element) => {
+      const node = nodeRefs.current[element.id];
+      if (!node) return;
+
+      const hasFilters = element.style.brightness !== 0 || element.style.contrast !== 0;
+      
+      if (hasFilters) {
+        node.filters([Konva.Filters.Brighten, Konva.Filters.Contrast]);
+        node.brightness(element.style.brightness);
+        node.contrast(element.style.contrast);
+        node.cache();
+      } else {
+        node.filters([]);
+        node.clearCache();
+      }
+    });
+  }, [orderedElements]);
 
   return (
     <div className="konva-frame">
@@ -376,13 +453,31 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 draggable: canEdit && !element.locked,
                 visible: element.visible,
                 opacity: element.style.opacity,
+                dragBoundFunc: (pos: any) => {
+                  return {
+                    x: snapToGrid ? Math.round(pos.x / 20) * 20 : pos.x,
+                    y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
+                  };
+                },
                 onClick: () => selectElement(element.id),
                 onTap: () => selectElement(element.id),
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
+                  const stage = event.target.getStage();
+                  const pos = stage?.getPointerPosition();
+                  
+                  // Check if dropped over a frame
+                  const hoverFrame = elements.find(el => 
+                    el.type === 'frame' && el.id !== element.id &&
+                    pos && 
+                    (pos.x * STAGE_SCALE) >= el.x && (pos.x * STAGE_SCALE) <= el.x + el.width &&
+                    (pos.y * STAGE_SCALE) >= el.y && (pos.y * STAGE_SCALE) <= el.y + el.height
+                  );
+
                   updateElement(element.id, {
                     x: event.target.x() * STAGE_SCALE,
                     y: event.target.y() * STAGE_SCALE,
+                    parentId: hoverFrame?.id
                   });
                 },
               };
@@ -392,6 +487,12 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 draggable: canEdit && !element.locked,
                 visible: element.visible,
                 opacity: element.style.opacity,
+                dragBoundFunc: (pos: any) => {
+                  return {
+                    x: snapToGrid ? Math.round(pos.x / 20) * 20 : pos.x,
+                    y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
+                  };
+                },
                 onClick: () => selectElement(element.id),
                 onTap: () => selectElement(element.id),
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
@@ -420,6 +521,30 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     stroke={element.style.stroke}
                     strokeWidth={element.style.strokeWidth}
                     cornerRadius={12}
+                    {...sharedShadow}
+                    onTransformEnd={(event) =>
+                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
+                    }
+                  />
+                );
+              }
+              
+              if (element.type === "frame") {
+                return (
+                  <Rect
+                    key={element.id}
+                    {...commonProps}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    width={elementWidth}
+                    height={elementHeight}
+                    ref={(node) => {
+                      nodeRefs.current[element.id] = node;
+                    }}
+                    fill={element.style.fill}
+                    stroke={element.style.stroke}
+                    strokeWidth={element.style.strokeWidth}
+                    cornerRadius={16}
                     {...sharedShadow}
                     onTransformEnd={(event) =>
                       updateFromTransform(element, event.target as Konva.Rect, updateElement)
@@ -495,6 +620,85 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                         updateElement
                       )
                     }
+                  />
+                );
+              }
+
+              if (element.type === "diamond" || element.type === "hexagon" || element.type === "pentagon" || element.type === "octagon") {
+                const sides = element.type === "diamond" ? 4 : element.type === "hexagon" ? 6 : element.type === "octagon" ? 8 : 5;
+                return (
+                  <RegularPolygon
+                    key={element.id}
+                    {...centerDragProps}
+                    x={centerX}
+                    y={centerY}
+                    sides={sides}
+                    radius={Math.min(elementWidth, elementHeight) / 2}
+                    ref={(node) => {
+                      nodeRefs.current[element.id] = node;
+                    }}
+                    fill={element.style.fill}
+                    stroke={element.style.stroke}
+                    strokeWidth={element.style.strokeWidth}
+                    {...sharedShadow}
+                    onTransformEnd={(event) =>
+                      updateCenterShapeFromTransform(
+                        element,
+                        event.target as Konva.RegularPolygon,
+                        updateElement
+                      )
+                    }
+                  />
+                );
+              }
+
+              if (["heart", "cloud", "shield", "zap", "sun", "moon"].includes(element.type)) {
+                let pathData = "";
+                if (element.type === "heart") {
+                  pathData = "M 50 20 C 50 20 50 0 80 0 C 110 0 110 40 80 60 L 50 90 L 20 60 C -10 40 -10 0 20 0 C 50 0 50 20 50 20 Z";
+                } else if (element.type === "cloud") {
+                  pathData = "M 25,60 A 20,20 0,0,1 15,30 A 20,20 0,0,1 45,15 A 25,25 0,0,1 85,30 A 20,20 0,0,1 75,60 z";
+                } else if (element.type === "shield") {
+                  pathData = "M 50 8.3 L 8.3 29.1 V 50 C 8.3 72.9 22.9 93.7 50 100 C 77.1 93.7 91.7 72.9 91.7 50 V 29.1 L 50 8.3 Z";
+                } else if (element.type === "zap") {
+                  pathData = "M 54.1 8.3 L 12.5 58.3 H 50 L 45.8 91.6 L 87.5 41.6 H 50 L 54.1 8.3 Z";
+                } else if (element.type === "sun") {
+                  pathData = "M 50 8.3 V 20.8 M 50 79.1 V 91.6 M 20.4 20.4 L 29.1 29.1 M 70.8 70.8 L 79.5 79.5 M 8.3 50 H 20.8 M 79.1 50 H 91.6 M 20.4 79.5 L 29.1 70.8 M 70.8 29.1 L 79.5 20.4 M 66.6 50 A 16.6 16.6 0 1 1 33.3 50 A 16.6 16.6 0 0 1 66.6 50 Z";
+                } else if (element.type === "moon") {
+                  pathData = "M 50 12.5 A 37.5 37.5 0 1 0 87.5 50 A 31.25 31.25 0 0 1 50 12.5 Z";
+                }
+                
+                return (
+                  <KonvaPath
+                    key={element.id}
+                    {...commonProps}
+                    data={pathData}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    width={elementWidth}
+                    height={elementHeight}
+                    fill={element.style.fill}
+                    stroke={element.style.stroke}
+                    strokeWidth={element.style.strokeWidth}
+                    {...sharedShadow}
+                    scaleX={elementWidth / 100}
+                    scaleY={elementHeight / 100}
+                    ref={(node) => {
+                      nodeRefs.current[element.id] = node;
+                    }}
+                    onTransformEnd={(event) => {
+                      const node = event.target;
+                      const scaleX = node.scaleX();
+                      const scaleY = node.scaleY();
+                      node.scaleX(1);
+                      node.scaleY(1);
+                      updateElement(element.id, {
+                        x: node.x() * STAGE_SCALE,
+                        y: node.y() * STAGE_SCALE,
+                        width: Math.max(40, elementWidth * scaleX * STAGE_SCALE),
+                        height: Math.max(40, elementHeight * scaleY * STAGE_SCALE),
+                      });
+                    }}
                   />
                 );
               }
@@ -663,10 +867,15 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                   fontStyle={getKonvaFontStyle(element)}
                   align={element.style.textAlign ?? "left"}
                   padding={8}
-                  dragBoundFunc={(position) => ({
-                    x: clamp(position.x, 0, STAGE_WIDTH - elementWidth),
-                    y: clamp(position.y, 0, STAGE_HEIGHT - elementHeight),
-                  })}
+                  dragBoundFunc={(position) => {
+                    let newX = clamp(position.x, 0, STAGE_WIDTH - elementWidth);
+                    let newY = clamp(position.y, 0, STAGE_HEIGHT - elementHeight);
+                    if (snapToGrid) {
+                      newX = Math.round(newX / 20) * 20;
+                      newY = Math.round(newY / 20) * 20;
+                    }
+                    return { x: newX, y: newY };
+                  }}
                   onTransformEnd={(event) => {
                     if (!canEdit) return;
                     updateFromTransform(element, event.target as Konva.Text, updateElement);
@@ -772,6 +981,10 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               padding={6}
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 36 || newBox.height < 28) return oldBox;
+                if (snapToGrid) {
+                  newBox.width = Math.round(newBox.width / 20) * 20;
+                  newBox.height = Math.round(newBox.height / 20) * 20;
+                }
                 return newBox;
               }}
               enabledAnchors={[
@@ -784,6 +997,30 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               ]}
             />
           </Layer>
+
+          {remoteCursors && Object.keys(remoteCursors).length > 0 && (
+            <Layer listening={false}>
+              {Object.entries(remoteCursors).map(([userId, cursor]) => {
+                const color = presences?.[userId]?.color ?? "#D3A5B1";
+                const x = cursor.x * STAGE_WIDTH;
+                const y = cursor.y * STAGE_HEIGHT;
+                return (
+                  <Circle
+                    key={userId}
+                    x={x}
+                    y={y}
+                    radius={88}
+                    fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                    fillRadialGradientStartRadius={0}
+                    fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                    fillRadialGradientEndRadius={88}
+                    fillRadialGradientColorStops={[0, hexToRgba(color, 0.45), 0.45, hexToRgba(color, 0.2), 1, hexToRgba(color, 0)]}
+                    listening={false}
+                  />
+                );
+              })}
+            </Layer>
+          )}
         </Stage>
 
         <AnimatePresence>

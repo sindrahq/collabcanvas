@@ -150,21 +150,132 @@ body.cc-workspace-theme .canvas-badge {
 
 /* Floating Topbar refinement */
 body.cc-workspace-theme .editor-topbar {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(211, 165, 177, 0.15);
-  border-radius: 24px;
-  margin: 16px 20px;
-  padding: 10px 24px;
-  width: calc(100% - 40px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(211, 165, 177, 0.35);
+  border-radius: 20px;
+  margin: 14px auto;
+  padding: 0 16px;
+  width: calc(100% - 32px);
+  max-width: 1600px;
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.06);
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr) !important;
+  align-items: center !important;
+  position: relative;
+  z-index: 1000;
+  height: 64px;
+  gap: 12px !important;
+  isolation: isolate;
+  overflow: visible !important; /* Allow dropdowns to show */
+}
+
+/* Ensure the export menu aligns correctly to the right edge */
+body.cc-workspace-theme .editor-export-menu .toolbar-menu-list {
+  left: auto;
+  right: 0;
+  top: calc(100% + 12px);
+  z-index: 9999 !important;
+  display: block !important;
+}
+
+body.cc-workspace-theme .editor-export-menu {
+  position: relative;
+  z-index: 2000 !important;
+}
+
+body.cc-workspace-theme .editor-topbar-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  overflow: visible; /* Allow tooltips and labels to show */
+  justify-self: start;
+}
+
+body.cc-workspace-theme .workspace-name-wrap {
+  min-width: 0;
+  flex: 1;
+  overflow: visible;
+}
+
+body.cc-workspace-theme .workspace-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+body.cc-workspace-theme .editor-topbar-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20;
+  min-width: 0;
+  overflow: visible;
+}
+
+body.cc-workspace-theme .editor-topbar-center > div {
+  background: rgba(211, 165, 177, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(211, 165, 177, 0.2);
+  border-radius: 9999px;
+  padding: 4px 8px;
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+body.cc-workspace-theme .editor-topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  overflow: visible; /* CRITICAL: Allows Export menu to show */
+  justify-self: end;
+}
+
+body.cc-workspace-theme .editor-export-menu {
   position: relative;
-  z-index: 999;
-  overflow: visible !important;
+  z-index: 1001;
+}
+
+@media (max-width: 1550px) {
+  body.cc-workspace-theme .workspace-name-wrap {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1440px) {
+  body.cc-workspace-theme .nav-pill-btn span,
+  body.cc-workspace-theme .editor-share-button span,
+  body.cc-workspace-theme .editor-export-button span,
+  body.cc-workspace-theme .editor-owner-pill,
+  body.cc-workspace-theme .editor-access-pill,
+  body.cc-workspace-theme .editor-topbar-right .flex.items-center.gap-2.text-xs {
+    display: none !important;
+  }
+  
+  body.cc-workspace-theme .editor-topbar {
+    grid-template-columns: auto 1fr auto !important;
+    gap: 40px !important;
+  }
+}
+
+@media (max-width: 1000px) {
+  body.cc-workspace-theme .editor-topbar-right .avatar-stack-wrap,
+  body.cc-workspace-theme .editor-topbar-right .editor-share-button {
+    display: none !important;
+  }
+}
+
+@media (max-width: 850px) {
+  body.cc-workspace-theme .editor-logo-mark {
+    display: none !important;
+  }
 }
 
 /* Ambient Workspace Aura */

@@ -1,8 +1,9 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
-import { Copy, Lock, Trash2, Unlock, Layers, ArrowUp, ArrowDown } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
+import { Copy, Lock, Trash2, Unlock, Layers, ArrowUp, ArrowDown, LayoutGrid, BookmarkPlus } from "lucide-react";
 
 interface ContextMenuProps {
   x: number;
@@ -13,15 +14,40 @@ interface ContextMenuProps {
 }
 
 export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: ContextMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+
   useEffect(() => {
     const handleGlobalClick = () => onClose();
     window.addEventListener("click", handleGlobalClick);
     return () => window.removeEventListener("click", handleGlobalClick);
   }, [onClose]);
 
+  // Adjust position to stay within viewport
+  useEffect(() => {
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const padding = 10;
+      let nextX = x;
+      let nextY = y;
+
+      if (x + rect.width > window.innerWidth - padding) {
+        nextX = window.innerWidth - rect.width - padding;
+      }
+      if (y + rect.height > window.innerHeight - padding) {
+        nextY = window.innerHeight - rect.height - padding;
+      }
+
+      setPos({ x: nextX, y: nextY });
+    }
+  }, [x, y]);
+
   const menuItems = [
     { id: "duplicate", label: "Duplicate", icon: Copy, shortcut: "Ctrl+D" },
     { id: "lock", label: isLocked ? "Unlock" : "Lock", icon: isLocked ? Unlock : Lock },
+    { id: "divider-frame", type: "divider" },
+    { id: "group-frame", label: "Group into Smart Frame", icon: LayoutGrid },
+    { id: "save-template", label: "Save as Template", icon: BookmarkPlus },
     { id: "divider1", type: "divider" },
     { id: "forward", label: "Bring to Front", icon: ArrowUp },
     { id: "backward", label: "Send to Back", icon: ArrowDown },
@@ -29,14 +55,15 @@ export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: Context
     { id: "delete", label: "Delete", icon: Trash2, danger: true, shortcut: "Del" },
   ];
 
-  return (
+  return createPortal(
     <motion.div
+      ref={menuRef}
       initial={{ opacity: 0, scale: 0.95, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: -4 }}
       transition={{ duration: 0.15, ease: "easeOut" }}
-      className="fixed z-[10000] min-w-[200px] overflow-hidden rounded-2xl border border-white/60 bg-white/45 p-1.5 shadow-2xl backdrop-blur-2xl"
-      style={{ left: x, top: y }}
+      className="fixed z-[99999] min-w-[200px] overflow-hidden rounded-2xl border border-white/60 bg-white/45 p-1.5 shadow-2xl backdrop-blur-2xl"
+      style={{ left: pos.x, top: pos.y }}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex flex-col gap-0.5">
@@ -70,6 +97,7 @@ export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: Context
           );
         })}
       </div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

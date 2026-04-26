@@ -7,9 +7,10 @@ import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { RightSidebar } from "@/components/editor/right-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
+import { TemplatePanel } from "@/components/editor/template-panel";
 import type { WorkspaceComment } from "@/lib/comments";
 
-export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments";
+export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments" | "templates";
 
 type WorkspaceSidebarProps = {
   workspaceName: string;
@@ -93,6 +94,7 @@ export function WorkspaceSidebar({
               mode="comments"
             />
           ) : null}
+          {activeSection === "templates" ? <TemplatePanel /> : null}
         </div>
       </motion.div>
     </aside>
