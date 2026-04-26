@@ -226,6 +226,7 @@ export async function POST(request: NextRequest) {
       },
       rotation: element.rotation ?? 0,
       text_content: element.text ?? null,
+      style: element.style ?? null, // Save the full style object
       style_ext: {
         fill: element.style?.fill,
         stroke: element.style?.stroke,

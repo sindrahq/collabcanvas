@@ -27,8 +27,32 @@ function withCompatFields(element: CanvasElement): CanvasElement {
   };
 }
 
+
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { supabase } from "@/lib/supabaseClient";
+// Backend API helpers for element history
+async function fetchElementHistory(workspaceId: string, elementId: string) {
+  try {
+    const res = await fetch(`/api/element-history?workspace_id=${workspaceId}&element_id=${elementId}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    // data is array of { snapshot }
+    return Array.isArray(data) ? data.map((row) => row.snapshot) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveElementSnapshot(workspaceId: string, elementId: string, snapshot: CanvasElement) {
+  try {
+    await fetch(`/api/element-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace_id: workspaceId, element_id: elementId, snapshot }),
+    });
+  } catch {}
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -363,7 +387,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return { ...withHistory(state, nextElements), selectedElementId: element.id };
         }),
 
-      selectElement: (selectedElementId) => set({ selectedElementId }),
+      selectElement: (selectedElementId) => {
+        set({ selectedElementId });
+        // Fetch element history from backend when selecting an element
+        const state = get();
+        const workspaceId = state.workspace?.id;
+        if (selectedElementId && workspaceId) {
+          fetchElementHistory(workspaceId, selectedElementId).then((history) => {
+            set((s) => ({ elementHistory: { ...s.elementHistory, [selectedElementId]: history } }));
+          });
+        }
+      },
       setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
 
       setWorkspace: (workspace) =>
@@ -416,6 +450,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               style: u.style ? { ...el.style, ...u.style } : el.style,
             });
           });
+          // Save snapshot to backend
+          const workspaceId = state.workspace?.id;
+          if (workspaceId && currentEl) {
+            saveElementSnapshot(workspaceId, elementId, currentEl);
+          }
           return { ...withHistory(state, nextElements), elementHistory };
         }),
 

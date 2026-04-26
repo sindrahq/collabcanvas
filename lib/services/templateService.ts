@@ -54,14 +54,9 @@ export const templateService = {
   },
 
   async delete(id: string): Promise<void> {
-    const existing = await this.getAll();
-    const filtered = existing.filter(t => t.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-
-    /*
-    // BACKEND
+    // BACKEND (Supabase)
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
     await supabase.from('templates').delete().eq('id', id);
-    */
   }
 };
