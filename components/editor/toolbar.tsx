@@ -39,8 +39,8 @@ function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
       console.log("Uploaded image URL:", data.url);
       // Add image element to canvas
       addElement("image", { imageUrl: data.url });
-    } catch (err: any) {
-      setUploadError(err.message || "Upload failed");
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

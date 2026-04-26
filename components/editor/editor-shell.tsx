@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Download, LoaderCircle, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
+import { Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -25,7 +25,13 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
-import { type WorkspaceAccessLevel, useWorkspaceStoreFactory } from "@/store/workspaceStore";
+<<<<<<< HEAD
+import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+=======
+import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+>>>>>>> develop
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -182,6 +188,7 @@ export function EditorShell() {
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -646,6 +653,21 @@ export function EditorShell() {
     return unsubscribe;
   }, [currentUserMeta.user_id]);
 
+  // Remove stale cursors after 3 seconds of inactivity
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemoteCursors((prev) => {
+        const now = Date.now();
+        const next: typeof prev = {};
+        for (const [uid, cursor] of Object.entries(prev)) {
+          if (now - cursor.updatedAt < 3000) next[uid] = cursor;
+        }
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser || !canEdit) return;
 
@@ -973,14 +995,13 @@ export function EditorShell() {
                     <motion.button
                       type="button"
                       onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 ${
+                      className={`nav-pill-btn flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ${
                         active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
                       }`}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.93 }}
                     >
-                      <Icon size={14} strokeWidth={active ? 2.5 : 2} />
-                      <span className="text-[12px] font-bold tracking-tight">{section.label}</span>
+                      <Icon size={15} strokeWidth={active ? 2.5 : 2} />
                     </motion.button>
                   </GlassTooltip>
                 );
@@ -1008,6 +1029,15 @@ export function EditorShell() {
               </div>
             </div>
             
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={() => setPreviewOpen(true)}
+              title="Multi-screen preview"
+            >
+              <Monitor size={14} />
+              <span>Preview</span>
+            </button>
             <button
               type="button"
               className="toolbar-button editor-share-button"
@@ -1210,6 +1240,8 @@ export function EditorShell() {
             ) : null}
           </div>
         </div>
+
+        <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
 
         {workspace?.id ? (
           <ShareDialog

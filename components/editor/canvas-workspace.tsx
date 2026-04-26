@@ -91,6 +91,7 @@ export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteC
 
   useLayoutEffect(() => {
     if (isMobileViewport && autoFitEnabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setZoom(fitZoom);
     }
   }, [autoFitEnabled, fitZoom, isMobileViewport]);
@@ -264,7 +265,11 @@ function getTouchDistance(touches: React.TouchList) {
             broadcastCursor(currentUserId, x, y);
           }}
         >
+<<<<<<< HEAD
           <KonvaStageWorkspace workspaceId={workspaceId} zoom={zoom} />
+=======
+          <KonvaStageWorkspace zoom={zoom} remoteCursors={remoteCursors} presences={presences} />
+>>>>>>> develop
           <RemoteCursors
             cursors={remoteCursors}
             presences={presences}

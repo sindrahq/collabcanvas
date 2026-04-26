@@ -27,11 +27,11 @@ type PresenceEventMeta = {
 };
 
 // Throttle utility
-function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+function throttle<T extends (...args: Parameters<T>) => void>(fn: T, ms: number): T {
 	let last = 0;
 	let timeout: ReturnType<typeof setTimeout> | null = null;
-	let latestArgs: any[];
-	return function(this: any, ...args: any[]) {
+	let latestArgs: Parameters<T>;
+	return function(this: unknown, ...args: Parameters<T>) {
 		const now = Date.now();
 		latestArgs = args;
 		if (now - last >= ms) {

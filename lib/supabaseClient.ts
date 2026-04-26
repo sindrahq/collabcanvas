@@ -71,4 +71,4 @@ const noopClient = {
 export const supabase =
   supabaseUrl && supabaseAnonKey
     ? createClient(supabaseUrl, supabaseAnonKey)
-    : (noopClient as any);
+    : (noopClient as unknown as ReturnType<typeof createClient>);

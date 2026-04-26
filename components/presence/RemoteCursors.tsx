@@ -13,6 +13,7 @@ type RemoteCursorsProps = {
 const CURSOR_TTL_MS = 9000;
 
 export function RemoteCursors({ cursors, presences, currentUserId }: RemoteCursorsProps) {
+	// eslint-disable-next-line react-hooks/purity
 	const now = Date.now();
 
 	return (

@@ -40,8 +40,9 @@ export const templateService = {
   },
 
   async delete(id: string): Promise<void> {
-    // BACKEND
+    // BACKEND (Supabase)
     const supabase = createSupabaseBrowserClient();
-    if (supabase) await supabase.from('templates').delete().eq('id', id);
+    if (!supabase) return;
+    await supabase.from('templates').delete().eq('id', id);
   }
 };
