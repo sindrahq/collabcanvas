@@ -40,7 +40,16 @@ export type CanvasElementType =
   | "rectangle" | "circle" | "text"
   | "triangle" | "star" | "arrow" | "line" | "image"
   | "diamond" | "hexagon" | "pentagon" | "heart" | "cloud"
-  | "shield" | "octagon" | "zap" | "sun" | "moon" | "frame" | "pencil";
+  | "shield" | "octagon" | "zap" | "sun" | "moon" | "frame" | "pencil" | "video";
+
+export type ActivityEntry = {
+  id: string;
+  action: "added" | "deleted" | "updated" | "moved";
+  elementName: string;
+  elementType: string;
+  userName: string;
+  timestamp: number;
+};
 
 export type CanvasElementStyle = {
   fill: string;
@@ -80,6 +89,9 @@ export type CanvasElement = {
   text?: string;
   style: CanvasElementStyle;
   imageUrl?: string;
+  videoUrl?: string;
+  trimStart?: number;
+  trimEnd?: number;
   parentId?: string;
   layoutProps?: {
     direction: LayoutDirection;
@@ -134,6 +146,8 @@ type WorkspaceState = {
   elementHistory: Record<string, CanvasElement[]>;
   travelElementTo: (elementId: string, historyIndex: number) => void;
   restoreElementToCurrent: (elementId: string) => void;
+  activityLog: ActivityEntry[];
+  logActivity: (action: ActivityEntry["action"], elementName: string, elementType: string, userName?: string) => void;
   undo: () => void;
   redo: () => void;
   snapToGrid: boolean;
@@ -189,6 +203,7 @@ const defaultElementStyle: Record<CanvasElementType, CanvasElementStyle> = {
   moon:      { fill: "#f1f5f9", stroke: "#1e293b", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
   frame:     { fill: "rgba(255, 255, 255, 0.15)", stroke: "rgba(211, 165, 177, 0.3)", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
   pencil:    { fill: "transparent", stroke: "#2f2f2f", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  video:     { fill: "#000000", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
 } satisfies Record<CanvasElementType, CanvasElementStyle>;
 
 const DEFAULT_LAYOUT = {
@@ -342,6 +357,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       activeTool: "select",
       eraserSize: 10,
       elementHistory: {},
+      activityLog: [],
 
       setActiveTool: (tool) => set({ activeTool: tool }),
       setEraserSize: (eraserSize) => set({ eraserSize }),
@@ -394,7 +410,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((state) => {
           const nextElement = createElement(type, state.elements.length, extra);
           const nextElements = [...state.elements, nextElement];
-          return { ...withHistory(state, nextElements), selectedElementId: nextElement.id };
+          const entry: ActivityEntry = {
+            id: createId("activity"),
+            action: "added",
+            elementName: nextElement.name,
+            elementType: nextElement.type,
+            userName: "You",
+            timestamp: Date.now(),
+          };
+          return {
+            ...withHistory(state, nextElements),
+            selectedElementId: nextElement.id,
+            activityLog: [entry, ...state.activityLog].slice(0, 50),
+          };
         }),
 
       updateElement: (elementId, updates) =>
@@ -505,6 +533,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       deleteElement: (id) =>
         set((state) => {
+          const removed = state.elements.find((el) => el.id === id);
           const remaining = normalizeElements(
             state.elements
               .filter((el) => el.id !== id)
@@ -514,7 +543,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             ? (remaining.at(-1)?.id ?? null)
             : state.selectedElementId;
           const { [id]: _r2, ...restH2 } = state.elementHistory;
-          return { ...withHistory(state, remaining), selectedElementId, elementHistory: restH2 };
+          const entry: ActivityEntry | null = removed ? {
+            id: createId("activity"),
+            action: "deleted",
+            elementName: removed.name,
+            elementType: removed.type,
+            userName: "You",
+            timestamp: Date.now(),
+          } : null;
+          return {
+            ...withHistory(state, remaining),
+            selectedElementId,
+            elementHistory: restH2,
+            activityLog: entry ? [entry, ...state.activityLog].slice(0, 50) : state.activityLog,
+          };
         }),
 
       partialErasePencilStroke: (id, segments) =>
@@ -584,6 +626,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           );
           return setElementCollections(nextElements);
         }),
+
+      logActivity: (action, elementName, elementType, userName = "You") =>
+        set((state) => ({
+          activityLog: [{
+            id: createId("activity"),
+            action,
+            elementName,
+            elementType,
+            userName,
+            timestamp: Date.now(),
+          }, ...state.activityLog].slice(0, 50),
+        })),
 
       undo: () =>
         set((state) => {

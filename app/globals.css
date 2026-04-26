@@ -2594,3 +2594,67 @@ body.cc-workspace-theme .canvas-bg-picker input[type="color"] {
   padding: 0;
   background: transparent;
 }
+
+/* ── Activity Feed ────────────────────────────────────────────────────────── */
+.activity-feed { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.activity-feed-empty { padding: 24px 16px; text-align: center; color: #9a8e84; }
+.activity-feed-empty-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.activity-feed-empty-sub { font-size: 11px; opacity: 0.7; }
+.activity-entry { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; background: rgba(211,165,177,0.06); border: 1px solid rgba(211,165,177,0.1); }
+.activity-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.activity-content { flex: 1; font-size: 12px; color: #4a3f38; line-height: 1.4; }
+.activity-user { font-weight: 700; color: #2d2520; }
+.activity-action { color: #9a8e84; }
+.activity-element { font-weight: 600; color: #5a4a40; }
+.activity-time { font-size: 10px; color: #b8a898; flex-shrink: 0; }
+
+/* ── Generative UI Modal ─────────────────────────────────────────────────── */
+.gen-ui-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.gen-ui-modal { background: #fffdf8; border-radius: 16px; border: 1px solid rgba(211,165,177,0.25); box-shadow: 0 24px 60px rgba(0,0,0,0.18); width: 480px; max-width: 96vw; overflow: hidden; }
+.gen-ui-header { display: flex; align-items: center; gap: 8px; padding: 16px 20px; border-bottom: 1px solid rgba(211,165,177,0.15); }
+.gen-ui-header h2 { flex: 1; font-size: 15px; font-weight: 700; color: #2d2520; }
+.gen-ui-close { background: none; border: none; cursor: pointer; color: #9a8e84; padding: 2px; border-radius: 6px; display: flex; align-items: center; }
+.gen-ui-close:hover { color: #2d2520; background: rgba(211,165,177,0.15); }
+.gen-ui-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.gen-ui-hint { font-size: 12px; color: #9a8e84; }
+.gen-ui-textarea { width: 100%; border: 1px solid rgba(211,165,177,0.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #2d2520; background: rgba(255,253,248,0.8); resize: vertical; outline: none; font-family: inherit; }
+.gen-ui-textarea:focus { border-color: #D3A5B1; box-shadow: 0 0 0 3px rgba(211,165,177,0.15); }
+.gen-ui-error { font-size: 12px; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 6px 10px; }
+.gen-ui-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid rgba(211,165,177,0.12); }
+.gen-ui-btn-cancel { background: none; border: 1px solid rgba(211,165,177,0.2); border-radius: 8px; padding: 7px 16px; font-size: 13px; color: #9a8e84; cursor: pointer; }
+.gen-ui-btn-cancel:hover { background: rgba(211,165,177,0.1); }
+.gen-ui-btn-generate { display: flex; align-items: center; gap: 6px; background: #D3A5B1; border: none; border-radius: 8px; padding: 7px 18px; font-size: 13px; font-weight: 600; color: white; cursor: pointer; }
+.gen-ui-btn-generate:hover:not(:disabled) { background: #c494a0; }
+.gen-ui-btn-generate:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Vibe Check Panel ────────────────────────────────────────────────────── */
+.vibe-check-panel { padding: 12px 0; border-top: 1px solid rgba(211,165,177,0.12); margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.vibe-check-current { display: flex; flex-direction: column; gap: 4px; }
+.vibe-swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.vibe-swatch { width: 20px; height: 20px; border-radius: 5px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; }
+.vibe-swatch-lg { width: 26px; height: 26px; border-radius: 6px; }
+.vibe-empty { font-size: 11px; color: #b8a898; }
+.vibe-check-btn { display: flex; align-items: center; gap: 6px; width: 100%; border: 1px solid rgba(211,165,177,0.25); border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; color: #5a4a40; background: rgba(211,165,177,0.08); cursor: pointer; justify-content: center; }
+.vibe-check-btn:hover:not(:disabled) { background: rgba(211,165,177,0.18); }
+.vibe-check-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.vibe-error { font-size: 11px; color: #dc2626; }
+.vibe-suggestions { display: flex; flex-direction: column; gap: 4px; }
+.vibe-suggestion-list { display: flex; flex-direction: column; gap: 3px; }
+.vibe-suggestion { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: none; width: 100%; text-align: left; }
+.vibe-suggestion-clickable { cursor: pointer; }
+.vibe-suggestion-clickable:hover { background: rgba(211,165,177,0.1); border-color: rgba(211,165,177,0.2); }
+.vibe-suggestion:disabled { cursor: default; }
+.vibe-suggestion-info { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.vibe-suggestion-name { font-size: 12px; font-weight: 600; color: #2d2520; }
+.vibe-suggestion-usage { font-size: 10px; color: #9a8e84; }
+.vibe-suggestion-hex { font-size: 10px; font-family: monospace; color: #b8a898; }
+
+/* ── Video Controls ───────────────────────────────────────────────────────── */
+.video-trim-controls { display: flex; flex-direction: column; gap: 8px; }
+.inspector-text-input { width: 100%; border: 1px solid rgba(211,165,177,0.25); border-radius: 7px; padding: 5px 8px; font-size: 12px; color: #2d2520; background: rgba(255,253,248,0.8); outline: none; }
+.inspector-text-input:focus { border-color: #D3A5B1; }
+.video-url-popover { display: flex; align-items: center; gap: 4px; background: #fffdf8; border: 1px solid rgba(211,165,177,0.3); border-radius: 10px; padding: 5px 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.video-url-input { border: none; outline: none; font-size: 12px; color: #2d2520; background: transparent; width: 160px; }
+.video-url-add-btn { background: #D3A5B1; border: none; border-radius: 6px; color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; cursor: pointer; }
+.video-url-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.video-url-cancel-btn { background: none; border: none; color: #9a8e84; cursor: pointer; font-size: 13px; padding: 2px 4px; }

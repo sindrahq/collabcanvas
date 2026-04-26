@@ -20,6 +20,7 @@ import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
+import { KonvaVideo } from "./konva-video";
 import { CustomContextMenu } from "./context-menu";
 
 // Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
@@ -569,6 +570,45 @@ export function KonvaStageWorkspace({
                     {...sharedShadow}
                     onTransformEnd={(event: any) =>
                       updateFromTransform(element, event.target, updateElement)
+                    }
+                  />
+                );
+              }
+
+              if (element.type === "video") {
+                if ((element as any).videoUrl) {
+                  return (
+                    <KonvaVideo
+                      key={element.id}
+                      {...commonProps}
+                      x={element.x / STAGE_SCALE}
+                      y={element.y / STAGE_SCALE}
+                      width={elementWidth}
+                      height={elementHeight}
+                      videoUrl={(element as any).videoUrl}
+                      trimStart={(element as any).trimStart ?? 0}
+                      ref={(node: any) => { nodeRefs.current[element.id] = node; }}
+                      {...sharedShadow}
+                      onTransformEnd={(event: any) =>
+                        updateFromTransform(element, event.target, updateElement)
+                      }
+                    />
+                  );
+                }
+                return (
+                  <Rect
+                    key={element.id}
+                    {...commonProps}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    width={elementWidth}
+                    height={elementHeight}
+                    fill="#111"
+                    stroke="#444"
+                    strokeWidth={1}
+                    ref={(node) => { nodeRefs.current[element.id] = node; }}
+                    onTransformEnd={(event) =>
+                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
                     }
                   />
                 );

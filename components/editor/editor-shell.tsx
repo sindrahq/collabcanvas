@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
+import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -27,6 +27,7 @@ import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -65,6 +66,7 @@ const NAV_SECTIONS: Array<{
   { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
   { id: "comments", label: "Comments", icon: MessageSquare },
   { id: "templates", label: "Templates", icon: Bookmark },
+  { id: "activity", label: "Activity", icon: Activity },
 ];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
@@ -177,6 +179,7 @@ export function EditorShell() {
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [genUIOpen, setGenUIOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -1038,6 +1041,15 @@ export function EditorShell() {
             <button
               type="button"
               className="toolbar-button"
+              onClick={() => setGenUIOpen(true)}
+              title="Generative UI — generate elements with AI"
+            >
+              <Sparkles size={14} />
+              <span>Generate</span>
+            </button>
+            <button
+              type="button"
+              className="toolbar-button"
               onClick={() => setPreviewOpen(true)}
               title="Multi-screen preview"
             >
@@ -1245,6 +1257,7 @@ export function EditorShell() {
         </div>
 
         <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
+        <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} />
 
         {workspace?.id ? (
           <ShareDialog
