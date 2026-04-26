@@ -22,7 +22,6 @@ import { broadcastElementClick } from "@/lib/collaboration";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { KonvaVideo } from "./konva-video";
-import { KonvaChart } from "./konva-chart";
 import { CustomContextMenu } from "./context-menu";
 
 // Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
@@ -623,47 +622,6 @@ export function KonvaStageWorkspace({
                     onTransformEnd={(event) =>
                       updateFromTransform(element, event.target as Konva.Rect, updateElement)
                     }
-                  />
-                );
-              }
-
-              if (element.type === "chart") {
-                const elevation = elevations[element.id] ?? 0;
-                const defaultData = [
-                  { label: "A", value: 40 },
-                  { label: "B", value: 65 },
-                  { label: "C", value: 55 },
-                  { label: "D", value: 80 },
-                  { label: "E", value: 45 },
-                ];
-                return (
-                  <KonvaChart
-                    key={element.id}
-                    x={element.x / STAGE_SCALE}
-                    y={element.y / STAGE_SCALE}
-                    width={elementWidth}
-                    height={elementHeight}
-                    chartType={(element as any).chartType ?? "bar"}
-                    data={(element as any).chartData ?? defaultData}
-                    selected={selectedElementId === element.id}
-                    elevation={elevation}
-                    onClick={() => { selectElement(element.id); broadcastElementClick("local", element.id); }}
-                    onTap={() => { selectElement(element.id); broadcastElementClick("local", element.id); }}
-                    draggable={canEdit && !element.locked}
-                    visible={element.visible}
-                    opacity={element.style.opacity}
-                    rotation={element.rotation}
-                    onDragEnd={(event: any) => {
-                      if (!canEdit) return;
-                      updateElement(element.id, {
-                        x: event.target.x() * STAGE_SCALE,
-                        y: event.target.y() * STAGE_SCALE,
-                      });
-                    }}
-                    onTransformEnd={(event: any) =>
-                      updateFromTransform(element, event.target, updateElement)
-                    }
-                    nodeRef={(node: any) => { nodeRefs.current[element.id] = node; }}
                   />
                 );
               }

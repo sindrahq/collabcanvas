@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowRight, ArrowUp, BarChart2, Circle, Eye, EyeOff,
+  ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
   Layers, Lock, Layout, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock,
   Hexagon, Heart, Cloud, Square, Diamond, Shield, Octagon, Zap, Sun, Moon, Pencil
 } from "lucide-react";
@@ -31,7 +31,6 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number;
   frame: Layout,
   pencil: Pencil,
   video: RectangleHorizontal,
-  chart: BarChart2,
 };
 
 
