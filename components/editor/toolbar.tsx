@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlignCenter, AlignLeft, AlignRight, ArrowRight,
+  AlignCenter, AlignLeft, AlignRight, ArrowRight, BarChart2,
   Baseline, Bold, Circle, Copy, Crop, Eraser,
   Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
@@ -428,6 +428,28 @@ export function Toolbar({
             </div>
           )}
           <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+
+          {/* Charts */}
+          <div className="toolbar-divider" style={{ margin: '8px 0' }} />
+          <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Charts</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(["bar", "line", "pie"] as const).map((ct) => (
+              <GlassTooltip key={ct} content={`${ct.charAt(0).toUpperCase() + ct.slice(1)} Chart`}>
+                <motion.button
+                  type="button"
+                  className="toolbar-icon-btn"
+                  style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(211, 165, 177, 0.15)', color: '#8b7355', fontSize: 10, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}
+                  onClick={() => addElement("chart", { chartType: ct } as any)}
+                  disabled={!canEdit}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <BarChart2 size={14} />
+                  <span style={{ fontSize: 8 }}>{ct}</span>
+                </motion.button>
+              </GlassTooltip>
+            ))}
+          </div>
 
           {/* Frame subheading */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Frame</span>

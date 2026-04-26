@@ -17,8 +17,10 @@ import {
   initPresenceChannel,
   leavePresenceChannel,
   onCursorBroadcast,
+  onElementClickBroadcast,
   type PresenceMeta,
 } from "@/lib/collaboration";
+import { CommandBrain, type BrainCommand } from "@/components/editor/command-brain";
 import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } from "@/lib/comments";
 import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -170,6 +172,8 @@ export function EditorShell() {
   const redo = useWorkspaceStore((s) => s.redo);
   const elements = useWorkspaceStore((s) => s.elements);
   const updateElement = useWorkspaceStore((s) => s.updateElement);
+  const addElement = useWorkspaceStore((s) => s.addElement);
+  const setElevation = useWorkspaceStore((s) => s.setElevation);
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -180,6 +184,7 @@ export function EditorShell() {
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [genUIOpen, setGenUIOpen] = useState(false);
+  const [commandBrainOpen, setCommandBrainOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -661,6 +666,16 @@ export function EditorShell() {
     return unsubscribe;
   }, [currentUserMeta.user_id]);
 
+  // Collaborative elevation: boost shadow when remote users click the same element
+  useEffect(() => {
+    const unsubscribe = onElementClickBroadcast((payload) => {
+      if (payload.user_id === currentUserMeta.user_id) return;
+      setElevation(payload.element_id, 1);
+      setTimeout(() => setElevation(payload.element_id, -1), 3000);
+    });
+    return unsubscribe;
+  }, [currentUserMeta.user_id, setElevation]);
+
   // Remove stale cursors after 3 seconds of inactivity
   useEffect(() => {
     const id = setInterval(() => {
@@ -814,6 +829,12 @@ export function EditorShell() {
       if (isEditableTarget(event.target)) return;
 
       const ctrl = event.ctrlKey || event.metaKey;
+
+      if (ctrl && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandBrainOpen((o) => !o);
+        return;
+      }
 
       if (ctrl && event.key.toLowerCase() === "z") {
         event.preventDefault();
@@ -1268,6 +1289,35 @@ export function EditorShell() {
           />
         ) : null}
 
+        <CommandBrain
+          open={commandBrainOpen}
+          onClose={() => setCommandBrainOpen(false)}
+          commands={[
+            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => addElement("rectangle") },
+            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => addElement("circle") },
+            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => addElement("text") },
+            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => addElement("arrow") },
+            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => addElement("star") },
+            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => addElement("triangle") },
+            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => addElement("diamond") },
+            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => addElement("frame") },
+            { id: "add-chart-bar",  label: "Add Bar Chart",  category: "Add Elements", icon: <span>📊</span>, action: () => addElement("chart", { chartType: "bar" } as any) },
+            { id: "add-chart-line", label: "Add Line Chart", category: "Add Elements", icon: <span>📈</span>, action: () => addElement("chart", { chartType: "line" } as any) },
+            { id: "add-chart-pie",  label: "Add Pie Chart",  category: "Add Elements", icon: <span>🥧</span>, action: () => addElement("chart", { chartType: "pie" } as any) },
+            { id: "undo",    label: "Undo",    category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
+            { id: "redo",    label: "Redo",    category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
+            { id: "layers",    label: "Open Layers",    category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
+            { id: "inspector", label: "Open Inspector", category: "Navigate", icon: <span>⚙</span>, action: () => setActiveSection("inspector") },
+            { id: "comments",  label: "Open Comments",  category: "Navigate", icon: <span>💬</span>, action: () => setActiveSection("comments") },
+            { id: "templates", label: "Open Templates", category: "Navigate", icon: <span>🔖</span>, action: () => setActiveSection("templates") },
+            { id: "activity",  label: "Open Activity",  category: "Navigate", icon: <span>📋</span>, action: () => setActiveSection("activity") },
+            { id: "share",   label: "Share Workspace",   category: "Workspace", icon: <span>🔗</span>, action: () => setShareDialogOpen(true) },
+            { id: "preview", label: "Multi-Screen Preview", category: "Workspace", icon: <span>📱</span>, action: () => setPreviewOpen(true) },
+            { id: "export-png", label: "Export as PNG", category: "Export", icon: <span>🖼</span>, action: () => void exportWorkspaceAsPng(`${workspaceName}.png`) },
+            { id: "export-pdf", label: "Export as PDF", category: "Export", icon: <span>📄</span>, action: () => void exportWorkspaceAsPdf(`${workspaceName}.pdf`) },
+            { id: "gen-ui",  label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
+          ] satisfies BrainCommand[]}
+        />
         <VoiceCommandManager />
       </motion.section>
     </main>

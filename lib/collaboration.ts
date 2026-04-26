@@ -16,6 +16,14 @@ let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
 type CursorListener = (payload: CursorBroadcast) => void;
 let cursorListeners: CursorListener[] = [];
 
+// Element click broadcast listeners (collaborative elevation)
+export interface ElementClickBroadcast {
+  user_id: string;
+  element_id: string;
+}
+type ElementClickListener = (payload: ElementClickBroadcast) => void;
+let elementClickListeners: ElementClickListener[] = [];
+
 type PresenceState = Record<string, PresenceMeta>;
 type PresenceJoinPayload = { key: string; newPresences: PresenceMeta[] };
 type PresenceLeavePayload = { key: string };
@@ -105,6 +113,10 @@ export function initPresenceChannel(
 		cursorListeners.forEach((fn) => fn(payload));
 	});
 
+	presenceChannel.on('broadcast', { event: 'element-click' }, ({ payload }: { payload: ElementClickBroadcast }) => {
+		elementClickListeners.forEach((fn) => fn(payload));
+	});
+
 	// Subscribe to the channel
 	presenceChannel.subscribe((status: string) => {
 		if (status === 'SUBSCRIBED') {
@@ -140,10 +152,22 @@ export const broadcastCursor = throttle((user_id: string, x: number, y: number) 
 
 export function onCursorBroadcast(listener: CursorListener) {
 	cursorListeners.push(listener);
+	return () => { cursorListeners = cursorListeners.filter((fn) => fn !== listener); };
+}
 
-	return () => {
-		cursorListeners = cursorListeners.filter((fn) => fn !== listener);
-	};
+export const broadcastElementClick = (user_id: string, element_id: string) => {
+	if (presenceChannel) {
+		presenceChannel.send({
+			type: 'broadcast',
+			event: 'element-click',
+			payload: { user_id, element_id },
+		});
+	}
+};
+
+export function onElementClickBroadcast(listener: ElementClickListener) {
+	elementClickListeners.push(listener);
+	return () => { elementClickListeners = elementClickListeners.filter((fn) => fn !== listener); };
 }
 
 
@@ -172,6 +196,7 @@ export function leavePresenceChannel() {
 		presenceChannel = null;
 	}
 	cursorListeners = [];
+	elementClickListeners = [];
 }
 
 // Ensure cleanup on tab close or reload
