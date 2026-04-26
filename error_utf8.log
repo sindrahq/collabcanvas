@@ -1,0 +1,44 @@
+﻿
+> collabcanvas@0.1.0 dev
+> next dev --webpack
+
+node.exe : ΓÜá Port 3000 
+is in use by process 
+12972, using available 
+port 3001 instead.
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (Γ  
+  Üá Port 3000 i...t 30   
+ 01 instead.:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Γû▓ Next.js 16.2.1 (webpack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.181.1:3001
+Γ£ô Ready in 1322ms
+Γ¿» Another next dev 
+server is already running.
+
+- Local:        
+http://localhost:3000
+- PID:          12972
+- Dir:          C:\Users\k
+mrha\OneDrive\Documents\Pl
+ayground\collabcanvas-team
+- Log:          .next\dev\
+logs\next-development.log
+
+Run taskkill /PID 12972 
+/F to stop it.
+[?25h
