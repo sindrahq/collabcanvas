@@ -1000,14 +1000,14 @@ export function EditorShell() {
                     <motion.button
                       type="button"
                       onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 ${
+                      className={`nav-pill-btn flex items-center gap-1.5 px-2 py-1.5 rounded-full transition-all duration-300 ${
                         active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
                       }`}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
                       <Icon size={14} strokeWidth={active ? 2.5 : 2} />
-                      <span className="text-[12px] font-bold tracking-tight">{section.label}</span>
+                      <span className="text-[11px] font-bold tracking-tight hidden lg:inline">{section.label}</span>
                     </motion.button>
                   </GlassTooltip>
                 );

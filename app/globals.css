@@ -160,13 +160,13 @@ body.cc-workspace-theme .editor-topbar {
   width: calc(100% - 32px);
   max-width: 1600px;
   box-shadow: 0 16px 64px rgba(0, 0, 0, 0.06);
-  display: grid !important;
-  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr) !important;
+  display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
   position: relative;
   z-index: 1000;
   height: 64px;
-  gap: 12px !important;
+  gap: 0 !important;
   isolation: isolate;
   overflow: visible !important; /* Allow dropdowns to show */
 }
@@ -2210,15 +2210,20 @@ body.cc-workspace-theme .editor-topbar-left {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: visible;
 }
 
 body.cc-workspace-theme .editor-topbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 0;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 body.cc-workspace-theme .workspace-brand,
