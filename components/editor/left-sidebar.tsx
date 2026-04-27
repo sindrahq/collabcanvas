@@ -30,6 +30,7 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number;
   moon: Moon,
   frame: Layout,
   pencil: Pencil,
+  video: RectangleHorizontal,
 };
 
 
