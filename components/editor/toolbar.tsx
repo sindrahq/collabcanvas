@@ -6,11 +6,12 @@ import {
   Baseline, Bold, Circle, Copy, Crop, Eraser,
   Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
-  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon
+  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { SmartCropModal } from "./smart-crop";
+import { FramePicker } from "./frame-picker";
 import React, { useRef, useState } from "react";
 
 
@@ -69,6 +70,52 @@ function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
         </button>
       </GlassTooltip>
       {uploadError && <div style={{ color: "#c00", fontSize: 11 }}>{uploadError}</div>}
+    </div>
+  );
+}
+
+function AddVideoButton() {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const addElement = useWorkspaceStore((s) => s.addElement);
+
+  function handleAdd() {
+    if (!url.trim()) return;
+    addElement("video", { videoUrl: url.trim(), trimStart: 0, trimEnd: 0 } as never);
+    setUrl("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <GlassTooltip content="Add Video">
+        <button
+          type="button"
+          className="toolbar-icon-btn toolbar-shape-btn"
+          onClick={() => setOpen(true)}
+        >
+          <Video size={15} />
+        </button>
+      </GlassTooltip>
+    );
+  }
+
+  return (
+    <div className="video-url-popover">
+      <input
+        type="url"
+        className="video-url-input"
+        placeholder="Paste video URL…"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleAdd();
+          if (e.key === "Escape") setOpen(false);
+        }}
+        autoFocus
+      />
+      <button type="button" className="video-url-add-btn" onClick={handleAdd} disabled={!url.trim()}>Add</button>
+      <button type="button" className="video-url-cancel-btn" onClick={() => setOpen(false)}>✕</button>
     </div>
   );
 }
@@ -304,10 +351,11 @@ export function Toolbar({
 
           {/* Upload subheading and icon */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Upload</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <UploadPictureButton workspaceId={workspaceId} />
             </motion.div>
+            <AddVideoButton />
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
@@ -387,8 +435,8 @@ export function Toolbar({
 
           {/* Frame subheading */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Frame</span>
-          <div style={{ margin: '6px 0 0 0' }}>
-             <motion.button
+          <div style={{ margin: '6px 0 0 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <motion.button
               type="button"
               className="toolbar-icon-btn"
               style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(211, 165, 177, 0.15)', color: '#8b7355' }}
@@ -399,6 +447,7 @@ export function Toolbar({
             >
               <LayoutGrid size={18} />
             </motion.button>
+            <FramePicker />
           </div>
         </div>
       ) : null}

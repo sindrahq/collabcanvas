@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
+import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -17,8 +17,10 @@ import {
   initPresenceChannel,
   leavePresenceChannel,
   onCursorBroadcast,
+  onElementClickBroadcast,
   type PresenceMeta,
 } from "@/lib/collaboration";
+import { CommandBrain, type BrainCommand } from "@/components/editor/command-brain";
 import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } from "@/lib/comments";
 import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -28,9 +30,14 @@ import { getDisplayNameFromMetadata } from "@/lib/profile";
 <<<<<<< HEAD
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
+<<<<<<< HEAD
 =======
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+>>>>>>> develop
+=======
+import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 >>>>>>> develop
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
@@ -70,6 +77,7 @@ const NAV_SECTIONS: Array<{
   { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
   { id: "comments", label: "Comments", icon: MessageSquare },
   { id: "templates", label: "Templates", icon: Bookmark },
+  { id: "activity", label: "Activity", icon: Activity },
 ];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
@@ -159,27 +167,39 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
 export function EditorShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const workspaceIdFromUrl =
-    searchParams.get("workspaceId") ??
-    searchParams.get("projectId") ??
-    searchParams.get("id") ??
-    searchParams.get("workspace") ??
-    "";
-  const store = useWorkspaceStoreFactory(workspaceIdFromUrl);
-  const selectedElementId = store((s) => s.selectedElementId);
-  const duplicateSelectedElement = store((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = store((s) => s.deleteSelectedElement);
-  const copySelectedElement = store((s) => s.copySelectedElement);
-  const pasteElement = store((s) => s.pasteElement);
-  const workspace = store((s) => s.workspace);
-  const workspaceName = store((s) => s.workspaceName);
-  const accessLevel = store((s) => s.accessLevel);
-  const canEdit = store((s) => s.canEdit);
-  const setWorkspaceAccess = store((s) => s.setWorkspaceAccess);
-  const undo = store((s) => s.undo);
-  const redo = store((s) => s.redo);
-  const elements = store((s) => s.elements);
-  const updateElement = store((s) => s.updateElement);
+<<<<<<< HEAD
+  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
+  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
+  const copySelectedElement = useWorkspaceStore((s) => s.copySelectedElement);
+  const pasteElement = useWorkspaceStore((s) => s.pasteElement);
+  const workspace = useWorkspaceStore((s) => s.workspace);
+  const workspaceName = useWorkspaceStore((s) => s.workspaceName);
+  const accessLevel = useWorkspaceStore((s) => s.accessLevel);
+  const canEdit = useWorkspaceStore((s) => s.canEdit);
+  const setWorkspaceAccess = useWorkspaceStore((s) => s.setWorkspaceAccess);
+  const undo = useWorkspaceStore((s) => s.undo);
+  const redo = useWorkspaceStore((s) => s.redo);
+  const elements = useWorkspaceStore((s) => s.elements);
+  const updateElement = useWorkspaceStore((s) => s.updateElement);
+=======
+  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
+  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
+  const copySelectedElement = useWorkspaceStore((s) => s.copySelectedElement);
+  const pasteElement = useWorkspaceStore((s) => s.pasteElement);
+  const workspace = useWorkspaceStore((s) => s.workspace);
+  const workspaceName = useWorkspaceStore((s) => s.workspaceName);
+  const accessLevel = useWorkspaceStore((s) => s.accessLevel);
+  const canEdit = useWorkspaceStore((s) => s.canEdit);
+  const setWorkspaceAccess = useWorkspaceStore((s) => s.setWorkspaceAccess);
+  const undo = useWorkspaceStore((s) => s.undo);
+  const redo = useWorkspaceStore((s) => s.redo);
+  const elements = useWorkspaceStore((s) => s.elements);
+  const updateElement = useWorkspaceStore((s) => s.updateElement);
+  const addElement = useWorkspaceStore((s) => s.addElement);
+  const setElevation = useWorkspaceStore((s) => s.setElevation);
+>>>>>>> develop
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -189,6 +209,8 @@ export function EditorShell() {
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [genUIOpen, setGenUIOpen] = useState(false);
+  const [commandBrainOpen, setCommandBrainOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -653,6 +675,16 @@ export function EditorShell() {
     return unsubscribe;
   }, [currentUserMeta.user_id]);
 
+  // Collaborative elevation: boost shadow when remote users click the same element
+  useEffect(() => {
+    const unsubscribe = onElementClickBroadcast((payload) => {
+      if (payload.user_id === currentUserMeta.user_id) return;
+      setElevation(payload.element_id, 1);
+      setTimeout(() => setElevation(payload.element_id, -1), 3000);
+    });
+    return unsubscribe;
+  }, [currentUserMeta.user_id, setElevation]);
+
   // Remove stale cursors after 3 seconds of inactivity
   useEffect(() => {
     const id = setInterval(() => {
@@ -807,6 +839,12 @@ export function EditorShell() {
 
       const ctrl = event.ctrlKey || event.metaKey;
 
+      if (ctrl && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandBrainOpen((o) => !o);
+        return;
+      }
+
       if (ctrl && event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (event.shiftKey) {
@@ -926,7 +964,24 @@ export function EditorShell() {
         >
           <div className="editor-topbar-left min-w-0">
             <div className="flex items-center gap-3">
-              <div className="editor-logo-mark" />
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+                  {workspace?.owner_id !== authUser.id ? (
+                    <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
+                      {accessLevel}
+                    </span>
+                  ) : (
+                    <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 opacity-60">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
+                  <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+                    {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+                  </span>
+                </div>
+              </div>
               <div className="workspace-name-wrap">
                 {isRenamingWorkspace ? (
                   <>
@@ -986,7 +1041,7 @@ export function EditorShell() {
           </div>
 
           <div className="editor-topbar-center">
-            <div className="flex items-center gap-1 bg-[#D3A5B1]/5 rounded-full px-1 py-1 border border-[#D3A5B1]/10 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
               {NAV_SECTIONS.map((section) => {
                 const Icon = section.icon;
                 const active = activeSection === section.id;
@@ -995,13 +1050,13 @@ export function EditorShell() {
                     <motion.button
                       type="button"
                       onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ${
+                      className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
                         active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
                       }`}
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.93 }}
                     >
-                      <Icon size={15} strokeWidth={active ? 2.5 : 2} />
+                      <Icon size={18} strokeWidth={active ? 2.5 : 2} />
                     </motion.button>
                   </GlassTooltip>
                 );
@@ -1010,25 +1065,15 @@ export function EditorShell() {
           </div>
 
           <div className="editor-topbar-right min-w-0">
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2">
-                <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-                {workspace?.owner_id !== authUser.id ? (
-                  <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
-                    {accessLevel}
-                  </span>
-                ) : (
-                  <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 opacity-60 hidden lg:flex">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
-                <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
-                  {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
-                </span>
-              </div>
-            </div>
-            
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={() => setGenUIOpen(true)}
+              title="Generative UI — generate elements with AI"
+            >
+              <Sparkles size={14} />
+              <span>Generate</span>
+            </button>
             <button
               type="button"
               className="toolbar-button"
@@ -1059,61 +1104,84 @@ export function EditorShell() {
             </motion.button>
 
             <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
-              <motion.button
+              <button
                 type="button"
                 className="toolbar-button toolbar-button-compact editor-export-button"
                 onClick={() => setExportMenuOpen((open) => !open)}
                 title="Export workspace"
-                whileHover={{ y: -1, scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
               >
                 <Download size={14} />
                 <span className="">Export</span>
                 <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-              </motion.button>
+              </button>
 
-              <AnimatePresence>
-                {exportMenuOpen ? (
-                  <motion.div
-                    className="toolbar-menu-list"
-                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.16 }}
-                  >
-                    <button
-                      type="button"
-                      className="toolbar-menu-item"
-                      onClick={() => {
-                        setExportMenuOpen(false);
-                        if (workspace) void exportWorkspaceAsPng(workspace.id, `${fileBase}.png`);
-                      }}
-                    >
-                      PNG
-                    </button>
-                    <button
-                      type="button"
-                      className="toolbar-menu-item"
-                      onClick={() => {
-                        setExportMenuOpen(false);
-                        if (workspace) void exportWorkspaceAsJpeg(workspace.id, `${fileBase}.jpeg`);
-                      }}
-                    >
-                      JPEG
-                    </button>
-                    <button
-                      type="button"
-                      className="toolbar-menu-item"
-                      onClick={() => {
-                        setExportMenuOpen(false);
-                        if (workspace) void exportWorkspaceAsPdf(workspace.id, `${fileBase}.pdf`);
-                      }}
-                    >
-                      PDF
-                    </button>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
+<<<<<<< HEAD
+              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    if (workspace) void exportWorkspaceAsPng(workspace.id, `${fileBase}.png`);
+                  }}
+                >
+                  PNG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    if (workspace) void exportWorkspaceAsJpeg(workspace.id, `${fileBase}.jpeg`);
+                  }}
+                >
+                  JPEG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    if (workspace) void exportWorkspaceAsPdf(workspace.id, `${fileBase}.pdf`);
+                  }}
+                >
+                  PDF
+                </button>
+              </div>
+=======
+              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsPng(`${fileBase}.png`);
+                  }}
+                >
+                  PNG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                  }}
+                >
+                  JPEG
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-menu-item"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                  }}
+                >
+                  PDF
+                </button>
+              </div>
+>>>>>>> develop
             </div>
             <AutoSaveBadge status={saveStatus} />
             <ProfileMenu
@@ -1242,6 +1310,7 @@ export function EditorShell() {
         </div>
 
         <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
+        <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} />
 
         {workspace?.id ? (
           <ShareDialog
@@ -1253,7 +1322,38 @@ export function EditorShell() {
           />
         ) : null}
 
+<<<<<<< HEAD
         {workspace && <VoiceCommandManager workspaceId={workspace.id} />}
+        <GenerativeUIModal />
+=======
+        <CommandBrain
+          open={commandBrainOpen}
+          onClose={() => setCommandBrainOpen(false)}
+          commands={[
+            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => addElement("rectangle") },
+            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => addElement("circle") },
+            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => addElement("text") },
+            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => addElement("arrow") },
+            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => addElement("star") },
+            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => addElement("triangle") },
+            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => addElement("diamond") },
+            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => addElement("frame") },
+            { id: "undo",    label: "Undo",    category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
+            { id: "redo",    label: "Redo",    category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
+            { id: "layers",    label: "Open Layers",    category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
+            { id: "inspector", label: "Open Inspector", category: "Navigate", icon: <span>⚙</span>, action: () => setActiveSection("inspector") },
+            { id: "comments",  label: "Open Comments",  category: "Navigate", icon: <span>💬</span>, action: () => setActiveSection("comments") },
+            { id: "templates", label: "Open Templates", category: "Navigate", icon: <span>🔖</span>, action: () => setActiveSection("templates") },
+            { id: "activity",  label: "Open Activity",  category: "Navigate", icon: <span>📋</span>, action: () => setActiveSection("activity") },
+            { id: "share",   label: "Share Workspace",   category: "Workspace", icon: <span>🔗</span>, action: () => setShareDialogOpen(true) },
+            { id: "preview", label: "Multi-Screen Preview", category: "Workspace", icon: <span>📱</span>, action: () => setPreviewOpen(true) },
+            { id: "export-png", label: "Export as PNG", category: "Export", icon: <span>🖼</span>, action: () => void exportWorkspaceAsPng(`${workspaceName}.png`) },
+            { id: "export-pdf", label: "Export as PDF", category: "Export", icon: <span>📄</span>, action: () => void exportWorkspaceAsPdf(`${workspaceName}.pdf`) },
+            { id: "gen-ui",  label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
+          ] satisfies BrainCommand[]}
+        />
+        <VoiceCommandManager />
+>>>>>>> develop
       </motion.section>
     </main>
   );

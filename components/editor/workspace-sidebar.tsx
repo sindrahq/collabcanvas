@@ -8,9 +8,10 @@ import { RightSidebar } from "@/components/editor/right-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { TemplatePanel } from "@/components/editor/template-panel";
+import { ActivityFeed } from "@/components/editor/activity-feed";
 import type { WorkspaceComment } from "@/lib/comments";
 
-export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments" | "templates";
+export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments" | "templates" | "activity";
 
 type WorkspaceSidebarProps = {
   workspaceName: string;
@@ -95,7 +96,14 @@ export function WorkspaceSidebar({
               mode="comments"
             />
           ) : null}
+<<<<<<< HEAD
           {activeSection === "templates" && workspaceId ? <TemplatePanel workspaceId={workspaceId} /> : null}
+          {activeSection === "templates" && !workspaceId ? <TemplatePanel /> : null}
+          {activeSection === "activity" ? <ActivityFeed /> : null}
+=======
+          {activeSection === "templates" ? <TemplatePanel /> : null}
+          {activeSection === "activity" ? <ActivityFeed /> : null}
+>>>>>>> develop
         </div>
       </motion.div>
     </aside>

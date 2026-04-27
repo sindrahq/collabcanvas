@@ -19,12 +19,18 @@ import {
 <<<<<<< HEAD
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
+import { broadcastElementClick } from "@/lib/collaboration";
+<<<<<<< HEAD
 =======
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
 >>>>>>> develop
+=======
+import { broadcastElementClick } from "@/lib/collaboration";
+>>>>>>> develop
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
+import { KonvaVideo } from "./konva-video";
 import { CustomContextMenu } from "./context-menu";
 
 // Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
@@ -194,21 +200,30 @@ function getKonvaFontStyle(element: CanvasElement) {
 }
 
 <<<<<<< HEAD
-export function KonvaStageWorkspace({ workspaceId, zoom = 1 }: { workspaceId: string; zoom?: number }) {
-  const store = useWorkspaceStoreFactory(workspaceId);
-  const elements = store((state) => state.elements);
-  const selectedElementId = store((state) => state.selectedElementId);
-  const selectElement = store((state) => state.selectElement);
-  const updateElement = store((state) => state.updateElement);
-  const canvasBackground = store((state) => state.canvasBackground);
-  const canvasDimensions = store((state) => state.canvasDimensions);
-  const canEdit = store((state) => state.canEdit);
-  const snapToGrid = store((state) => state.snapToGrid);
-  const activeTool = store((state) => state.activeTool);
-  const addPencilElement = store((state) => state.addPencilElement);
-  const deleteElement = store((state) => state.deleteElement);
-  const partialErasePencilStroke = store((state) => state.partialErasePencilStroke);
-  const eraserSize = store((state) => state.eraserSize);
+export function KonvaStageWorkspace({
+  workspaceId,
+  zoom = 1,
+  remoteCursors,
+}: {
+  workspaceId: string;
+  zoom?: number;
+  remoteCursors?: any;
+}) {
+  const elements = useWorkspaceStore((state) => state.elements);
+  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+  const selectElement = useWorkspaceStore((state) => state.selectElement);
+  const updateElement = useWorkspaceStore((state) => state.updateElement);
+  const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
+  const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
+  const canEdit = useWorkspaceStore((state) => state.canEdit);
+  const snapToGrid = useWorkspaceStore((state) => state.snapToGrid);
+  const activeTool = useWorkspaceStore((state) => state.activeTool);
+  const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
+  const deleteElement = useWorkspaceStore((state) => state.deleteElement);
+  const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
+  const eraserSize = useWorkspaceStore((state) => state.eraserSize);
+  const elevations = useWorkspaceStore((state) => state.elevations);
+  const currentUserMeta = useRef<string>("local");
 =======
 export function KonvaStageWorkspace({
   zoom = 1,
@@ -232,6 +247,11 @@ export function KonvaStageWorkspace({
   const deleteElement = useWorkspaceStore((state) => state.deleteElement);
   const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
   const eraserSize = useWorkspaceStore((state) => state.eraserSize);
+<<<<<<< HEAD
+>>>>>>> develop
+=======
+  const elevations = useWorkspaceStore((state) => state.elevations);
+  const currentUserMeta = useRef<string>("local");
 >>>>>>> develop
 
   const eraserCursor = useMemo(() => {
@@ -469,7 +489,16 @@ export function KonvaStageWorkspace({
               const elementHeight = element.height / STAGE_SCALE;
               const centerX = element.x / STAGE_SCALE + elementWidth / 2;
               const centerY = element.y / STAGE_SCALE + elementHeight / 2;
-              const sharedShadow = shadowProps(element);
+              const elevation = elevations[element.id] ?? 0;
+              const baseShadow = shadowProps(element);
+              const sharedShadow = elevation > 0
+                ? {
+                    ...baseShadow,
+                    shadowBlur: (baseShadow.shadowBlur ?? 10) + elevation * 12,
+                    shadowColor: "#D3A5B1",
+                    shadowOpacity: Math.min(0.9, (baseShadow.shadowOpacity ?? 0.7) + elevation * 0.15),
+                  }
+                : baseShadow;
 
               const commonProps = {
                 rotation: element.rotation,
@@ -482,8 +511,8 @@ export function KonvaStageWorkspace({
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
                 },
-                onClick: () => selectElement(element.id),
-                onTap: () => selectElement(element.id),
+                onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
+                onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
                   const stage = event.target.getStage();
@@ -516,8 +545,8 @@ export function KonvaStageWorkspace({
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
                 },
-                onClick: () => selectElement(element.id),
-                onTap: () => selectElement(element.id),
+                onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
+                onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
                   updateElement(element.id, {
@@ -592,6 +621,45 @@ export function KonvaStageWorkspace({
                     {...sharedShadow}
                     onTransformEnd={(event: Konva.KonvaEventObject<Event>) =>
                       updateFromTransform(element, event.target as Konva.Image, updateElement)
+                    }
+                  />
+                );
+              }
+
+              if (element.type === "video") {
+                if ((element as any).videoUrl) {
+                  return (
+                    <KonvaVideo
+                      key={element.id}
+                      {...commonProps}
+                      x={element.x / STAGE_SCALE}
+                      y={element.y / STAGE_SCALE}
+                      width={elementWidth}
+                      height={elementHeight}
+                      videoUrl={(element as any).videoUrl}
+                      trimStart={(element as any).trimStart ?? 0}
+                      ref={(node: any) => { nodeRefs.current[element.id] = node; }}
+                      {...sharedShadow}
+                      onTransformEnd={(event: any) =>
+                        updateFromTransform(element, event.target, updateElement)
+                      }
+                    />
+                  );
+                }
+                return (
+                  <Rect
+                    key={element.id}
+                    {...commonProps}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    width={elementWidth}
+                    height={elementHeight}
+                    fill="#111"
+                    stroke="#444"
+                    strokeWidth={1}
+                    ref={(node) => { nodeRefs.current[element.id] = node; }}
+                    onTransformEnd={(event) =>
+                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
                     }
                   />
                 );
