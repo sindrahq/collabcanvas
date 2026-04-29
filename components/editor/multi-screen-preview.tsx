@@ -61,6 +61,7 @@ export function MultiScreenPreview({ open, onClose }: { open: boolean; onClose: 
   const canvasDimensions = useWorkspaceStore((s) => s.canvasDimensions);
   const stageW = canvasDimensions.width / STAGE_SCALE;
   const stageH = canvasDimensions.height / STAGE_SCALE;
+  const workspaceId = useWorkspaceStore((s) => s.workspace?.id ?? "");
 
   useEffect(() => {
     if (!open) return;
@@ -161,7 +162,7 @@ export function MultiScreenPreview({ open, onClose }: { open: boolean; onClose: 
                             userSelect: "none",
                           }}
                         >
-                          <KonvaStageWorkspace />
+                          <KonvaStageWorkspace workspaceId={workspaceId} />
                         </div>
 
                         {/* Transparent overlay to block all interactions */}

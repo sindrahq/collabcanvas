@@ -17,6 +17,7 @@ import {
   Path as KonvaPath,
 } from "react-konva";
 import { useWorkspaceStoreFactory, useWorkspaceStore } from "@/store/workspaceStore";
+import type { CanvasElement } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
 import { broadcastElementClick } from "@/lib/collaboration";
 import Konva from "konva";
