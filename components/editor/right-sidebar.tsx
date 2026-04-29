@@ -536,7 +536,7 @@ export function RightSidebar({
               </div>
             )}
 
-            <ElementTimeTravelSlider />
+            <ElementTimeTravelSlider workspaceId={workspaceId ?? ""} />
 
             {selectedElement.type === "video" && (
               <div className="inspector-section">

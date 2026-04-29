@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Clock, RotateCcw } from "lucide-react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 
-export function ElementTimeTravelSlider() {
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const elementHistory = useWorkspaceStore((s) => s.elementHistory);
-  const travelElementTo = useWorkspaceStore((s) => s.travelElementTo);
-  const restoreElementToCurrent = useWorkspaceStore((s) => s.restoreElementToCurrent);
+export function ElementTimeTravelSlider({ workspaceId }: { workspaceId: string }) {
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const selectedElementId = useStore((s) => s.selectedElementId);
+  const elementHistory = useStore((s) => s.elementHistory);
+  const travelElementTo = useStore((s) => s.travelElementTo);
+  const restoreElementToCurrent = useStore((s) => s.restoreElementToCurrent);
 
   const history = elementHistory[selectedElementId ?? ""] ?? [];
   const maxIndex = history.length; // 0..N-1 = past, N = current
