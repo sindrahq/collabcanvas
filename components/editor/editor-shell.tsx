@@ -1315,7 +1315,7 @@ export function EditorShell() {
           </div>
         </div>
 
-        <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
+        <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} workspaceId={workspaceIdFromUrl} />
         <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} />
 
         {workspace?.id ? (
