@@ -85,9 +85,9 @@ export function VibeCheckPanel() {
             Suggested palette{selectedElementId && canEdit ? " — click to apply" : ""}
           </p>
           <div className="vibe-suggestion-list">
-            {suggestions.map((s) => (
+            {suggestions.map((s, i) => (
               <button
-                key={s.hex}
+                key={s.hex + '-' + i}
                 type="button"
                 className={`vibe-suggestion${selectedElementId && canEdit ? " vibe-suggestion-clickable" : ""}`}
                 onClick={() => applyColor(s.hex)}
