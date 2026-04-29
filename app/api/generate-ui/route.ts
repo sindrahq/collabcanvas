@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -16,31 +17,52 @@ export async function POST(req: NextRequest) {
   const { prompt } = (await req.json()) as { prompt?: string };
   if (!prompt) return NextResponse.json({ error: "prompt required" }, { status: 400 });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured — ask your team lead to add it to .env.local" }, { status: 503 });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY not configured — add it to .env.local" }, { status: 503 });
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  // Try a list of Gemini models (some accounts have different access/quotas)
+  const preferredModels = [
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+  ];
 
-  if (!response.ok) {
-    const err = await response.text();
-    return NextResponse.json({ error: `AI API error: ${err}` }, { status: 500 });
+  const promptText = `${SYSTEM_PROMPT}\n${prompt}`;
+  let lastErrorText = "";
+  let data: any = null;
+
+  for (const model of preferredModels) {
+    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const geminiPrompt = [ { role: "user", parts: [{ text: promptText }] } ];
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: geminiPrompt }),
+      });
+
+      if (!res.ok) {
+        lastErrorText = await res.text();
+        // try next model
+        continue;
+      }
+
+      data = await res.json();
+      // success
+      break;
+    } catch (err: any) {
+      lastErrorText = String(err?.message ?? err);
+      continue;
+    }
   }
 
-  const data = (await response.json()) as { content?: Array<{ text?: string }> };
-  const text = data.content?.[0]?.text ?? "[]";
+  if (!data) {
+    return NextResponse.json({ error: `AI API error: ${lastErrorText}` }, { status: 502 });
+  }
+  // Gemini returns candidates[0].content.parts[0].text
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
 
   try {
     const elements = JSON.parse(text) as unknown[];
