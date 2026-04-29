@@ -16,18 +16,9 @@ import {
   Transformer,
   Path as KonvaPath,
 } from "react-konva";
-<<<<<<< HEAD
 import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
 import { broadcastElementClick } from "@/lib/collaboration";
-<<<<<<< HEAD
-=======
-import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
-import type { PresenceMeta } from "@/lib/collaboration";
->>>>>>> develop
-=======
-import { broadcastElementClick } from "@/lib/collaboration";
->>>>>>> develop
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { KonvaVideo } from "./konva-video";
@@ -199,32 +190,6 @@ function getKonvaFontStyle(element: CanvasElement) {
   return parts.length ? parts.join(" ") : "normal";
 }
 
-<<<<<<< HEAD
-export function KonvaStageWorkspace({
-  workspaceId,
-  zoom = 1,
-  remoteCursors,
-}: {
-  workspaceId: string;
-  zoom?: number;
-  remoteCursors?: any;
-}) {
-  const elements = useWorkspaceStore((state) => state.elements);
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
-  const selectElement = useWorkspaceStore((state) => state.selectElement);
-  const updateElement = useWorkspaceStore((state) => state.updateElement);
-  const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
-  const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
-  const canEdit = useWorkspaceStore((state) => state.canEdit);
-  const snapToGrid = useWorkspaceStore((state) => state.snapToGrid);
-  const activeTool = useWorkspaceStore((state) => state.activeTool);
-  const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
-  const deleteElement = useWorkspaceStore((state) => state.deleteElement);
-  const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
-  const eraserSize = useWorkspaceStore((state) => state.eraserSize);
-  const elevations = useWorkspaceStore((state) => state.elevations);
-  const currentUserMeta = useRef<string>("local");
-=======
 export function KonvaStageWorkspace({
   zoom = 1,
   remoteCursors,
@@ -247,12 +212,8 @@ export function KonvaStageWorkspace({
   const deleteElement = useWorkspaceStore((state) => state.deleteElement);
   const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
   const eraserSize = useWorkspaceStore((state) => state.eraserSize);
-<<<<<<< HEAD
->>>>>>> develop
-=======
   const elevations = useWorkspaceStore((state) => state.elevations);
   const currentUserMeta = useRef<string>("local");
->>>>>>> develop
 
   const eraserCursor = useMemo(() => {
     const r = Math.max(4, eraserSize);
@@ -306,8 +267,8 @@ export function KonvaStageWorkspace({
 
   // Context Menu State
   const [menu, setMenu] = useState<{ x: number, y: number, visible: boolean } | null>(null);
-  const duplicateSelectedElement = store((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = store((s) => s.deleteSelectedElement);
+  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
 
   const handleContextAction = (action: string) => {
     if (!selectedElementId) return;
@@ -335,7 +296,7 @@ export function KonvaStageWorkspace({
         const target = elements.find(e => e.id === selectedElementId);
         if (target) {
           const frameId = `frame-${Math.random().toString(36).substring(2, 11)}`;
-          store.getState().addElement("frame", {
+          useWorkspaceStore.getState().addElement("frame", {
             id: frameId,
             x: target.x - 20,
             y: target.y - 20,

@@ -96,14 +96,8 @@ export function WorkspaceSidebar({
               mode="comments"
             />
           ) : null}
-<<<<<<< HEAD
-          {activeSection === "templates" && workspaceId ? <TemplatePanel workspaceId={workspaceId} /> : null}
-          {activeSection === "templates" && !workspaceId ? <TemplatePanel /> : null}
+          {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId ?? "default"} /> : null}
           {activeSection === "activity" ? <ActivityFeed /> : null}
-=======
-          {activeSection === "templates" ? <TemplatePanel /> : null}
-          {activeSection === "activity" ? <ActivityFeed /> : null}
->>>>>>> develop
         </div>
       </motion.div>
     </aside>

@@ -1,5 +1,7 @@
 "use client";
 
+import { subscribeToActivityFeed, broadcastActivity } from "@/lib/activityFeedRealtime";
+import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -27,18 +29,9 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
-<<<<<<< HEAD
 import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
-<<<<<<< HEAD
-=======
-import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
-import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
->>>>>>> develop
-=======
-import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
->>>>>>> develop
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -165,24 +158,9 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
 }
 
 export function EditorShell() {
+  // All hooks and state declarations must come first
   const router = useRouter();
   const searchParams = useSearchParams();
-<<<<<<< HEAD
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const copySelectedElement = useWorkspaceStore((s) => s.copySelectedElement);
-  const pasteElement = useWorkspaceStore((s) => s.pasteElement);
-  const workspace = useWorkspaceStore((s) => s.workspace);
-  const workspaceName = useWorkspaceStore((s) => s.workspaceName);
-  const accessLevel = useWorkspaceStore((s) => s.accessLevel);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
-  const setWorkspaceAccess = useWorkspaceStore((s) => s.setWorkspaceAccess);
-  const undo = useWorkspaceStore((s) => s.undo);
-  const redo = useWorkspaceStore((s) => s.redo);
-  const elements = useWorkspaceStore((s) => s.elements);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-=======
   const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
   const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
   const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
@@ -199,7 +177,56 @@ export function EditorShell() {
   const updateElement = useWorkspaceStore((s) => s.updateElement);
   const addElement = useWorkspaceStore((s) => s.addElement);
   const setElevation = useWorkspaceStore((s) => s.setElevation);
->>>>>>> develop
+  const pushActivityLog = useWorkspaceStore((s) => s.pushActivityLog);
+  const clearActivityLog = useWorkspaceStore((s) => s.clearActivityLog);
+
+  // Now safe to use hooks in useMemo
+  const workspaceIdFromUrl: string = useMemo(() => {
+    const id = searchParams.get("workspaceId") || searchParams.get("id") || searchParams.get("projectId");
+    return id || workspace?.id || "";
+  }, [searchParams, workspace]);
+
+  // Get the Zustand store instance
+  // (Zustand does not expose store directly, so we use a workaround for imperative calls)
+  // @ts-ignore
+  const store = useWorkspaceStore;
+
+  // Wrapped element actions to log and broadcast activity
+  function handleAddElement(type: string, extra?: any) {
+    addElement(type as any, extra);
+    logAndBroadcastActivity("added", extra?.name || type, type);
+  }
+
+  // Helper to log and broadcast activity
+  const logAndBroadcastActivity = async (
+    action: "added" | "deleted" | "updated" | "moved",
+    elementName: string,
+    elementType: string
+  ) => {
+    if (!workspace?.id || !authUser) return;
+    const entry = {
+      id: crypto.randomUUID(),
+      action,
+      elementName,
+      elementType,
+      userName: getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email) || "User",
+      timestamp: Date.now(),
+    };
+    // Push locally for instant feedback
+    pushActivityLog(entry);
+    // Broadcast to others
+    broadcastActivity(workspace.id, entry);
+    // Log to Supabase
+    await logActivityServer({
+      workspace_id: workspace.id,
+      user_id: authUser.id,
+      user_name: entry.userName,
+      action,
+      element_name: elementName,
+      element_type: elementType,
+    });
+  };
+  
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -1115,40 +1142,6 @@ export function EditorShell() {
                 <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
               </button>
 
-<<<<<<< HEAD
-              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    if (workspace) void exportWorkspaceAsPng(workspace.id, `${fileBase}.png`);
-                  }}
-                >
-                  PNG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    if (workspace) void exportWorkspaceAsJpeg(workspace.id, `${fileBase}.jpeg`);
-                  }}
-                >
-                  JPEG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    if (workspace) void exportWorkspaceAsPdf(workspace.id, `${fileBase}.pdf`);
-                  }}
-                >
-                  PDF
-                </button>
-              </div>
-=======
               <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
                 <button
                   type="button"
@@ -1181,7 +1174,6 @@ export function EditorShell() {
                   PDF
                 </button>
               </div>
->>>>>>> develop
             </div>
             <AutoSaveBadge status={saveStatus} />
             <ProfileMenu
@@ -1240,7 +1232,7 @@ export function EditorShell() {
                   transition={{ duration: 0.18 }}
                 >
                   <Toolbar
-                      workspaceId={workspaceIdFromUrl}
+                      workspaceId={workspaceIdFromUrl || ""}
                       workspaceName={workspaceName}
                       showHistoryActions={false}
                       showAddActions={false}
@@ -1277,9 +1269,9 @@ export function EditorShell() {
           <div className="editor-mobile-panel">
             {mobilePanel === "canvas" ? (
               <div className="editor-mobile-panel-inner">
-                <Toolbar workspaceId={workspaceIdFromUrl} workspaceName={workspaceName} />
+                <Toolbar workspaceId={workspaceIdFromUrl || ""} workspaceName={workspaceName} />
                 <CanvasWorkspace
-                  workspaceId={workspaceIdFromUrl}
+                  workspaceId={workspaceIdFromUrl || ""}
                   currentUserId={currentUserMeta.user_id}
                   presences={presences}
                   remoteCursors={remoteCursors}
@@ -1289,7 +1281,7 @@ export function EditorShell() {
 
             {mobilePanel === "layers" ? (
               <div className="editor-mobile-panel-inner">
-                <LeftSidebar workspaceId={workspaceIdFromUrl} />
+                <LeftSidebar workspaceId={workspaceIdFromUrl || ""} />
               </div>
             ) : null}
 
@@ -1322,22 +1314,18 @@ export function EditorShell() {
           />
         ) : null}
 
-<<<<<<< HEAD
-        {workspace && <VoiceCommandManager workspaceId={workspace.id} />}
-        <GenerativeUIModal />
-=======
         <CommandBrain
           open={commandBrainOpen}
           onClose={() => setCommandBrainOpen(false)}
           commands={[
-            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => addElement("rectangle") },
-            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => addElement("circle") },
-            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => addElement("text") },
-            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => addElement("arrow") },
-            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => addElement("star") },
-            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => addElement("triangle") },
-            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => addElement("diamond") },
-            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => addElement("frame") },
+            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => handleAddElement("rectangle") },
+            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => handleAddElement("circle") },
+            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => handleAddElement("text") },
+            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => handleAddElement("arrow") },
+            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => handleAddElement("star") },
+            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => handleAddElement("triangle") },
+            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => handleAddElement("diamond") },
+            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => handleAddElement("frame") },
             { id: "undo",    label: "Undo",    category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
             { id: "redo",    label: "Redo",    category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
             { id: "layers",    label: "Open Layers",    category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
@@ -1352,8 +1340,7 @@ export function EditorShell() {
             { id: "gen-ui",  label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
           ] satisfies BrainCommand[]}
         />
-        <VoiceCommandManager />
->>>>>>> develop
+        <VoiceCommandManager workspaceId={workspaceIdFromUrl || ""} />
       </motion.section>
     </main>
   );

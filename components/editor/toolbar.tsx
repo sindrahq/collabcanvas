@@ -8,7 +8,7 @@ import {
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
   Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video
 } from "lucide-react";
-import { type CanvasElementStyle, useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import { type CanvasElementStyle, useWorkspaceStoreFactory, type WorkspaceState, useWorkspaceStore } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { SmartCropModal } from "./smart-crop";
 import { FramePicker } from "./frame-picker";
@@ -171,25 +171,25 @@ export function Toolbar({
   showSelectionActions?: boolean;
 }) {
   const store = useWorkspaceStoreFactory(workspaceId);
-  const selectedElementId        = store((s) => s.selectedElementId);
-  const elements                 = store((s) => s.elements);
-  const canEdit                  = store((s) => s.canEdit);
-  const addElement               = store((s) => s.addElement);
-  const duplicateSelectedElement = store((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement    = store((s) => s.deleteSelectedElement);
-  const updateElementStyle       = store((s) => s.updateElementStyle);
-  const undo                     = store((s) => s.undo);
-  const redo                     = store((s) => s.redo);
-  const historyIndex             = store((s) => s.historyIndex);
-  const history                  = store((s) => s.history);
-  const snapToGrid               = store((s) => s.snapToGrid);
-  const toggleSnapToGrid         = store((s) => s.toggleSnapToGrid);
-  const updateElement            = store((s) => s.updateElement);
+  const selectedElementId        = store((s: WorkspaceState) => s.selectedElementId);
+  const elements                 = store((s: WorkspaceState) => s.elements);
+  const canEdit                  = store((s: WorkspaceState) => s.canEdit);
+  const addElement               = store((s: WorkspaceState) => s.addElement);
+  const duplicateSelectedElement = store((s: WorkspaceState) => s.duplicateSelectedElement);
+  const deleteSelectedElement    = store((s: WorkspaceState) => s.deleteSelectedElement);
+  const updateElementStyle       = store((s: WorkspaceState) => s.updateElementStyle);
+  const undo                     = store((s: WorkspaceState) => s.undo);
+  const redo                     = store((s: WorkspaceState) => s.redo);
+  const historyIndex             = store((s: WorkspaceState) => s.historyIndex);
+  const history                  = store((s: WorkspaceState) => s.history);
+  const snapToGrid               = store((s: WorkspaceState) => s.snapToGrid);
+  const toggleSnapToGrid         = store((s: WorkspaceState) => s.toggleSnapToGrid);
+  const updateElement            = store((s: WorkspaceState) => s.updateElement);
   const [isCropping, setIsCropping] = useState(false);
-  const activeTool               = store((s) => s.activeTool);
-  const setActiveTool            = store((s) => s.setActiveTool);
-  const eraserSize               = store((s) => s.eraserSize);
-  const setEraserSize            = store((s) => s.setEraserSize);
+  const activeTool               = store((s: WorkspaceState) => s.activeTool);
+  const setActiveTool            = store((s: WorkspaceState) => s.setActiveTool);
+  const eraserSize               = store((s: WorkspaceState) => s.eraserSize);
+  const setEraserSize            = store((s: WorkspaceState) => s.setEraserSize);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";

@@ -7,7 +7,7 @@ import {
   Layers, Lock, Layout, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock,
   Hexagon, Heart, Cloud, Square, Diamond, Shield, Octagon, Zap, Sun, Moon, Pencil
 } from "lucide-react";
-import { type CanvasElement, type CanvasElementType, useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import { type CanvasElement, type CanvasElementType, useWorkspaceStoreFactory, type WorkspaceState } from "@/store/workspaceStore";
 
 const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number; className?: string }>> = {
   rectangle: RectangleHorizontal,
@@ -36,8 +36,8 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number;
 
 export function LeftSidebar({ workspaceId }: { workspaceId: string }) {
   const store = useWorkspaceStoreFactory(workspaceId);
-  const elements = store((state) => state.elements);
-  const selectedElementId = store((state) => state.selectedElementId);
+  const elements = store((state: WorkspaceState) => state.elements);
+  const selectedElementId = store((state: WorkspaceState) => state.selectedElementId);
   const orderedElements = useMemo(
     () => [...elements].sort((a, b) => b.layerOrder - a.layerOrder),
     [elements]
@@ -92,11 +92,11 @@ export function LeftSidebar({ workspaceId }: { workspaceId: string }) {
 
 function LayerRow({ element, isSelected, workspaceId }: { element: CanvasElement; isSelected: boolean; workspaceId: string }) {
   const store = useWorkspaceStoreFactory(workspaceId);
-  const selectElement = store((state) => state.selectElement);
-  const reorderElement = store((state) => state.reorderElement);
-  const toggleVisibility = store((state) => state.toggleVisibility);
-  const toggleLock = store((state) => state.toggleLock);
-  const canEdit = store((state) => state.canEdit);
+  const selectElement = store((state: WorkspaceState) => state.selectElement);
+  const reorderElement = store((state: WorkspaceState) => state.reorderElement);
+  const toggleVisibility = store((state: WorkspaceState) => state.toggleVisibility);
+  const toggleLock = store((state: WorkspaceState) => state.toggleLock);
+  const canEdit = store((state: WorkspaceState) => state.canEdit);
   const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
 
   return (

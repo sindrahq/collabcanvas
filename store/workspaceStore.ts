@@ -26,7 +26,10 @@ function withCompatFields(element: CanvasElement): CanvasElement {
   };
 }
 
-import { create } from "zustand";
+import { create, type UseBoundStore, type StoreApi } from "zustand";
+import { useRef } from "react";
+import { broadcastActivity } from "@/lib/activityFeedRealtime";
+import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { persist } from "zustand/middleware";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -126,7 +129,7 @@ export type CanvasElement = {
   points?: number[];
 };
 
-type WorkspaceState = {
+export type WorkspaceState = {
   workspace: WorkspaceMeta | null;
   workspaceName: string;
   accessLevel: WorkspaceAccessLevel;
@@ -172,6 +175,8 @@ type WorkspaceState = {
   restoreElementToCurrent: (elementId: string) => void;
   activityLog: ActivityEntry[];
   logActivity: (action: ActivityEntry["action"], elementName: string, elementType: string, userName?: string) => void;
+  pushActivityLog: (entry: ActivityEntry) => void;
+  clearActivityLog: () => void;
   elevations: Record<string, number>;
   setElevation: (elementId: string, delta: number) => void;
   undo: () => void;
@@ -247,31 +252,6 @@ function normalizeElements(elements: CanvasElement[]): CanvasElement[] {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function withCompatFields(element: CanvasElement): CanvasElement {
-  return {
-    ...element,
-    name: element.name ?? element.label,
-    label: element.label ?? element.name,
-    layerOrder: element.layerOrder ?? element.layer_order,
-    layer_order: element.layer_order ?? element.layerOrder,
-    style: {
-      ...element.style,
-      fill: (element.type === "text" && (!element.style.fill || element.style.fill === "#ffffff" || element.style.fill === "white"))
-        ? "#1e2523"
-        : (element.style.fill ?? "#cccccc"),
-      fontFamily: element.style.fontFamily ?? "Inter",
-      fontStyle: element.style.fontStyle ?? "normal",
-      fontWeight: element.style.fontWeight ?? "normal",
-      textAlign: element.style.textAlign ?? "left",
-      shadowEnabled: element.style.shadowEnabled ?? false,
-      shadowBlur: element.style.shadowBlur ?? 16,
-      shadowColor: element.style.shadowColor ?? "rgba(20,32,28,0.3)",
-      shadowOffsetX: element.style.shadowOffsetX ?? 0,
-      shadowOffsetY: element.style.shadowOffsetY ?? 6,
-    },
-  };
-}
-
 // Factory for per-workspace Zustand stores
 const storeMap = new Map<string, UseBoundStore<StoreApi<WorkspaceState>>>();
 
@@ -298,6 +278,9 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
             snapToGrid: false,
             activeTool: "select",
             eraserSize: 10,
+            elementHistory: {},
+            activityLog: [],
+            elevations: {},
             
             setActiveTool: (tool) => set({ activeTool: tool }),
             setEraserSize: (eraserSize) => set({ eraserSize }),
@@ -339,6 +322,26 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
             addElement: (type, extra) => set((state) => {
               const nextElement = createElement(type, state.elements.length, extra);
               const nextElements = [...state.elements, nextElement];
+              // Real-time activity feed
+              if (state.workspace?.id && state.canEdit) {
+                const entry = {
+                  id: crypto.randomUUID(),
+                  action: "added",
+                  elementName: nextElement.name,
+                  elementType: type,
+                  userName: "You",
+                  timestamp: Date.now(),
+                };
+                broadcastActivity(state.workspace.id, entry);
+                void logActivityServer({
+                  workspace_id: state.workspace.id,
+                  user_id: "",
+                  user_name: "You",
+                  action: "added",
+                  element_name: nextElement.name,
+                  element_type: type,
+                });
+              }
               return { ...withHistory(state, nextElements), selectedElementId: nextElement.id };
             }),
             updateElement: (elementId, updates) => set((state) => {
@@ -354,6 +357,29 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
                   style: u.style ? { ...el.style, ...u.style } : el.style,
                 });
               });
+              // Real-time activity feed
+              if (state.workspace?.id && state.canEdit) {
+                const el = state.elements.find((e) => e.id === elementId);
+                if (el) {
+                  const entry = {
+                    id: crypto.randomUUID(),
+                    action: "updated",
+                    elementName: updates.name || el.name,
+                    elementType: el.type,
+                    userName: "You",
+                    timestamp: Date.now(),
+                  };
+                  broadcastActivity(state.workspace.id, entry);
+                  void logActivityServer({
+                    workspace_id: state.workspace.id,
+                    user_id: "",
+                    user_name: "You",
+                    action: "updated",
+                    element_name: updates.name || el.name,
+                    element_type: el.type,
+                  });
+                }
+              }
               return withHistory(state, nextElements);
             }),
             updateElementStyle: (elementId, style) => set((state) => {
@@ -373,6 +399,26 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
               const nextElements = ordered.map((el, i) =>
                 withCompatFields({ ...el, layerOrder: i, layer_order: i })
               );
+              // Real-time activity feed
+              if (state.workspace?.id && state.canEdit) {
+                const entry = {
+                  id: crypto.randomUUID(),
+                  action: "moved",
+                  elementName: moved.name,
+                  elementType: moved.type,
+                  userName: "You",
+                  timestamp: Date.now(),
+                };
+                broadcastActivity(state.workspace.id, entry);
+                void logActivityServer({
+                  workspace_id: state.workspace.id,
+                  user_id: "",
+                  user_name: "You",
+                  action: "moved",
+                  element_name: moved.name,
+                  element_type: moved.type,
+                });
+              }
               return withHistory(state, nextElements);
             }),
             duplicateSelectedElement: () => set((state) => {
@@ -447,6 +493,54 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
             updateLayerOrder: (elements) => set((state) => withHistory(state, normalizeElements(elements))),
             setCanvasBackground: (canvasBackground) => set({ canvasBackground }),
             setCanvasDimensions: (canvasDimensions) => set({ canvasDimensions }),
+            
+            travelElementTo: (elementId, historyIndex) =>
+              set((state) => {
+                const history = state.elementHistory[elementId] ?? [];
+                if (historyIndex >= history.length) return state;
+                const snapshot = history[historyIndex];
+                if (!snapshot) return state;
+                const nextElements = state.elements.map((el) =>
+                  el.id === elementId ? withCompatFields({ ...snapshot, style: { ...snapshot.style } }) : el
+                );
+                return setElementCollections(nextElements);
+              }),
+
+            restoreElementToCurrent: (elementId) =>
+              set((state) => {
+                const snap = (state.history[state.historyIndex] ?? []).find((e) => e.id === elementId);
+                if (!snap) return state;
+                const nextElements = state.elements.map((e) =>
+                  e.id === elementId ? withCompatFields({ ...snap, style: { ...snap.style } }) : e
+                );
+                return setElementCollections(nextElements);
+              }),
+
+            logActivity: (action, elementName, elementType, userName = "You") =>
+              set((state) => ({
+                activityLog: [{
+                  id: createId("activity"),
+                  action,
+                  elementName,
+                  elementType,
+                  userName,
+                  timestamp: Date.now(),
+                }, ...state.activityLog].slice(0, 50),
+              })),
+
+            pushActivityLog: (entry) =>
+              set((state) => ({
+                activityLog: [entry, ...state.activityLog].slice(0, 50),
+              })),
+
+            clearActivityLog: () => set({ activityLog: [] }),
+
+            setElevation: (elementId, delta) =>
+              set((state) => {
+                const current = state.elevations[elementId] ?? 0;
+                const next = Math.max(0, current + delta);
+                return { elevations: { ...state.elevations, [elementId]: next } };
+              }),
             undo: () => set((state) => {
               if (state.historyIndex <= 0) return state;
               const prevIndex = state.historyIndex - 1;
@@ -521,7 +615,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
   return storeMap.get(workspaceId)!;
 }
 
-export function useWorkspaceStoreFactory(workspaceId: string) {
+export function useWorkspaceStoreFactory(workspaceId: string): UseBoundStore<StoreApi<WorkspaceState>> {
   const storeRef = useRef<UseBoundStore<StoreApi<WorkspaceState>>>(null!);
   if (!storeRef.current) {
     storeRef.current = getOrCreateWorkspaceStore(workspaceId);
@@ -876,26 +970,37 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             state.elements
               .filter((el) => el.id !== id)
               .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
-          );
-          const selectedElementId = state.selectedElementId === id
-            ? (remaining.at(-1)?.id ?? null)
-            : state.selectedElementId;
-          const { [id]: _r2, ...restH2 } = state.elementHistory;
-          const entry: ActivityEntry | null = removed ? {
-            id: createId("activity"),
-            action: "deleted",
-            elementName: removed.name,
-            elementType: removed.type,
-            userName: "You",
-            timestamp: Date.now(),
-          } : null;
-          return {
-            ...withHistory(state, remaining),
-            selectedElementId,
-            elementHistory: restH2,
-            activityLog: entry ? [entry, ...state.activityLog].slice(0, 50) : state.activityLog,
-          };
-        }),
+           );
+           const selectedElementId = state.selectedElementId === id
+             ? (remaining.at(-1)?.id ?? null)
+             : state.selectedElementId;
+           const { [id]: _r2, ...restH2 } = state.elementHistory;
+           // Real-time activity feed
+           if (removed && state.workspace?.id && state.canEdit) {
+             const entry = {
+               id: crypto.randomUUID(),
+               action: "deleted",
+               elementName: removed.name,
+               elementType: removed.type,
+               userName: "You",
+               timestamp: Date.now(),
+             };
+             broadcastActivity(state.workspace.id, entry);
+             void logActivityServer({
+               workspace_id: state.workspace.id,
+               user_id: "",
+               user_name: "You",
+               action: "deleted",
+               element_name: removed.name,
+               element_type: removed.type,
+             });
+           }
+           return {
+             ...withHistory(state, remaining),
+             selectedElementId,
+             elementHistory: restH2,
+           };
+         }),
 
       partialErasePencilStroke: (id, segments) =>
         set((state) => {
@@ -976,6 +1081,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             timestamp: Date.now(),
           }, ...state.activityLog].slice(0, 50),
         })),
+      pushActivityLog: (entry) =>
+        set((state) => ({
+          activityLog: [entry, ...state.activityLog].slice(0, 50),
+        })),
+      clearActivityLog: () => set({ activityLog: [] }),
 
       undo: () =>
         set((state) => {

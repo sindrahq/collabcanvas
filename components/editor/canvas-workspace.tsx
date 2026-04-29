@@ -11,6 +11,7 @@ import {
   type PresenceMeta
 } from "@/lib/collaboration";
 import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import type { WorkspaceState } from "@/store/workspaceStore";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -39,12 +40,12 @@ type CanvasWorkspaceProps = {
 
 export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
   const store = useWorkspaceStoreFactory(workspaceId);
-  const elementCount        = store((s) => s.elements.length);
-  const canvasBackground    = store((s) => s.canvasBackground);
-  const setCanvasBackground = store((s) => s.setCanvasBackground);
-  const canvasDimensions    = store((s) => s.canvasDimensions);
-  const canEdit             = store((s) => s.canEdit);
-  const elements            = store((s) => s.elements);
+  const elementCount        = store((s: WorkspaceState) => s.elements.length);
+  const canvasBackground    = store((s: WorkspaceState) => s.canvasBackground);
+  const setCanvasBackground = store((s: WorkspaceState) => s.setCanvasBackground);
+  const canvasDimensions    = store((s: WorkspaceState) => s.canvasDimensions);
+  const canEdit             = store((s: WorkspaceState) => s.canEdit);
+  const elements            = store((s: WorkspaceState) => s.elements);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -265,11 +266,7 @@ function getTouchDistance(touches: React.TouchList) {
             broadcastCursor(currentUserId, x, y);
           }}
         >
-<<<<<<< HEAD
-          <KonvaStageWorkspace workspaceId={workspaceId} zoom={zoom} />
-=======
           <KonvaStageWorkspace zoom={zoom} remoteCursors={remoteCursors} presences={presences} />
->>>>>>> develop
           <RemoteCursors
             cursors={remoteCursors}
             presences={presences}
