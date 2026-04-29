@@ -783,7 +783,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const workspaceId = state.workspace?.id;
         if (selectedElementId && workspaceId) {
           fetchElementHistory(workspaceId, selectedElementId).then((history) => {
-            set((s) => ({ elementHistory: { ...s.elementHistory, [selectedElementId]: history } }));
+            if (history.length > 0) {
+              set((s) => ({ elementHistory: { ...s.elementHistory, [selectedElementId]: history } }));
+            }
           });
         }
       },
