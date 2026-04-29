@@ -29,7 +29,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
-import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
+import { type WorkspaceAccessLevel, useWorkspaceStore, useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
@@ -161,35 +161,37 @@ export function EditorShell() {
   // All hooks and state declarations must come first
   const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const copySelectedElement = useWorkspaceStore((s) => s.copySelectedElement);
-  const pasteElement = useWorkspaceStore((s) => s.pasteElement);
-  const workspace = useWorkspaceStore((s) => s.workspace);
-  const workspaceName = useWorkspaceStore((s) => s.workspaceName);
-  const accessLevel = useWorkspaceStore((s) => s.accessLevel);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
-  const setWorkspaceAccess = useWorkspaceStore((s) => s.setWorkspaceAccess);
-  const undo = useWorkspaceStore((s) => s.undo);
-  const redo = useWorkspaceStore((s) => s.redo);
-  const elements = useWorkspaceStore((s) => s.elements);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-  const addElement = useWorkspaceStore((s) => s.addElement);
-  const setElevation = useWorkspaceStore((s) => s.setElevation);
-  const pushActivityLog = useWorkspaceStore((s) => s.pushActivityLog);
-  const clearActivityLog = useWorkspaceStore((s) => s.clearActivityLog);
-
-  // Now safe to use hooks in useMemo
   const workspaceIdFromUrl: string = useMemo(() => {
     const id = searchParams.get("workspaceId") || searchParams.get("id") || searchParams.get("projectId");
-    return id || workspace?.id || "";
-  }, [searchParams, workspace]);
+    return id || "";
+  }, [searchParams]);
+
+  // Use the factory store bound to the current workspace ID
+  const useStore = useWorkspaceStoreFactory(workspaceIdFromUrl);
+
+  const selectedElementId = useStore((s) => s.selectedElementId);
+  const duplicateSelectedElement = useStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useStore((s) => s.deleteSelectedElement);
+  const copySelectedElement = useStore((s) => s.copySelectedElement);
+  const pasteElement = useStore((s) => s.pasteElement);
+  const workspace = useStore((s) => s.workspace);
+  const workspaceName = useStore((s) => s.workspaceName);
+  const accessLevel = useStore((s) => s.accessLevel);
+  const canEdit = useStore((s) => s.canEdit);
+  const setWorkspaceAccess = useStore((s) => s.setWorkspaceAccess);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+  const elements = useStore((s) => s.elements);
+  const updateElement = useStore((s) => s.updateElement);
+  const addElement = useStore((s) => s.addElement);
+  const setElevation = useStore((s) => s.setElevation);
+  const pushActivityLog = useStore((s) => s.pushActivityLog);
+  const clearActivityLog = useStore((s) => s.clearActivityLog);
 
   // Get the Zustand store instance
   // (Zustand does not expose store directly, so we use a workaround for imperative calls)
   // @ts-ignore
-  const store = useWorkspaceStore;
+  const store = useStore;
 
   // Wrapped element actions to log and broadcast activity
   function handleAddElement(type: string, extra?: any) {
@@ -276,6 +278,18 @@ export function EditorShell() {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPersistedSignatureRef = useRef<string>("");
   const fileBase = slugify(workspaceName);
+
+  useEffect(() => {
+    // Switch to workspace theme
+    document.body.classList.add("cc-workspace-theme");
+    document.body.classList.remove("cc-landing-theme");
+    
+    return () => {
+      // Restore landing theme or remove workspace theme
+      document.body.classList.remove("cc-workspace-theme");
+      document.body.classList.add("cc-landing-theme");
+    };
+  }, []);
 
   useEffect(() => {
     if (!isRenamingWorkspace) {
@@ -1003,7 +1017,7 @@ export function EditorShell() {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 opacity-60">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
                   <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
                     {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
                   </span>
@@ -1078,7 +1092,7 @@ export function EditorShell() {
                       type="button"
                       onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
                       className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
-                        active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
+                        active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"
                       }`}
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.93 }}
@@ -1203,7 +1217,7 @@ export function EditorShell() {
           >
             <WorkspaceSidebar
               workspaceName={workspaceName}
-              workspaceId={workspace?.id}
+              workspaceId={workspaceIdFromUrl}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}

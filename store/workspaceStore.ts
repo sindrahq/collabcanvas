@@ -27,7 +27,7 @@ function withCompatFields(element: CanvasElement): CanvasElement {
 }
 
 import { create, type UseBoundStore, type StoreApi } from "zustand";
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { broadcastActivity } from "@/lib/activityFeedRealtime";
 import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { persist } from "zustand/middleware";
@@ -616,11 +616,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
 }
 
 export function useWorkspaceStoreFactory(workspaceId: string): UseBoundStore<StoreApi<WorkspaceState>> {
-  const storeRef = useRef<UseBoundStore<StoreApi<WorkspaceState>>>(null!);
-  if (!storeRef.current) {
-    storeRef.current = getOrCreateWorkspaceStore(workspaceId);
-  }
-  return storeRef.current;
+  return getOrCreateWorkspaceStore(workspaceId);
 }
 
 

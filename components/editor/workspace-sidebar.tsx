@@ -63,10 +63,10 @@ export function WorkspaceSidebar({
         </div>
 
         <div className="workspace-sidebar-panel-body">
-          {activeSection === "layers" && workspaceId ? <LeftSidebar workspaceId={workspaceId} /> : null}
+          {activeSection === "layers" && workspaceId !== undefined ? <LeftSidebar workspaceId={workspaceId || ""} /> : null}
           {activeSection === "actions" ? (
             <Toolbar
-              workspaceId={workspaceId!}
+              workspaceId={workspaceId || ""}
               workspaceName={workspaceName}
               layout="vertical"
               showSelectionActions={false}
@@ -74,7 +74,7 @@ export function WorkspaceSidebar({
           ) : null}
           {activeSection === "inspector" ? (
             <RightSidebar
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ""}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}
@@ -86,7 +86,7 @@ export function WorkspaceSidebar({
           ) : null}
           {activeSection === "comments" ? (
             <RightSidebar
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ""}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}
@@ -96,7 +96,7 @@ export function WorkspaceSidebar({
               mode="comments"
             />
           ) : null}
-          {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId ?? "default"} /> : null}
+          {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId || "default"} /> : null}
           {activeSection === "activity" ? <ActivityFeed /> : null}
         </div>
       </motion.div>

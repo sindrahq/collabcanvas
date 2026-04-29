@@ -16,7 +16,7 @@ import {
   Transformer,
   Path as KonvaPath,
 } from "react-konva";
-import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory, useWorkspaceStore } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
 import { broadcastElementClick } from "@/lib/collaboration";
 import Konva from "konva";
@@ -191,28 +191,31 @@ function getKonvaFontStyle(element: CanvasElement) {
 }
 
 export function KonvaStageWorkspace({
+  workspaceId,
   zoom = 1,
   remoteCursors,
   presences,
 }: {
+  workspaceId: string;
   zoom?: number;
   remoteCursors?: Record<string, { x: number; y: number; updatedAt: number }>;
   presences?: Record<string, PresenceMeta>;
 }) {
-  const elements = useWorkspaceStore((state) => state.elements);
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
-  const selectElement = useWorkspaceStore((state) => state.selectElement);
-  const updateElement = useWorkspaceStore((state) => state.updateElement);
-  const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
-  const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
-  const canEdit = useWorkspaceStore((state) => state.canEdit);
-  const snapToGrid = useWorkspaceStore((state) => state.snapToGrid);
-  const activeTool = useWorkspaceStore((state) => state.activeTool);
-  const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
-  const deleteElement = useWorkspaceStore((state) => state.deleteElement);
-  const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
-  const eraserSize = useWorkspaceStore((state) => state.eraserSize);
-  const elevations = useWorkspaceStore((state) => state.elevations);
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const elements = useStore((state) => state.elements);
+  const selectedElementId = useStore((state) => state.selectedElementId);
+  const selectElement = useStore((state) => state.selectElement);
+  const updateElement = useStore((state) => state.updateElement);
+  const canvasBackground = useStore((state) => state.canvasBackground);
+  const canvasDimensions = useStore((state) => state.canvasDimensions);
+  const canEdit = useStore((state) => state.canEdit);
+  const snapToGrid = useStore((state) => state.snapToGrid);
+  const activeTool = useStore((state) => state.activeTool);
+  const addPencilElement = useStore((state) => state.addPencilElement);
+  const deleteElement = useStore((state) => state.deleteElement);
+  const partialErasePencilStroke = useStore((state) => state.partialErasePencilStroke);
+  const eraserSize = useStore((state) => state.eraserSize);
+  const elevations = useStore((state) => state.elevations);
   const currentUserMeta = useRef<string>("local");
 
   const eraserCursor = useMemo(() => {
