@@ -853,15 +853,12 @@ export function EditorShell() {
             }
           }
 
-          const historyResult = await saveWorkspaceHistorySnapshot(workspace.id, {
+          // History snapshot is optional — don't block the save if it fails
+          void saveWorkspaceHistorySnapshot(workspace.id, {
             elements,
             selectedElementId,
             workspaceName,
           }, "Autosave");
-
-          if (!historyResult) {
-            throw new Error("Unable to save workspace history.");
-          }
 
           lastPersistedSignatureRef.current = signature;
           setSaveStatus("saved");
