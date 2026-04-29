@@ -376,6 +376,7 @@ function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
 
 function ProjectsDashboardContent() {
   const router = useRouter();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [activeSection, setActiveSection] = useState<SectionKey>("my-projects");
   const [searchQuery, setSearchQuery] = useState("");
   const [myProjects, setMyProjects] = useState<ProjectRow[]>([]);
@@ -703,7 +704,7 @@ function ProjectsDashboardContent() {
 
   async function handleCreateProject(initialName?: string, initialImageUrl?: string) {
     if (!currentUserId) {
-      setErrorMessage("Unable to create project right now. Please refresh once.");
+      setErrorMessage("Unable to create project: user not authenticated. Please refresh or log in again.");
       return;
     }
 
@@ -718,7 +719,9 @@ function ProjectsDashboardContent() {
     const name = initialName ? `My ${initialName}` : `Untitled Project ${projectCount}`;
     const nowIso = new Date().toISOString();
 
+    // Only allow local mode if explicitly offline
     if (usingLocalMode) {
+      setErrorMessage("You are in offline/local mode. New projects will only be saved locally and will not sync to your account until you are back online.");
       const localProject: ProjectRow = {
         id: `local-${Date.now()}`,
         name,
@@ -744,7 +747,7 @@ function ProjectsDashboardContent() {
       .single();
 
     if (workspaceError || !workspace) {
-      setErrorMessage("Could not create project. Please try again.");
+      setErrorMessage("Failed to create project on the server. Please check your connection or try again. Your project was NOT saved.");
       setCreatingProject(false);
       return;
     }

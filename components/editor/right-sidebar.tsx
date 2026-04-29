@@ -7,7 +7,7 @@ import {
   Circle, Clock3, Italic, Lock, Minus, MessageSquare, MousePointer2, Palette,
   RectangleHorizontal, RotateCw, Send, Star, Triangle, Type, LayoutGrid
 } from "lucide-react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory, type WorkspaceState } from "@/store/workspaceStore";
 import type { WorkspaceComment } from "@/lib/comments";
 import { ElementTimeTravelSlider } from "@/components/editor/element-time-travel";
 import { VibeCheckPanel } from "@/components/editor/vibe-check-panel";
@@ -66,9 +66,10 @@ function SliderRow({ label, value, min, max, step = 1, display, onChange, disabl
 
 import type { CanvasElement } from "@/store/workspaceStore";
 
-function VideoTrimControls({ elementId, element }: { elementId: string; element: CanvasElement }) {
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
+function VideoTrimControls({ workspaceId, elementId, element }: { workspaceId?: string | null; elementId: string; element: CanvasElement }) {
+  const store = useWorkspaceStoreFactory(workspaceId ?? "default");
+  const updateElement = store((s: WorkspaceState) => s.updateElement);
+  const canEdit = store((s: WorkspaceState) => s.canEdit);
   const [videoUrl, setVideoUrl] = useState((element as CanvasElement & { videoUrl?: string }).videoUrl ?? "");
 
   const trimStart = (element as CanvasElement & { trimStart?: number }).trimStart ?? 0;
@@ -173,13 +174,14 @@ export function RightSidebar({
   onAddComment: (message: string, targetElementId: string | null) => Promise<void>;
   mode?: "full" | "inspector" | "comments";
 }) {
-  const elements           = useWorkspaceStore((s) => s.elements);
-  const selectedElementId  = useWorkspaceStore((s) => s.selectedElementId);
-  const updateElementStyle = useWorkspaceStore((s) => s.updateElementStyle);
-  const updateElement      = useWorkspaceStore((s) => s.updateElement);
-  const canvasBackground   = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canEdit            = useWorkspaceStore((s) => s.canEdit);
+  const store = useWorkspaceStoreFactory(workspaceId ?? "default");
+  const elements           = store((s: WorkspaceState) => s.elements);
+  const selectedElementId  = store((s: WorkspaceState) => s.selectedElementId);
+  const updateElementStyle = store((s: WorkspaceState) => s.updateElementStyle);
+  const updateElement      = store((s: WorkspaceState) => s.updateElement);
+  const canvasBackground   = store((s: WorkspaceState) => s.canvasBackground);
+  const setCanvasBackground = store((s: WorkspaceState) => s.setCanvasBackground);
+  const canEdit            = store((s: WorkspaceState) => s.canEdit);
 
   const selectedElement = useMemo(
     () => elements.find((el) => el.id === selectedElementId) ?? null,
@@ -539,7 +541,7 @@ export function RightSidebar({
             {selectedElement.type === "video" && (
               <div className="inspector-section">
                 <p className="inspector-section-title">Video Controls</p>
-                <VideoTrimControls elementId={selectedElement.id} element={selectedElement} />
+                <VideoTrimControls workspaceId={workspaceId} elementId={selectedElement.id} element={selectedElement} />
               </div>
             )}
 

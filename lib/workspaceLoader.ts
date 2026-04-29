@@ -1,5 +1,5 @@
-import { supabase } from "./supabaseClient";
-import { type CanvasElement, useWorkspaceStore } from "../store/workspaceStore";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { type CanvasElement, getOrCreateWorkspaceStore } from "../store/workspaceStore";
 import type { CanvasElement as DbCanvasElement, WorkspaceMeta } from "../types/canvas";
 
 function mapDbElement(element: DbCanvasElement): CanvasElement {
@@ -44,7 +44,10 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
 }
 
 export async function loadWorkspace(workspaceId: string, redirect404?: () => void): Promise<boolean> {
-  const store = useWorkspaceStore.getState();
+  const workspaceStore = getOrCreateWorkspaceStore(workspaceId);
+  const store = workspaceStore.getState();
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) return false;
 
   store.setLoading(true);
 
@@ -59,7 +62,6 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       if (redirect404) {
         redirect404();
       }
-
       return false;
     }
 
@@ -77,8 +79,16 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       return false;
     }
 
-    store.setElements(((elements as DbCanvasElement[] | null) ?? []).map(mapDbElement));
+    const loadedElements = ((elements as DbCanvasElement[] | null) ?? []).map(mapDbElement);
+    store.setElements(loadedElements);
     store.setSelectedElementId(null);
+    
+    // Reset history and historyIndex 
+    workspaceStore.setState({
+        history: [loadedElements.map((el) => ({ ...el, style: { ...el.style } }))],
+        historyIndex: 0
+    });
+    
     return true;
   } catch {
     return false;

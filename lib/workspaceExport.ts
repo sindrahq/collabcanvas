@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { getOrCreateWorkspaceStore } from "@/store/workspaceStore";
 
 /**
  * Gets the actual Konva Stage canvas. 
@@ -32,8 +32,8 @@ function nextFrame() {
  * Wrapper to hide selection transformers before export.
  * This ensures the exported image doesn't have the "Blue Selection Box" on it.
  */
-async function withSelectionHidden<T>(task: () => Promise<T>): Promise<T> {
-  const store = useWorkspaceStore.getState();
+async function withSelectionHidden<T>(workspaceId: string, task: () => Promise<T>): Promise<T> {
+  const store = getOrCreateWorkspaceStore(workspaceId).getState();
   const previousSelection = store.selectedElementId;
 
   if (previousSelection) {
@@ -52,8 +52,8 @@ async function withSelectionHidden<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function exportWorkspaceAsPng(filename = "workspace.png"): Promise<boolean> {
-  return withSelectionHidden(async () => {
+export async function exportWorkspaceAsPng(workspaceId: string, filename = "workspace.png"): Promise<boolean> {
+  return withSelectionHidden(workspaceId, async () => {
     const canvas = getStageCanvas();
     if (!canvas) return false;
     
@@ -63,8 +63,8 @@ export async function exportWorkspaceAsPng(filename = "workspace.png"): Promise<
   });
 }
 
-export async function exportWorkspaceAsJpeg(filename = "workspace.jpeg"): Promise<boolean> {
-  return withSelectionHidden(async () => {
+export async function exportWorkspaceAsJpeg(workspaceId: string, filename = "workspace.jpeg"): Promise<boolean> {
+  return withSelectionHidden(workspaceId, async () => {
     const canvas = getStageCanvas();
     if (!canvas) return false;
 
@@ -85,8 +85,8 @@ export async function exportWorkspaceAsJpeg(filename = "workspace.jpeg"): Promis
   });
 }
 
-export async function exportWorkspaceAsPdf(filename = "workspace.pdf"): Promise<boolean> {
-  return withSelectionHidden(async () => {
+export async function exportWorkspaceAsPdf(workspaceId: string, filename = "workspace.pdf"): Promise<boolean> {
+  return withSelectionHidden(workspaceId, async () => {
     const canvas = getStageCanvas();
     if (!canvas) return false;
 
@@ -113,4 +113,4 @@ export async function exportWorkspaceAsPdf(filename = "workspace.pdf"): Promise<
     doc.save(filename);
     return true;
   });
-}
+}

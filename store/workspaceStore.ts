@@ -1,7 +1,6 @@
-
 "use client";
-// ── Helpers ────────────────────────────────────────────────────────────────
 
+// ── Helpers ────────────────────────────────────────────────────────────────
 function withCompatFields(element: CanvasElement): CanvasElement {
   return {
     ...element,
@@ -27,8 +26,35 @@ function withCompatFields(element: CanvasElement): CanvasElement {
   };
 }
 
-import { create } from "zustand";
+import { create, type UseBoundStore, type StoreApi } from "zustand";
+import { useRef } from "react";
+import { broadcastActivity } from "@/lib/activityFeedRealtime";
+import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { persist } from "zustand/middleware";
+import { supabase } from "@/lib/supabaseClient";
+
+// Backend API helpers for element history
+async function fetchElementHistory(workspaceId: string, elementId: string) {
+  try {
+    const res = await fetch(`/api/element-history?workspace_id=${workspaceId}&element_id=${elementId}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    // data is array of { snapshot }
+    return Array.isArray(data) ? data.map((row) => row.snapshot) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveElementSnapshot(workspaceId: string, elementId: string, snapshot: CanvasElement) {
+  try {
+    await fetch(`/api/element-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace_id: workspaceId, element_id: elementId, snapshot }),
+    });
+  } catch {}
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -103,7 +129,7 @@ export type CanvasElement = {
   points?: number[];
 };
 
-type WorkspaceState = {
+export type WorkspaceState = {
   workspace: WorkspaceMeta | null;
   workspaceName: string;
   accessLevel: WorkspaceAccessLevel;
@@ -149,12 +175,15 @@ type WorkspaceState = {
   restoreElementToCurrent: (elementId: string) => void;
   activityLog: ActivityEntry[];
   logActivity: (action: ActivityEntry["action"], elementName: string, elementType: string, userName?: string) => void;
+  pushActivityLog: (entry: ActivityEntry) => void;
+  clearActivityLog: () => void;
   elevations: Record<string, number>;
   setElevation: (elementId: string, delta: number) => void;
   undo: () => void;
   redo: () => void;
   snapToGrid: boolean;
   toggleSnapToGrid: () => void;
+  resetWorkspaceState: () => void;
 };
 
 // ── Defaults ───────────────────────────────────────────────────────────────
@@ -162,13 +191,6 @@ type WorkspaceState = {
 const BASE_FONT = {
   fontFamily: "Inter",
   fontStyle: "normal" as const,
-  fontWeight: "normal" as const,
-  textAlign: "left" as const,
-  shadowEnabled: false,
-  shadowBlur: 16,
-  shadowColor: "rgba(20,32,28,0.3)",
-  shadowOffsetX: 0,
-  shadowOffsetY: 6,
 };
 
 const BASE_SHADOW = {
@@ -186,27 +208,27 @@ const BASE_FILTERS = {
 };
 
 const defaultElementStyle: Record<CanvasElementType, CanvasElementStyle> = {
-  rectangle: { fill: "#f7f2ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  circle:    { fill: "#e3f7ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  text:      { fill: "#1e2523", stroke: "#2f2f2f", strokeWidth: 0, opacity: 1, fontSize: 28, ...BASE_FONT, ...BASE_FILTERS },
-  triangle:  { fill: "#d4c3f0", stroke: "#6b3fa0", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  star:      { fill: "#f5e6a3", stroke: "#b89600", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  arrow:     { fill: "#a8d4f0", stroke: "#1a6fa0", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  line:      { fill: "transparent", stroke: "#637069", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  image:     { fill: "#fff", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  diamond:   { fill: "#ffedcc", stroke: "#d4a017", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  hexagon:   { fill: "#dcfce7", stroke: "#166534", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  pentagon:  { fill: "#e0e7ff", stroke: "#3730a3", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  heart:     { fill: "#ffe4e6", stroke: "#e11d48", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  cloud:     { fill: "#f0f9ff", stroke: "#0284c7", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  shield:    { fill: "#f1f5f9", stroke: "#475569", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  octagon:   { fill: "#ffedd5", stroke: "#9a3412", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  zap:       { fill: "#fef9c3", stroke: "#a16207", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  sun:       { fill: "#fef3c7", stroke: "#b45309", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  moon:      { fill: "#f1f5f9", stroke: "#1e293b", strokeWidth: 2, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  frame:     { fill: "rgba(255, 255, 255, 0.15)", stroke: "rgba(211, 165, 177, 0.3)", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  pencil:    { fill: "transparent", stroke: "#2f2f2f", strokeWidth: 3, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
-  video:     { fill: "#000000", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  rectangle: { fill: "#f7f2ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  circle:    { fill: "#e3f7ea", stroke: "#2f2f2f", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  text:      { fill: "#1e2523", stroke: "#2f2f2f", strokeWidth: 0, opacity: 1, fontSize: 28, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_FILTERS, shadowEnabled: false, shadowBlur: 0, shadowColor: "transparent", shadowOffsetX: 0, shadowOffsetY: 0 },
+  triangle:  { fill: "#d4c3f0", stroke: "#6b3fa0", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  star:      { fill: "#f5e6a3", stroke: "#b89600", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  arrow:     { fill: "#a8d4f0", stroke: "#1a6fa0", strokeWidth: 3, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  line:      { fill: "transparent", stroke: "#637069", strokeWidth: 3, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  image:     { fill: "#fff", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  diamond:   { fill: "#ffedcc", stroke: "#d4a017", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  hexagon:   { fill: "#dcfce7", stroke: "#166534", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  pentagon:  { fill: "#e0e7ff", stroke: "#3730a3", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  heart:     { fill: "#ffe4e6", stroke: "#e11d48", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  cloud:     { fill: "#f0f9ff", stroke: "#0284c7", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  shield:    { fill: "#f1f5f9", stroke: "#475569", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  octagon:   { fill: "#ffedd5", stroke: "#9a3412", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  zap:       { fill: "#fef9c3", stroke: "#a16207", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  sun:       { fill: "#fef3c7", stroke: "#b45309", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  moon:      { fill: "#f1f5f9", stroke: "#1e293b", strokeWidth: 2, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  frame:     { fill: "rgba(255, 255, 255, 0.15)", stroke: "rgba(211, 165, 177, 0.3)", strokeWidth: 1, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  pencil:    { fill: "transparent", stroke: "#2f2f2f", strokeWidth: 3, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
+  video:     { fill: "#000000", stroke: "#2f2f2f", strokeWidth: 1, opacity: 1, fontSize: 16, fontWeight: "normal", textAlign: "left", ...BASE_FONT, ...BASE_SHADOW, ...BASE_FILTERS },
 } satisfies Record<CanvasElementType, CanvasElementStyle>;
 
 const DEFAULT_LAYOUT = {
@@ -227,6 +249,381 @@ function normalizeElements(elements: CanvasElement[]): CanvasElement[] {
     })
   );
 }
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+// Factory for per-workspace Zustand stores
+const storeMap = new Map<string, UseBoundStore<StoreApi<WorkspaceState>>>();
+
+export function getOrCreateWorkspaceStore(workspaceId: string) {
+  if (!storeMap.has(workspaceId)) {
+    storeMap.set(
+      workspaceId,
+      create<WorkspaceState>()(
+        persist(
+          (set, get) => ({
+            workspace: null,
+            workspaceName: "My Workspace",
+            accessLevel: "edit",
+            canEdit: true,
+            selectedElementId: starterElements[2]?.id ?? null,
+            elements: starterElements,
+            elementList: starterElements,
+            clipboard: null,
+            loading: false,
+            history: [cloneElements(starterElements)],
+            historyIndex: 0,
+            canvasBackground: "#fffdf8",
+            canvasDimensions: { width: 1280, height: 800 },
+            snapToGrid: false,
+            activeTool: "select",
+            eraserSize: 10,
+            elementHistory: {},
+            activityLog: [],
+            elevations: {},
+            
+            setActiveTool: (tool) => set({ activeTool: tool }),
+            setEraserSize: (eraserSize) => set({ eraserSize }),
+
+            addPencilElement: (points) =>
+              set((state) => {
+                const layerOrder = state.elements.length;
+                const name = `Pencil ${layerOrder + 1}`;
+                const element: CanvasElement = withCompatFields({
+                  id: createId("pencil"),
+                  name, label: name, type: "pencil",
+                  x: 0, y: 0, width: 0, height: 0,
+                  rotation: 0, visible: true, locked: false,
+                  layerOrder, layer_order: layerOrder,
+                  points,
+                  style: { ...defaultElementStyle.pencil },
+                });
+                const nextElements = [...state.elements, element];
+                return { ...withHistory(state, nextElements), selectedElementId: element.id };
+              }),
+
+            selectElement: (selectedElementId) => set({ selectedElementId }),
+            setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
+            setWorkspace: (workspace) => set({ workspace, workspaceName: workspace?.name ?? get().workspaceName }),
+            setWorkspaceAccess: (accessLevel) => set({ accessLevel, canEdit: accessLevel === "edit" }),
+            setElements: (elements) => set((state) => {
+              const next = normalizeElements(elements);
+              const selectedElementId = next.find((el) => el.id === state.selectedElementId)
+                ? state.selectedElementId : null;
+              return { ...setElementCollections(next), selectedElementId };
+            }),
+            setLoading: (loading) => set({ loading }),
+            clear: () => set({
+              workspace: null, workspaceName: "My Workspace",
+              accessLevel: "edit", canEdit: true,
+              elements: [], elementList: [], selectedElementId: null,
+              loading: false, history: [], historyIndex: -1,
+            }),
+            addElement: (type, extra) => set((state) => {
+              const nextElement = createElement(type, state.elements.length, extra);
+              const nextElements = [...state.elements, nextElement];
+              // Real-time activity feed
+              if (state.workspace?.id && state.canEdit) {
+                const entry = {
+                  id: crypto.randomUUID(),
+                  action: "added",
+                  elementName: nextElement.name,
+                  elementType: type,
+                  userName: "You",
+                  timestamp: Date.now(),
+                };
+                broadcastActivity(state.workspace.id, entry);
+                void logActivityServer({
+                  workspace_id: state.workspace.id,
+                  user_id: "",
+                  user_name: "You",
+                  action: "added",
+                  element_name: nextElement.name,
+                  element_type: type,
+                });
+              }
+              return { ...withHistory(state, nextElements), selectedElementId: nextElement.id };
+            }),
+            updateElement: (elementId, updates) => set((state) => {
+              const nextElements = state.elements.map((el) => {
+                if (el.id !== elementId) return el;
+                const u = updates as Partial<CanvasElement> & { style?: Partial<CanvasElementStyle> };
+                return withCompatFields({
+                  ...el, ...u,
+                  label: u.label ?? u.name ?? el.label,
+                  name: u.name ?? u.label ?? el.name,
+                  layerOrder: u.layerOrder ?? u.layer_order ?? el.layerOrder,
+                  layer_order: u.layer_order ?? u.layerOrder ?? el.layer_order,
+                  style: u.style ? { ...el.style, ...u.style } : el.style,
+                });
+              });
+              // Real-time activity feed
+              if (state.workspace?.id && state.canEdit) {
+                const el = state.elements.find((e) => e.id === elementId);
+                if (el) {
+                  const entry = {
+                    id: crypto.randomUUID(),
+                    action: "updated",
+                    elementName: updates.name || el.name,
+                    elementType: el.type,
+                    userName: "You",
+                    timestamp: Date.now(),
+                  };
+                  broadcastActivity(state.workspace.id, entry);
+                  void logActivityServer({
+                    workspace_id: state.workspace.id,
+                    user_id: "",
+                    user_name: "You",
+                    action: "updated",
+                    element_name: updates.name || el.name,
+                    element_type: el.type,
+                  });
+                }
+              }
+              return withHistory(state, nextElements);
+            }),
+            updateElementStyle: (elementId, style) => set((state) => {
+              const nextElements = state.elements.map((el) =>
+                el.id === elementId ? withCompatFields({ ...el, style: { ...el.style, ...style } }) : el
+              );
+              return withHistory(state, nextElements);
+            }),
+            reorderElement: (elementId, direction) => set((state) => {
+              const ordered = [...state.elements].sort((a, b) => a.layerOrder - b.layerOrder);
+              const currentIndex = ordered.findIndex((el) => el.id === elementId);
+              if (currentIndex === -1) return state;
+              const targetIndex = direction === "forward" ? currentIndex + 1 : currentIndex - 1;
+              if (targetIndex < 0 || targetIndex >= ordered.length) return state;
+              const [moved] = ordered.splice(currentIndex, 1);
+              ordered.splice(targetIndex, 0, moved);
+              const nextElements = ordered.map((el, i) =>
+                withCompatFields({ ...el, layerOrder: i, layer_order: i })
+              );
+              // Real-time activity feed
+              if (state.workspace?.id && state.canEdit) {
+                const entry = {
+                  id: crypto.randomUUID(),
+                  action: "moved",
+                  elementName: moved.name,
+                  elementType: moved.type,
+                  userName: "You",
+                  timestamp: Date.now(),
+                };
+                broadcastActivity(state.workspace.id, entry);
+                void logActivityServer({
+                  workspace_id: state.workspace.id,
+                  user_id: "",
+                  user_name: "You",
+                  action: "moved",
+                  element_name: moved.name,
+                  element_type: moved.type,
+                });
+              }
+              return withHistory(state, nextElements);
+            }),
+            duplicateSelectedElement: () => set((state) => {
+              const selected = state.elements.find((el) => el.id === state.selectedElementId);
+              if (!selected) return state;
+              const duplicate: CanvasElement = withCompatFields({
+                ...selected,
+                id: createId(selected.type),
+                name: `${selected.name} Copy`,
+                label: `${selected.label} Copy`,
+                x: selected.x + 24, y: selected.y + 24,
+                layerOrder: state.elements.length,
+                layer_order: state.elements.length,
+                style: { ...selected.style },
+              });
+              const nextElements = [...state.elements, duplicate];
+              return { ...withHistory(state, nextElements), selectedElementId: duplicate.id };
+            }),
+            deleteSelectedElement: () => set((state) => {
+              if (!state.selectedElementId) return state;
+              const remaining = normalizeElements(
+                state.elements
+                  .filter((el) => el.id !== state.selectedElementId)
+                  .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
+              );
+              return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null };
+            }),
+            deleteElement: (id) => set((state) => {
+              const remaining = normalizeElements(
+                state.elements
+                  .filter((el) => el.id !== id)
+                  .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
+              );
+              const selectedElementId = state.selectedElementId === id
+                ? (remaining.at(-1)?.id ?? null)
+                : state.selectedElementId;
+              return { ...withHistory(state, remaining), selectedElementId };
+            }),
+            partialErasePencilStroke: (id, segments) => set((state) => {
+              const element = state.elements.find((el) => el.id === id);
+              if (!element) return state;
+              const without = state.elements.filter((el) => el.id !== id);
+              const newElements = segments.map((pts, i) => {
+                const layerOrder = without.length + i;
+                const name = `Pencil ${layerOrder + 1}`;
+                return withCompatFields({
+                  id: createId("pencil"),
+                  name, label: name, type: "pencil" as const,
+                  x: 0, y: 0, width: 0, height: 0,
+                  rotation: 0, visible: true, locked: false,
+                  layerOrder, layer_order: layerOrder,
+                  points: pts,
+                  style: { ...element.style },
+                });
+              });
+              const nextElements = normalizeElements([...without, ...newElements]);
+              const selectedElementId = state.selectedElementId === id ? null : state.selectedElementId;
+              return { ...withHistory(state, nextElements), selectedElementId };
+            }),
+            toggleVisibility: (elementId) => set((state) => {
+              const nextElements = state.elements.map((el) =>
+                el.id === elementId ? withCompatFields({ ...el, visible: !el.visible }) : el
+              );
+              return withHistory(state, nextElements);
+            }),
+            toggleLock: (elementId) => set((state) => {
+              const nextElements = state.elements.map((el) =>
+                el.id === elementId ? withCompatFields({ ...el, locked: !el.locked }) : el
+              );
+              return withHistory(state, nextElements);
+            }),
+            updateLayerOrder: (elements) => set((state) => withHistory(state, normalizeElements(elements))),
+            setCanvasBackground: (canvasBackground) => set({ canvasBackground }),
+            setCanvasDimensions: (canvasDimensions) => set({ canvasDimensions }),
+            
+            travelElementTo: (elementId, historyIndex) =>
+              set((state) => {
+                const history = state.elementHistory[elementId] ?? [];
+                if (historyIndex >= history.length) return state;
+                const snapshot = history[historyIndex];
+                if (!snapshot) return state;
+                const nextElements = state.elements.map((el) =>
+                  el.id === elementId ? withCompatFields({ ...snapshot, style: { ...snapshot.style } }) : el
+                );
+                return setElementCollections(nextElements);
+              }),
+
+            restoreElementToCurrent: (elementId) =>
+              set((state) => {
+                const snap = (state.history[state.historyIndex] ?? []).find((e) => e.id === elementId);
+                if (!snap) return state;
+                const nextElements = state.elements.map((e) =>
+                  e.id === elementId ? withCompatFields({ ...snap, style: { ...snap.style } }) : e
+                );
+                return setElementCollections(nextElements);
+              }),
+
+            logActivity: (action, elementName, elementType, userName = "You") =>
+              set((state) => ({
+                activityLog: [{
+                  id: createId("activity"),
+                  action,
+                  elementName,
+                  elementType,
+                  userName,
+                  timestamp: Date.now(),
+                }, ...state.activityLog].slice(0, 50),
+              })),
+
+            pushActivityLog: (entry) =>
+              set((state) => ({
+                activityLog: [entry, ...state.activityLog].slice(0, 50),
+              })),
+
+            clearActivityLog: () => set({ activityLog: [] }),
+
+            setElevation: (elementId, delta) =>
+              set((state) => {
+                const current = state.elevations[elementId] ?? 0;
+                const next = Math.max(0, current + delta);
+                return { elevations: { ...state.elevations, [elementId]: next } };
+              }),
+            undo: () => set((state) => {
+              if (state.historyIndex <= 0) return state;
+              const prevIndex = state.historyIndex - 1;
+              const prevElements = cloneElements(state.history[prevIndex]);
+              return { ...setElementCollections(prevElements), historyIndex: prevIndex };
+            }),
+            redo: () => set((state) => {
+              if (state.historyIndex >= state.history.length - 1) return state;
+              const nextIndex = state.historyIndex + 1;
+              const nextElements = cloneElements(state.history[nextIndex]);
+              return { ...setElementCollections(nextElements), historyIndex: nextIndex };
+            }),
+            toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
+            copySelectedElement: () => {
+              const state = get();
+              const selected = state.elements.find((el) => el.id === state.selectedElementId);
+              if (!selected) return;
+              set({ clipboard: { ...selected, style: { ...selected.style } } });
+            },
+            pasteElement: () => set((state) => {
+              if (!state.clipboard) return state;
+              const pasted: CanvasElement = withCompatFields({
+                ...state.clipboard,
+                id: createId(state.clipboard.type),
+                name: `${state.clipboard.name} Copy`,
+                label: `${state.clipboard.label} Copy`,
+                x: state.clipboard.x + 24,
+                y: state.clipboard.y + 24,
+                layerOrder: state.elements.length,
+                layer_order: state.elements.length,
+                style: { ...state.clipboard.style },
+              });
+              const nextElements = [...state.elements, pasted];
+              return { ...withHistory(state, nextElements), selectedElementId: pasted.id };
+            }),
+            resetWorkspaceState: () => set({
+                workspace: null,
+                workspaceName: "My Workspace",
+                accessLevel: "edit",
+                canEdit: true,
+                selectedElementId: null,
+                elements: [],
+                elementList: [],
+                loading: false,
+                history: [],
+                historyIndex: -1,
+                canvasBackground: "#fffdf8",
+                canvasDimensions: { width: 1280, height: 800 },
+              }),
+          }),
+          {
+            name: `collabcanvas-workspace-${workspaceId}`,
+            partialize: (state) => ({
+              elements: state.elements,
+              elementList: state.elementList,
+              workspaceName: state.workspaceName,
+              canvasBackground: state.canvasBackground,
+              canvasDimensions: state.canvasDimensions,
+            }),
+            onRehydrateStorage: () => (state) => {
+              if (state && state.workspace && state.workspace.id && state.workspace.id.startsWith('local-')) {
+                state.elementList = normalizeElements(state.elements);
+                state.history = [cloneElements(state.elements)];
+                state.historyIndex = 0;
+              }
+            },
+          }
+        )
+      )
+    );
+  }
+  return storeMap.get(workspaceId)!;
+}
+
+export function useWorkspaceStoreFactory(workspaceId: string): UseBoundStore<StoreApi<WorkspaceState>> {
+  const storeRef = useRef<UseBoundStore<StoreApi<WorkspaceState>>>(null!);
+  if (!storeRef.current) {
+    storeRef.current = getOrCreateWorkspaceStore(workspaceId);
+  }
+  return storeRef.current;
+}
+
+
 
 function createId(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
@@ -383,7 +780,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return { ...withHistory(state, nextElements), selectedElementId: element.id };
         }),
 
-      selectElement: (selectedElementId) => set({ selectedElementId }),
+      selectElement: (selectedElementId) => {
+        set({ selectedElementId });
+        // Fetch element history from backend when selecting an element
+        const state = get();
+        const workspaceId = state.workspace?.id;
+        if (selectedElementId && workspaceId) {
+          fetchElementHistory(workspaceId, selectedElementId).then((history) => {
+            set((s) => ({ elementHistory: { ...s.elementHistory, [selectedElementId]: history } }));
+          });
+        }
+      },
       setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
 
       setWorkspace: (workspace) =>
@@ -398,6 +805,22 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const selectedElementId = next.find((el) => el.id === state.selectedElementId)
             ? state.selectedElementId : null;
           return { ...setElementCollections(next), selectedElementId };
+        }),
+
+      resetWorkspaceState: () =>
+        set({
+          workspace: null,
+          workspaceName: "My Workspace",
+          accessLevel: "edit",
+          canEdit: true,
+          elements: [],
+          elementList: [],
+          selectedElementId: null,
+          loading: false,
+          history: [],
+          historyIndex: -1,
+          canvasBackground: "#fffdf8",
+          canvasDimensions: { width: 1280, height: 800 },
         }),
 
       setLoading: (loading) => set({ loading }),
@@ -448,6 +871,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               style: u.style ? { ...el.style, ...u.style } : el.style,
             });
           });
+          // Save snapshot to backend
+          const workspaceId = state.workspace?.id;
+          if (workspaceId && currentEl) {
+            saveElementSnapshot(workspaceId, elementId, currentEl);
+          }
           return { ...withHistory(state, nextElements), elementHistory };
         }),
 
@@ -542,26 +970,37 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             state.elements
               .filter((el) => el.id !== id)
               .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
-          );
-          const selectedElementId = state.selectedElementId === id
-            ? (remaining.at(-1)?.id ?? null)
-            : state.selectedElementId;
-          const { [id]: _r2, ...restH2 } = state.elementHistory;
-          const entry: ActivityEntry | null = removed ? {
-            id: createId("activity"),
-            action: "deleted",
-            elementName: removed.name,
-            elementType: removed.type,
-            userName: "You",
-            timestamp: Date.now(),
-          } : null;
-          return {
-            ...withHistory(state, remaining),
-            selectedElementId,
-            elementHistory: restH2,
-            activityLog: entry ? [entry, ...state.activityLog].slice(0, 50) : state.activityLog,
-          };
-        }),
+           );
+           const selectedElementId = state.selectedElementId === id
+             ? (remaining.at(-1)?.id ?? null)
+             : state.selectedElementId;
+           const { [id]: _r2, ...restH2 } = state.elementHistory;
+           // Real-time activity feed
+           if (removed && state.workspace?.id && state.canEdit) {
+             const entry = {
+               id: crypto.randomUUID(),
+               action: "deleted",
+               elementName: removed.name,
+               elementType: removed.type,
+               userName: "You",
+               timestamp: Date.now(),
+             };
+             broadcastActivity(state.workspace.id, entry);
+             void logActivityServer({
+               workspace_id: state.workspace.id,
+               user_id: "",
+               user_name: "You",
+               action: "deleted",
+               element_name: removed.name,
+               element_type: removed.type,
+             });
+           }
+           return {
+             ...withHistory(state, remaining),
+             selectedElementId,
+             elementHistory: restH2,
+           };
+         }),
 
       partialErasePencilStroke: (id, segments) =>
         set((state) => {
@@ -642,6 +1081,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             timestamp: Date.now(),
           }, ...state.activityLog].slice(0, 50),
         })),
+      pushActivityLog: (entry) =>
+        set((state) => ({
+          activityLog: [entry, ...state.activityLog].slice(0, 50),
+        })),
+      clearActivityLog: () => set({ activityLog: [] }),
 
       undo: () =>
         set((state) => {
@@ -678,7 +1122,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         canvasDimensions: state.canvasDimensions,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state) {
+        // Only rehydrate for local workspaces
+        if (state && state.workspace && state.workspace.id && state.workspace.id.startsWith('local-')) {
           state.elementList = normalizeElements(state.elements);
           state.history = [cloneElements(state.elements)];
           state.historyIndex = 0;

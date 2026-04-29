@@ -8,18 +8,19 @@ import {
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
   Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video
 } from "lucide-react";
-import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
+import { type CanvasElementStyle, useWorkspaceStoreFactory, type WorkspaceState, useWorkspaceStore } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { SmartCropModal } from "./smart-crop";
 import { FramePicker } from "./frame-picker";
 import React, { useRef, useState } from "react";
 
 
-function UploadPictureButton() {
+function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const addElement = useWorkspaceStore((s) => s.addElement);
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const addElement = store((s) => s.addElement);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -155,38 +156,40 @@ const ALIGNMENTS = [
 ];
 
 export function Toolbar({
+  workspaceId,
   workspaceName,
   layout = "horizontal",
   showHistoryActions = true,
   showAddActions = true,
   showSelectionActions = true,
 }: {
+  workspaceId: string;
   workspaceName: string;
   layout?: "horizontal" | "vertical";
   showHistoryActions?: boolean;
   showAddActions?: boolean;
   showSelectionActions?: boolean;
 }) {
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const elements = useWorkspaceStore((s) => s.elements);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
-  const addElement = useWorkspaceStore((s) => s.addElement);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const updateElementStyle = useWorkspaceStore((s) => s.updateElementStyle);
-  const undo = useWorkspaceStore((s) => s.undo);
-  const redo = useWorkspaceStore((s) => s.redo);
-  const historyIndex = useWorkspaceStore((s) => s.historyIndex);
-  const history = useWorkspaceStore((s) => s.history);
-  const snapToGrid = useWorkspaceStore((s) => s.snapToGrid);
-  const toggleSnapToGrid = useWorkspaceStore((s) => s.toggleSnapToGrid);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const selectedElementId        = store((s: WorkspaceState) => s.selectedElementId);
+  const elements                 = store((s: WorkspaceState) => s.elements);
+  const canEdit                  = store((s: WorkspaceState) => s.canEdit);
+  const addElement               = store((s: WorkspaceState) => s.addElement);
+  const duplicateSelectedElement = store((s: WorkspaceState) => s.duplicateSelectedElement);
+  const deleteSelectedElement    = store((s: WorkspaceState) => s.deleteSelectedElement);
+  const updateElementStyle       = store((s: WorkspaceState) => s.updateElementStyle);
+  const undo                     = store((s: WorkspaceState) => s.undo);
+  const redo                     = store((s: WorkspaceState) => s.redo);
+  const historyIndex             = store((s: WorkspaceState) => s.historyIndex);
+  const history                  = store((s: WorkspaceState) => s.history);
+  const snapToGrid               = store((s: WorkspaceState) => s.snapToGrid);
+  const toggleSnapToGrid         = store((s: WorkspaceState) => s.toggleSnapToGrid);
+  const updateElement            = store((s: WorkspaceState) => s.updateElement);
   const [isCropping, setIsCropping] = useState(false);
-  const activeTool = useWorkspaceStore((s) => s.activeTool);
-  const setActiveTool = useWorkspaceStore((s) => s.setActiveTool);
-  const eraserSize = useWorkspaceStore((s) => s.eraserSize);
-  const setEraserSize = useWorkspaceStore((s) => s.setEraserSize);
+  const activeTool               = store((s: WorkspaceState) => s.activeTool);
+  const setActiveTool            = store((s: WorkspaceState) => s.setActiveTool);
+  const eraserSize               = store((s: WorkspaceState) => s.eraserSize);
+  const setEraserSize            = store((s: WorkspaceState) => s.setEraserSize);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -350,7 +353,7 @@ export function Toolbar({
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Upload</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <UploadPictureButton />
+              <UploadPictureButton workspaceId={workspaceId} />
             </motion.div>
             <AddVideoButton />
           </div>

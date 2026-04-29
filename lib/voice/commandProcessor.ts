@@ -1,8 +1,8 @@
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { getOrCreateWorkspaceStore } from "@/store/workspaceStore";
 
-export const processVoiceCommand = (transcript: string) => {
+export const processVoiceCommand = (workspaceId: string, transcript: string) => {
   const command = transcript.toLowerCase();
-  const store = useWorkspaceStore.getState();
+  const store = getOrCreateWorkspaceStore(workspaceId).getState();
 
   // Color Mapping
   if (command.includes("dark") || command.includes("black")) {

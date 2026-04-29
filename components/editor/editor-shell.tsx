@@ -1,5 +1,7 @@
 "use client";
 
+import { subscribeToActivityFeed, broadcastActivity } from "@/lib/activityFeedRealtime";
+import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -156,6 +158,7 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
 }
 
 export function EditorShell() {
+  // All hooks and state declarations must come first
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
@@ -174,6 +177,56 @@ export function EditorShell() {
   const updateElement = useWorkspaceStore((s) => s.updateElement);
   const addElement = useWorkspaceStore((s) => s.addElement);
   const setElevation = useWorkspaceStore((s) => s.setElevation);
+  const pushActivityLog = useWorkspaceStore((s) => s.pushActivityLog);
+  const clearActivityLog = useWorkspaceStore((s) => s.clearActivityLog);
+
+  // Now safe to use hooks in useMemo
+  const workspaceIdFromUrl: string = useMemo(() => {
+    const id = searchParams.get("workspaceId") || searchParams.get("id") || searchParams.get("projectId");
+    return id || workspace?.id || "";
+  }, [searchParams, workspace]);
+
+  // Get the Zustand store instance
+  // (Zustand does not expose store directly, so we use a workaround for imperative calls)
+  // @ts-ignore
+  const store = useWorkspaceStore;
+
+  // Wrapped element actions to log and broadcast activity
+  function handleAddElement(type: string, extra?: any) {
+    addElement(type as any, extra);
+    logAndBroadcastActivity("added", extra?.name || type, type);
+  }
+
+  // Helper to log and broadcast activity
+  const logAndBroadcastActivity = async (
+    action: "added" | "deleted" | "updated" | "moved",
+    elementName: string,
+    elementType: string
+  ) => {
+    if (!workspace?.id || !authUser) return;
+    const entry = {
+      id: crypto.randomUUID(),
+      action,
+      elementName,
+      elementType,
+      userName: getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email) || "User",
+      timestamp: Date.now(),
+    };
+    // Push locally for instant feedback
+    pushActivityLog(entry);
+    // Broadcast to others
+    broadcastActivity(workspace.id, entry);
+    // Log to Supabase
+    await logActivityServer({
+      workspace_id: workspace.id,
+      user_id: authUser.id,
+      user_name: entry.userName,
+      action,
+      element_name: elementName,
+      element_type: elementType,
+    });
+  };
+  
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -195,12 +248,7 @@ export function EditorShell() {
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState(workspaceName);
   const [workspaceRenameSaving, setWorkspaceRenameSaving] = useState(false);
   const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
-  const workspaceIdFromUrl =
-    searchParams.get("workspaceId") ??
-    searchParams.get("projectId") ??
-    searchParams.get("id") ??
-    searchParams.get("workspace") ??
-    "";
+  // Duplicate declaration removed
   const nextPath = useMemo(() => {
     const query = searchParams.toString();
     return query ? `/workspace-editor?${query}` : "/workspace-editor";
@@ -272,27 +320,20 @@ export function EditorShell() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: nextName }),
         });
-
         const payload = (await response.json()) as {
           error?: string;
           workspace?: { id: string; name: string; owner_id: string };
         };
-
-        if (!response.ok || !payload.workspace) {
-          return;
+        if (payload.error || !payload.workspace) {
+          throw new Error(payload.error || "Update failed");
         }
-
-        useWorkspaceStore.getState().setWorkspace(payload.workspace);
-        setIsRenamingWorkspace(false);
-        return;
       }
 
-      useWorkspaceStore.getState().setWorkspace({
-        id: workspace.id,
-        name: nextName,
-        owner_id: workspace.owner_id,
-      });
+      setWorkspaceNameDraft(nextName);
+      store.getState().setWorkspace({ ...workspace, name: nextName });
       setIsRenamingWorkspace(false);
+    } catch (e) {
+      setWorkspaceNameDraft(workspaceName);
     } finally {
       setWorkspaceRenameSaving(false);
     }
@@ -302,13 +343,6 @@ export function EditorShell() {
     setWorkspaceNameDraft(workspaceName);
     setIsRenamingWorkspace(false);
   }
-
-  useEffect(() => {
-    document.body.classList.add("cc-workspace-theme");
-    return () => {
-      document.body.classList.remove("cc-workspace-theme");
-    };
-  }, []);
 
   useEffect(() => {
     if (!browserClient) {
@@ -354,10 +388,12 @@ export function EditorShell() {
   useEffect(() => {
     if (!workspaceIdFromUrl || !authUser) return;
 
-    const store = useWorkspaceStore.getState();
-    store.setWorkspace({
+    const currentStore = store.getState();
+    // Reset all workspace state before loading a new workspace
+    currentStore.resetWorkspaceState();
+    currentStore.setWorkspace({
       id: workspaceIdFromUrl,
-      name: store.workspaceName || "Untitled Project",
+      name: currentStore.workspaceName || "Untitled Project",
       owner_id: "__loading__",
     });
 
@@ -595,7 +631,7 @@ export function EditorShell() {
       window.localStorage.removeItem(localCommentsKey);
     }
 
-    useWorkspaceStore.getState().setWorkspace({
+    store.getState().setWorkspace({
       id: createdWorkspace.id,
       name: createdWorkspace.name,
       owner_id: createdWorkspace.owner_id,
@@ -1196,16 +1232,18 @@ export function EditorShell() {
                   transition={{ duration: 0.18 }}
                 >
                   <Toolbar
-                    workspaceName={workspaceName}
-                    showHistoryActions={false}
-                    showAddActions={false}
-                    showSelectionActions
-                  />
+                      workspaceId={workspaceIdFromUrl || ""}
+                      workspaceName={workspaceName}
+                      showHistoryActions={false}
+                      showAddActions={false}
+                      showSelectionActions
+                    />
                 </motion.div>
               ) : null}
             </AnimatePresence>
 
             <CanvasWorkspace
+              workspaceId={workspaceIdFromUrl}
               currentUserId={currentUserMeta.user_id}
               presences={presences}
               remoteCursors={remoteCursors}
@@ -1231,8 +1269,9 @@ export function EditorShell() {
           <div className="editor-mobile-panel">
             {mobilePanel === "canvas" ? (
               <div className="editor-mobile-panel-inner">
-                <Toolbar workspaceName={workspaceName} />
+                <Toolbar workspaceId={workspaceIdFromUrl || ""} workspaceName={workspaceName} />
                 <CanvasWorkspace
+                  workspaceId={workspaceIdFromUrl || ""}
                   currentUserId={currentUserMeta.user_id}
                   presences={presences}
                   remoteCursors={remoteCursors}
@@ -1242,7 +1281,7 @@ export function EditorShell() {
 
             {mobilePanel === "layers" ? (
               <div className="editor-mobile-panel-inner">
-                <LeftSidebar />
+                <LeftSidebar workspaceId={workspaceIdFromUrl || ""} />
               </div>
             ) : null}
 
@@ -1279,14 +1318,14 @@ export function EditorShell() {
           open={commandBrainOpen}
           onClose={() => setCommandBrainOpen(false)}
           commands={[
-            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => addElement("rectangle") },
-            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => addElement("circle") },
-            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => addElement("text") },
-            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => addElement("arrow") },
-            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => addElement("star") },
-            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => addElement("triangle") },
-            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => addElement("diamond") },
-            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => addElement("frame") },
+            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => handleAddElement("rectangle") },
+            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => handleAddElement("circle") },
+            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => handleAddElement("text") },
+            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => handleAddElement("arrow") },
+            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => handleAddElement("star") },
+            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => handleAddElement("triangle") },
+            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => handleAddElement("diamond") },
+            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => handleAddElement("frame") },
             { id: "undo",    label: "Undo",    category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
             { id: "redo",    label: "Redo",    category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
             { id: "layers",    label: "Open Layers",    category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
@@ -1301,7 +1340,7 @@ export function EditorShell() {
             { id: "gen-ui",  label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
           ] satisfies BrainCommand[]}
         />
-        <VoiceCommandManager />
+        <VoiceCommandManager workspaceId={workspaceIdFromUrl || ""} />
       </motion.section>
     </main>
   );

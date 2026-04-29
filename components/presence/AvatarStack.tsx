@@ -1,14 +1,46 @@
 "use client";
 
 import type { PresenceMeta } from "@/lib/collaboration";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AudioIndicator } from "./AudioIndicator";
-import { Mic, Phone } from "lucide-react";
+import { Mic } from "lucide-react";
+import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
 
 type AvatarStackProps = {
 	presences: Record<string, PresenceMeta>;
 	currentUserId: string;
 };
+
+function LiveKitConnection({ room, identity }: { room: string; identity: string }) {
+	const [token, setToken] = useState("");
+
+	useEffect(() => {
+		(async () => {
+			try {
+				const resp = await fetch(`/api/livekit?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`);
+				const data = await resp.json();
+				if (data.token) {
+					setToken(data.token);
+				}
+			} catch (e) {
+				console.error("LiveKit token error:", e);
+			}
+		})();
+	}, [room, identity]);
+
+	if (!token) return null;
+
+	return (
+		<LiveKitRoom
+			token={token}
+			serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+			connect={true}
+			audio={true}
+		>
+			<RoomAudioRenderer />
+		</LiveKitRoom>
+	);
+}
 
 export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 	const [activeVoiceUser, setActiveVoiceUser] = useState<string | null>(null);
@@ -16,6 +48,10 @@ export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 	const collaborators = Object.values(presences)
 		.filter((presence) => presence && presence.user_id !== currentUserId)
 		.slice(0, 5);
+
+	const currentRoom = activeVoiceUser 
+		? `voice-${[currentUserId, activeVoiceUser].sort().join("-")}` 
+		: null;
 
 	return (
 		<div className="avatar-stack-wrap" aria-label="Collaborators online">
@@ -50,6 +86,10 @@ export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 				})}
 			</div>
 			<span className="avatar-count">{Object.keys(presences).length} live</span>
+
+			{currentRoom && (
+				<LiveKitConnection room={currentRoom} identity={currentUserId} />
+			)}
 		</div>
 	);
 }

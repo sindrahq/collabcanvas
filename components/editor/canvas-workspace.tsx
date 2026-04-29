@@ -10,7 +10,8 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import type { WorkspaceState } from "@/store/workspaceStore";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -31,18 +32,20 @@ const MOBILE_BREAKPOINT = 860;
 const STAGE_SCALE = 1.6;
 
 type CanvasWorkspaceProps = {
+  workspaceId: string;
   currentUserId: string;
   presences: Record<string, PresenceMeta>;
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
 };
 
-export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
-  const elementCount        = useWorkspaceStore((s) => s.elements.length);
-  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
-  const canEdit             = useWorkspaceStore((s) => s.canEdit);
-  const elements            = useWorkspaceStore((s) => s.elements);
+export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const elementCount        = store((s: WorkspaceState) => s.elements.length);
+  const canvasBackground    = store((s: WorkspaceState) => s.canvasBackground);
+  const setCanvasBackground = store((s: WorkspaceState) => s.setCanvasBackground);
+  const canvasDimensions    = store((s: WorkspaceState) => s.canvasDimensions);
+  const canEdit             = store((s: WorkspaceState) => s.canEdit);
+  const elements            = store((s: WorkspaceState) => s.elements);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
