@@ -1,0 +1,29 @@
+
+> collabcanvas@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.2.1 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://10.3.60.235:3000
+- Environments: .env.local
+✓ Ready in 1444ms
+
+○ Compiling / ...
+ GET / 200 in 5.3s (next.js: 4.4s, application-code: 907ms)
+ GET / 200 in 357ms (next.js: 23ms, application-code: 334ms)
+ GET / 200 in 182ms (next.js: 10ms, application-code: 172ms)
+ GET /projects 200 in 3.8s (next.js: 2.1s, proxy.ts: 1487ms, application-code: 156ms)
+○ Compiling /workspace-editor ...
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 5.1s (next.js: 4.2s, proxy.ts: 732ms, application-code: 136ms)
+ GET / 200 in 446ms (next.js: 237ms, application-code: 208ms)
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 3.9s (next.js: 36ms, proxy.ts: 3.8s, application-code: 59ms)
+ GET / 200 in 357ms (next.js: 214ms, application-code: 143ms)
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 1692ms (next.js: 49ms, proxy.ts: 1549ms, application-code: 94ms)
+ GET / 200 in 474ms (next.js: 267ms, application-code: 207ms)
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 3.0s (next.js: 42ms, proxy.ts: 2.9s, application-code: 63ms)
+ GET / 200 in 2.1s (next.js: 1910ms, application-code: 220ms)
+ GET / 200 in 98ms (next.js: 6ms, application-code: 92ms)
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 718ms (next.js: 43ms, proxy.ts: 579ms, application-code: 96ms)
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 205ms (next.js: 6ms, proxy.ts: 143ms, application-code: 56ms)
+ GET / 200 in 456ms (next.js: 250ms, application-code: 206ms)
+ GET /workspace-editor?workspaceId=19962b27-4e6e-4ebd-93df-c9c23df6d36d 200 in 1642ms (next.js: 50ms, proxy.ts: 1531ms, application-code: 61ms)

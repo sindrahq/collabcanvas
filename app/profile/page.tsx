@@ -96,8 +96,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!supabase) {
-      setError("Authentication is unavailable. Missing Supabase environment variables.");
-      setLoading(false);
+      setTimeout(() => {
+        setError("Authentication is unavailable. Missing Supabase environment variables.");
+        setLoading(false);
+      }, 0);
       return;
     }
 

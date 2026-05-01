@@ -1,0 +1,11 @@
+
+> collabcanvas@0.1.0 dev
+> next dev --webpack --port 3005
+
+▲ Next.js 16.2.1 (webpack)
+- Local:         http://localhost:3005
+- Network:       http://10.3.60.235:3005
+- Environments: .env.local
+✓ Ready in 1162ms
+[?25h
+PS C:\Users\kmrha\OneDrive\Documents\Playground\collabcanvas-team> 

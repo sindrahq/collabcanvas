@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowRight, ArrowUp, Circle, Eye, EyeOff,
-  Layers, Lock, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock
+  Layers, Lock, Layout, Minus, RectangleHorizontal, Star, Triangle, Type, Unlock,
+  Hexagon, Heart, Cloud, Square, Diamond, Shield, Octagon, Zap, Sun, Moon, Pencil
 } from "lucide-react";
-import { type CanvasElement, type CanvasElementType, useWorkspaceStore } from "@/store/workspaceStore";
+import { type CanvasElement, type CanvasElementType, useWorkspaceStoreFactory, type WorkspaceState } from "@/store/workspaceStore";
 
-const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
+const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<{ size?: number; className?: string }>> = {
   rectangle: RectangleHorizontal,
   circle: Circle,
   text: Type,
@@ -16,13 +17,27 @@ const TYPE_ICONS: Record<CanvasElementType, React.ComponentType<any>> = {
   star: Star,
   arrow: ArrowRight,
   line: Minus,
-  image: RectangleHorizontal, // fallback icon for image type
+  image: RectangleHorizontal,
+  diamond: Diamond,
+  hexagon: Hexagon,
+  pentagon: Hexagon,
+  heart: Heart,
+  cloud: Cloud,
+  shield: Shield,
+  octagon: Octagon,
+  zap: Zap,
+  sun: Sun,
+  moon: Moon,
+  frame: Layout,
+  pencil: Pencil,
+  video: RectangleHorizontal,
 };
 
 
-export function LeftSidebar() {
-  const elements = useWorkspaceStore((state) => state.elements);
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
+export function LeftSidebar({ workspaceId }: { workspaceId: string }) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const elements = store((state: WorkspaceState) => state.elements);
+  const selectedElementId = store((state: WorkspaceState) => state.selectedElementId);
   const orderedElements = useMemo(
     () => [...elements].sort((a, b) => b.layerOrder - a.layerOrder),
     [elements]
@@ -63,6 +78,7 @@ export function LeftSidebar() {
               key={element.id}
               element={element}
               isSelected={element.id === selectedElementId}
+              workspaceId={workspaceId}
             />
           ))}
         </AnimatePresence>
@@ -74,12 +90,13 @@ export function LeftSidebar() {
   );
 }
 
-function LayerRow({ element, isSelected }: { element: CanvasElement; isSelected: boolean }) {
-  const selectElement = useWorkspaceStore((state) => state.selectElement);
-  const reorderElement = useWorkspaceStore((state) => state.reorderElement);
-  const toggleVisibility = useWorkspaceStore((state) => state.toggleVisibility);
-  const toggleLock = useWorkspaceStore((state) => state.toggleLock);
-  const canEdit = useWorkspaceStore((state) => state.canEdit);
+function LayerRow({ element, isSelected, workspaceId }: { element: CanvasElement; isSelected: boolean; workspaceId: string }) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const selectElement = store((state: WorkspaceState) => state.selectElement);
+  const reorderElement = store((state: WorkspaceState) => state.reorderElement);
+  const toggleVisibility = store((state: WorkspaceState) => state.toggleVisibility);
+  const toggleLock = store((state: WorkspaceState) => state.toggleLock);
+  const canEdit = store((state: WorkspaceState) => state.canEdit);
   const Icon = TYPE_ICONS[element.type] ?? RectangleHorizontal;
 
   return (

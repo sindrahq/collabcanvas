@@ -22,7 +22,7 @@ type RootLayoutProps = Readonly<{
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="cc-landing-theme min-h-full flex flex-col">{children}</body>
     </html>
   );
 }
