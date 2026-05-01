@@ -447,7 +447,7 @@ export function Toolbar({
             >
               <LayoutGrid size={18} />
             </motion.button>
-            <FramePicker />
+            <FramePicker workspaceId={workspaceId} />
           </div>
         </div>
       ) : null}
