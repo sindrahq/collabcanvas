@@ -82,8 +82,7 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       .order("layer_order", { ascending: true });
 
     if (elementsError) {
-      store.setElements([]);
-      store.setSelectedElementId(null);
+      // Preserve in-memory state on transient fetch errors to avoid apparent data loss.
       return false;
     }
 
@@ -105,6 +104,35 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       history: [loadedElements.map((el) => ({ ...el, style: { ...el.style } }))],
       historyIndex: 0,
     });
+
+    // Load activity log from Supabase (up to 50 most recent entries)
+    const { data: activityLogs, error: activityError } = await supabase
+      .from("activity_log")
+      .select("id, action, user_name, element_name, element_type, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (activityError) {
+      console.warn("Activity log load error:", activityError);
+    } else if (activityLogs && activityLogs.length > 0) {
+      console.log(`Loaded ${activityLogs.length} activity entries for workspace ${workspaceId}`);
+      const activityEntries = activityLogs
+        .map((log: any) => ({
+          id: log.id,
+          action: log.action as "added" | "deleted" | "updated" | "moved",
+          userName: log.user_name || "User",
+          elementName: log.element_name || "Element",
+          elementType: log.element_type || "unknown",
+          timestamp: new Date(log.created_at).getTime(),
+        }))
+        .reverse(); // Reverse to show oldest first, newest last
+
+      store.clearActivityLog();
+      activityEntries.forEach((entry) => store.pushActivityLog(entry));
+    } else {
+      console.log("No activities found for workspace", workspaceId);
+    }
 
     return true;
   } catch {

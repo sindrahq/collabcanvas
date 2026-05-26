@@ -102,6 +102,241 @@ function eraseFromStroke(pts: number[], cx: number, cy: number, r: number): numb
 const PENCIL_CURSOR =`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%231e1e1e'/%3E%3Cline x1='12' y1='1' x2='12' y2='8' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='12' y1='16' x2='12' y2='23' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='1' y1='12' x2='8' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='16' y1='12' x2='23' y2='12' stroke='%231e1e1e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair`;
 
 const STAGE_SCALE = 1.6;
+const SNAP_THRESHOLD_STAGE = 5 / STAGE_SCALE;
+const SNAP_GUIDE_COLOR = "#AF52DE";
+
+const CENTER_ANCHORED_TYPES = new Set<CanvasElement["type"]>([
+  "circle",
+  "triangle",
+  "star",
+  "diamond",
+  "hexagon",
+  "pentagon",
+  "heart",
+  "cloud",
+  "shield",
+  "octagon",
+  "zap",
+  "sun",
+  "moon",
+]);
+
+type SnapOrientation = "vertical" | "horizontal";
+type SnapGuide = {
+  orientation: SnapOrientation;
+  position: number;
+  dashed: boolean;
+};
+
+type SnapTarget = {
+  id: string;
+  kind: "canvas" | "element";
+  rect: { x: number; y: number; width: number; height: number };
+};
+
+type SnapAxisAnchor = {
+  name: "left" | "center" | "right" | "top" | "middle" | "bottom";
+  position: number;
+  offset: number;
+};
+
+function isCenterAnchoredType(type: CanvasElement["type"]) {
+  return CENTER_ANCHORED_TYPES.has(type);
+}
+
+function isSnappableType(type: CanvasElement["type"]) {
+  return type !== "line" && type !== "arrow" && type !== "pencil";
+}
+
+function getElementStageRect(element: CanvasElement) {
+  return {
+    x: element.x / STAGE_SCALE,
+    y: element.y / STAGE_SCALE,
+    width: element.width / STAGE_SCALE,
+    height: element.height / STAGE_SCALE,
+  };
+}
+
+function getDragBoxFromPosition(
+  element: CanvasElement,
+  position: { x: number; y: number }
+) {
+  const width = element.width / STAGE_SCALE;
+  const height = element.height / STAGE_SCALE;
+
+  if (isCenterAnchoredType(element.type)) {
+    return {
+      x: position.x - width / 2,
+      y: position.y - height / 2,
+      width,
+      height,
+    };
+  }
+
+  return {
+    x: position.x,
+    y: position.y,
+    width,
+    height,
+  };
+}
+
+function getPositionFromBox(
+  element: CanvasElement,
+  box: { x: number; y: number; width: number; height: number }
+) {
+  if (isCenterAnchoredType(element.type)) {
+    return {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    };
+  }
+
+  return {
+    x: box.x,
+    y: box.y,
+  };
+}
+
+function getBoxAnchors(
+  box: { x: number; y: number; width: number; height: number }
+) {
+  return {
+    x: [
+      { name: "left", position: box.x, offset: 0 },
+      { name: "center", position: box.x + box.width / 2, offset: box.width / 2 },
+      { name: "right", position: box.x + box.width, offset: box.width },
+    ] as SnapAxisAnchor[],
+    y: [
+      { name: "top", position: box.y, offset: 0 },
+      { name: "middle", position: box.y + box.height / 2, offset: box.height / 2 },
+      { name: "bottom", position: box.y + box.height, offset: box.height },
+    ] as SnapAxisAnchor[],
+  };
+}
+
+function getAllowedAnchorMatch(
+  axis: "x" | "y",
+  currentAnchor: SnapAxisAnchor,
+  targetAnchor: SnapAxisAnchor,
+  targetKind: SnapTarget["kind"]
+) {
+  if (axis === "x") {
+    if (currentAnchor.name === "center") {
+      return targetAnchor.name === "center";
+    }
+
+    if (targetKind === "canvas") {
+      return currentAnchor.name === targetAnchor.name;
+    }
+
+    return (
+      (currentAnchor.name === "left" && targetAnchor.name === "right") ||
+      (currentAnchor.name === "right" && targetAnchor.name === "left") ||
+      (currentAnchor.name === "left" && targetAnchor.name === "left") ||
+      (currentAnchor.name === "right" && targetAnchor.name === "right")
+    );
+  }
+
+  if (currentAnchor.name === "middle") {
+    return targetAnchor.name === "middle";
+  }
+
+  if (targetKind === "canvas") {
+    return currentAnchor.name === targetAnchor.name;
+  }
+
+  return (
+    (currentAnchor.name === "top" && targetAnchor.name === "bottom") ||
+    (currentAnchor.name === "bottom" && targetAnchor.name === "top") ||
+    (currentAnchor.name === "top" && targetAnchor.name === "top") ||
+    (currentAnchor.name === "bottom" && targetAnchor.name === "bottom")
+  );
+}
+
+function snapBoxToTargets(
+  box: { x: number; y: number; width: number; height: number },
+  targets: SnapTarget[],
+  stageWidth: number,
+  stageHeight: number,
+  threshold = SNAP_THRESHOLD_STAGE
+) {
+  const nextBox = { ...box };
+  const guides: SnapGuide[] = [];
+
+  const currentAnchors = getBoxAnchors(box);
+
+  const xTargets: Array<{ position: number; kind: SnapTarget["kind"]; name: SnapAxisAnchor["name"] }> = [
+    { position: 0, kind: "canvas", name: "left" },
+    { position: stageWidth / 2, kind: "canvas", name: "center" },
+    { position: stageWidth, kind: "canvas", name: "right" },
+  ];
+  const yTargets: Array<{ position: number; kind: SnapTarget["kind"]; name: SnapAxisAnchor["name"] }> = [
+    { position: 0, kind: "canvas", name: "top" },
+    { position: stageHeight / 2, kind: "canvas", name: "middle" },
+    { position: stageHeight, kind: "canvas", name: "bottom" },
+  ];
+
+  for (const target of targets) {
+    xTargets.push(
+      { position: target.rect.x, kind: target.kind, name: "left" },
+      { position: target.rect.x + target.rect.width / 2, kind: target.kind, name: "center" },
+      { position: target.rect.x + target.rect.width, kind: target.kind, name: "right" },
+    );
+    yTargets.push(
+      { position: target.rect.y, kind: target.kind, name: "top" },
+      { position: target.rect.y + target.rect.height / 2, kind: target.kind, name: "middle" },
+      { position: target.rect.y + target.rect.height, kind: target.kind, name: "bottom" },
+    );
+  }
+
+  function findBestAnchor(
+    axis: "x" | "y",
+    current: SnapAxisAnchor[],
+    targetsList: Array<{ position: number; kind: SnapTarget["kind"]; name: SnapAxisAnchor["name"] }>,
+  ) {
+    let best: {
+      delta: number;
+      position: number;
+      offset: number;
+      kind: SnapTarget["kind"];
+    } | null = null;
+
+    for (const currentAnchor of current) {
+      for (const targetAnchor of targetsList) {
+        if (!getAllowedAnchorMatch(axis, currentAnchor, targetAnchor, targetAnchor.kind)) continue;
+        const delta = Math.abs(currentAnchor.position - targetAnchor.position);
+        if (delta > threshold) continue;
+
+        if (!best || delta < best.delta) {
+          best = {
+            delta,
+            position: targetAnchor.position,
+            offset: currentAnchor.offset,
+            kind: targetAnchor.kind,
+          };
+        }
+      }
+    }
+
+    if (!best) return null;
+
+    if (axis === "x") {
+      nextBox.x = best.position - best.offset;
+      guides.push({ orientation: "vertical", position: best.position, dashed: best.kind === "element" });
+    } else {
+      nextBox.y = best.position - best.offset;
+      guides.push({ orientation: "horizontal", position: best.position, dashed: best.kind === "element" });
+    }
+
+    return best;
+  }
+
+  findBestAnchor("x", currentAnchors.x, xTargets);
+  findBestAnchor("y", currentAnchors.y, yTargets);
+
+  return { box: nextBox, guides };
+}
 
 function hexToRgba(hex: string, alpha: number): string {
   const clean = hex.replace("#", "");
@@ -233,14 +468,96 @@ export function KonvaStageWorkspace({
     () => [...elements].sort((left, right) => left.layerOrder - right.layerOrder),
     [elements]
   );
+  const selectedElement = useMemo(
+    () => elements.find((element) => element.id === selectedElementId) ?? null,
+    [elements, selectedElementId]
+  );
 
   const transformerRef = useRef<Konva.Transformer>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const nodeRefs = useRef<Record<string, Konva.Shape | Konva.Text | null>>({});
+  const snapTargetsRef = useRef<SnapTarget[]>([]);
+  const snapGuidesKeyRef = useRef("");
   const editingRef = useRef<HTMLTextAreaElement | null>(null);
   const isErasingRef = useRef(false);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<number[] | null>(null);
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+
+  const clearSnapGuides = useCallback(() => {
+    snapGuidesKeyRef.current = "";
+    setSnapGuides([]);
+  }, []);
+
+  const setSnapGuidesIfChanged = useCallback((nextGuides: SnapGuide[]) => {
+    const key = nextGuides
+      .map((guide) => `${guide.orientation}:${guide.position.toFixed(2)}:${guide.dashed ? "d" : "s"}`)
+      .join("|");
+
+    if (snapGuidesKeyRef.current === key) {
+      return;
+    }
+
+    snapGuidesKeyRef.current = key;
+    setSnapGuides(nextGuides);
+  }, []);
+
+  const buildSnapTargets = useCallback((excludeId: string) => {
+    const nextTargets: SnapTarget[] = [];
+
+    orderedElements.forEach((element) => {
+      if (element.id === excludeId || !element.visible || !isSnappableType(element.type)) return;
+
+      const rect = getElementStageRect(element);
+      const intersectsViewport =
+        rect.x + rect.width >= 0 &&
+        rect.y + rect.height >= 0 &&
+        rect.x <= STAGE_WIDTH &&
+        rect.y <= STAGE_HEIGHT;
+
+      if (!intersectsViewport) return;
+
+      nextTargets.push({
+        id: element.id,
+        kind: "element",
+        rect,
+      });
+    });
+
+    return nextTargets;
+  }, [STAGE_WIDTH, STAGE_HEIGHT, orderedElements]);
+
+  const applyDragSnap = useCallback((element: CanvasElement, position: { x: number; y: number }) => {
+    if (!isSnappableType(element.type)) {
+      clearSnapGuides();
+      return position;
+    }
+
+    const targets = snapTargetsRef.current.length > 0
+      ? snapTargetsRef.current
+      : buildSnapTargets(element.id);
+    const result = snapBoxToTargets(getDragBoxFromPosition(element, position), targets, STAGE_WIDTH, STAGE_HEIGHT);
+    setSnapGuidesIfChanged(result.guides);
+    return getPositionFromBox(element, result.box);
+  }, [STAGE_HEIGHT, STAGE_WIDTH, buildSnapTargets, clearSnapGuides, setSnapGuidesIfChanged]);
+
+  const applyTransformSnap = useCallback((element: CanvasElement, box: { x: number; y: number; width: number; height: number }) => {
+    if (!isSnappableType(element.type)) {
+      clearSnapGuides();
+      return box;
+    }
+
+    const targets = snapTargetsRef.current.length > 0
+      ? snapTargetsRef.current
+      : buildSnapTargets(element.id);
+    const result = snapBoxToTargets(box, targets, STAGE_WIDTH, STAGE_HEIGHT);
+    setSnapGuidesIfChanged(result.guides);
+    return result.box;
+  }, [STAGE_HEIGHT, STAGE_WIDTH, buildSnapTargets, clearSnapGuides, setSnapGuidesIfChanged]);
+
+  const beginSnapSession = useCallback((elementId: string) => {
+    snapTargetsRef.current = buildSnapTargets(elementId);
+  }, [buildSnapTargets]);
 
   function eraseAtCurrentPos() {
     const stage = stageRef.current;
@@ -407,6 +724,7 @@ export function KonvaStageWorkspace({
             if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
           }}
           onMouseUp={() => {
+            clearSnapGuides();
             if (activeTool === "eraser") {
               isErasingRef.current = false;
               return;
@@ -416,6 +734,7 @@ export function KonvaStageWorkspace({
             setDrawingPoints(null);
           }}
           onMouseLeave={() => {
+            clearSnapGuides();
             isErasingRef.current = false;
             if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
               addPencilElement(drawingPoints);
@@ -471,15 +790,28 @@ export function KonvaStageWorkspace({
                 visible: element.visible,
                 opacity: element.style.opacity,
                 dragBoundFunc: (pos: any) => {
-                  return {
+                  const gridPos = {
                     x: snapToGrid ? Math.round(pos.x / 20) * 20 : pos.x,
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
+
+                  return applyDragSnap(element, gridPos);
+                },
+                onDragStart: () => {
+                  if (!canEdit) return;
+                  beginSnapSession(element.id);
+                },
+                onDragMove: (event: Konva.KonvaEventObject<DragEvent>) => {
+                  if (!canEdit) return;
+                  const node = event.target;
+                  const snapped = applyDragSnap(element, { x: node.x(), y: node.y() });
+                  node.position(snapped);
                 },
                 onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
+                  clearSnapGuides();
                   const stage = event.target.getStage();
                   const pos = stage?.getPointerPosition();
                   
@@ -505,15 +837,28 @@ export function KonvaStageWorkspace({
                 visible: element.visible,
                 opacity: element.style.opacity,
                 dragBoundFunc: (pos: any) => {
-                  return {
+                  const gridPos = {
                     x: snapToGrid ? Math.round(pos.x / 20) * 20 : pos.x,
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
+
+                  return applyDragSnap(element, gridPos);
+                },
+                onDragStart: () => {
+                  if (!canEdit) return;
+                  beginSnapSession(element.id);
+                },
+                onDragMove: (event: Konva.KonvaEventObject<DragEvent>) => {
+                  if (!canEdit) return;
+                  const node = event.target;
+                  const snapped = applyDragSnap(element, { x: node.x(), y: node.y() });
+                  node.position(snapped);
                 },
                 onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
+                  clearSnapGuides();
                   updateElement(element.id, {
                     x: (event.target.x() - elementWidth / 2) * STAGE_SCALE,
                     y: (event.target.y() - elementHeight / 2) * STAGE_SCALE,
@@ -539,9 +884,19 @@ export function KonvaStageWorkspace({
                     strokeWidth={element.style.strokeWidth}
                     cornerRadius={12}
                     {...sharedShadow}
-                    onTransformEnd={(event) =>
-                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
-                    }
+                    onTransformStart={() => {
+                      if (!canEdit) return;
+                      beginSnapSession(element.id);
+                    }}
+                    onTransform={(event) => {
+                      if (!canEdit) return;
+                      const node = event.target as Konva.Rect;
+                      applyTransformSnap(element, node.getClientRect({ skipShadow: true }));
+                    }}
+                    onTransformEnd={(event) => {
+                      clearSnapGuides();
+                      updateFromTransform(element, event.target as Konva.Rect, updateElement);
+                    }}
                   />
                 );
               }
@@ -563,9 +918,19 @@ export function KonvaStageWorkspace({
                     strokeWidth={element.style.strokeWidth}
                     cornerRadius={16}
                     {...sharedShadow}
-                    onTransformEnd={(event) =>
-                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
-                    }
+                    onTransformStart={() => {
+                      if (!canEdit) return;
+                      beginSnapSession(element.id);
+                    }}
+                    onTransform={(event) => {
+                      if (!canEdit) return;
+                      const node = event.target as Konva.Rect;
+                      applyTransformSnap(element, node.getClientRect({ skipShadow: true }));
+                    }}
+                    onTransformEnd={(event) => {
+                      clearSnapGuides();
+                      updateFromTransform(element, event.target as Konva.Rect, updateElement);
+                    }}
                   />
                 );
               }
@@ -584,9 +949,19 @@ export function KonvaStageWorkspace({
                       nodeRefs.current[element.id] = node;
                     }}
                     {...sharedShadow}
-                    onTransformEnd={(event: Konva.KonvaEventObject<Event>) =>
-                      updateFromTransform(element, event.target as Konva.Image, updateElement)
-                    }
+                    onTransformStart={() => {
+                      if (!canEdit) return;
+                      beginSnapSession(element.id);
+                    }}
+                    onTransform={(event: Konva.KonvaEventObject<Event>) => {
+                      if (!canEdit) return;
+                      const node = event.target as Konva.Image;
+                      applyTransformSnap(element, node.getClientRect({ skipShadow: true }));
+                    }}
+                    onTransformEnd={(event: Konva.KonvaEventObject<Event>) => {
+                      clearSnapGuides();
+                      updateFromTransform(element, event.target as Konva.Image, updateElement);
+                    }}
                   />
                 );
               }
@@ -646,9 +1021,19 @@ export function KonvaStageWorkspace({
                     stroke={element.style.stroke}
                     strokeWidth={element.style.strokeWidth}
                     {...sharedShadow}
-                    onTransformEnd={(event) =>
-                      updateCenterShapeFromTransform(element, event.target as Konva.Ellipse, updateElement)
-                    }
+                    onTransformStart={() => {
+                      if (!canEdit) return;
+                      beginSnapSession(element.id);
+                    }}
+                    onTransform={(event) => {
+                      if (!canEdit) return;
+                      const node = event.target as Konva.Ellipse;
+                      applyTransformSnap(element, node.getClientRect({ skipShadow: true }));
+                    }}
+                    onTransformEnd={(event) => {
+                      clearSnapGuides();
+                      updateCenterShapeFromTransform(element, event.target as Konva.Ellipse, updateElement);
+                    }}
                   />
                 );
               }
@@ -669,13 +1054,23 @@ export function KonvaStageWorkspace({
                     stroke={element.style.stroke}
                     strokeWidth={element.style.strokeWidth}
                     {...sharedShadow}
-                    onTransformEnd={(event) =>
+                    onTransformStart={() => {
+                      if (!canEdit) return;
+                      beginSnapSession(element.id);
+                    }}
+                    onTransform={(event) => {
+                      if (!canEdit) return;
+                      const node = event.target as Konva.RegularPolygon;
+                      applyTransformSnap(element, node.getClientRect({ skipShadow: true }));
+                    }}
+                    onTransformEnd={(event) => {
+                      clearSnapGuides();
                       updateCenterShapeFromTransform(
                         element,
                         event.target as Konva.RegularPolygon,
                         updateElement
-                      )
-                    }
+                      );
+                    }}
                   />
                 );
               }
@@ -777,9 +1172,19 @@ export function KonvaStageWorkspace({
                     stroke={element.style.stroke}
                     strokeWidth={element.style.strokeWidth}
                     {...sharedShadow}
-                    onTransformEnd={(event) =>
-                      updateCenterShapeFromTransform(element, event.target as Konva.Star, updateElement)
-                    }
+                    onTransformStart={() => {
+                      if (!canEdit) return;
+                      beginSnapSession(element.id);
+                    }}
+                    onTransform={(event) => {
+                      if (!canEdit) return;
+                      const node = event.target as Konva.Star;
+                      applyTransformSnap(element, node.getClientRect({ skipShadow: true }));
+                    }}
+                    onTransformEnd={(event) => {
+                      clearSnapGuides();
+                      updateCenterShapeFromTransform(element, event.target as Konva.Star, updateElement);
+                    }}
                   />
                 );
               }
@@ -930,7 +1335,7 @@ export function KonvaStageWorkspace({
                       newX = Math.round(newX / 20) * 20;
                       newY = Math.round(newY / 20) * 20;
                     }
-                    return { x: newX, y: newY };
+                    return applyDragSnap(element, { x: newX, y: newY });
                   }}
                   onTransformEnd={(event) => {
                     if (!canEdit) return;
@@ -976,6 +1381,8 @@ export function KonvaStageWorkspace({
                     textarea.focus();
                     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 
+                    let committed = false;
+
                     function finish() {
                       if (!editingRef.current) return;
                       editingRef.current = null;
@@ -983,13 +1390,19 @@ export function KonvaStageWorkspace({
                       textarea.remove();
                     }
 
-                    textarea.addEventListener("input", () => {
-                      resizeTextarea(textarea);
+                    function commitText() {
+                      if (committed) return;
+                      committed = true;
                       updateElement(element.id, {
                         text: textarea.value,
                       });
+                      finish();
+                    }
+
+                    textarea.addEventListener("input", () => {
+                      resizeTextarea(textarea);
                     });
-                    textarea.addEventListener("blur", finish);
+                    textarea.addEventListener("blur", commitText);
                     textarea.addEventListener("keydown", (event) => {
                       if (event.key === "Escape") {
                         event.preventDefault();
@@ -1003,7 +1416,7 @@ export function KonvaStageWorkspace({
 
                       if (event.key === "Enter") {
                         event.preventDefault();
-                        finish();
+                        commitText();
                       }
                     });
                   }}
@@ -1041,6 +1454,9 @@ export function KonvaStageWorkspace({
                   newBox.width = Math.round(newBox.width / 20) * 20;
                   newBox.height = Math.round(newBox.height / 20) * 20;
                 }
+                if (selectedElement && canEdit) {
+                  return applyTransformSnap(selectedElement, newBox);
+                }
                 return newBox;
               }}
               enabledAnchors={[
@@ -1053,6 +1469,25 @@ export function KonvaStageWorkspace({
               ]}
             />
           </Layer>
+
+          {snapGuides.length > 0 && (
+            <Layer listening={false}>
+              {snapGuides.map((guide, index) => (
+                <KonvaLine
+                  key={`${guide.orientation}-${guide.position}-${index}`}
+                  points={guide.orientation === "vertical"
+                    ? [guide.position, 0, guide.position, STAGE_HEIGHT]
+                    : [0, guide.position, STAGE_WIDTH, guide.position]}
+                  stroke={SNAP_GUIDE_COLOR}
+                  strokeWidth={1}
+                  dash={guide.dashed ? [5, 4] : undefined}
+                  lineCap="round"
+                  listening={false}
+                  opacity={0.95}
+                />
+              ))}
+            </Layer>
+          )}
 
           {remoteCursors && Object.keys(remoteCursors).length > 0 && (
             <Layer listening={false}>
