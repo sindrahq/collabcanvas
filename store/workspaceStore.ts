@@ -33,27 +33,73 @@ import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { persist } from "zustand/middleware";
 import { supabase } from "@/lib/supabaseClient";
 
-// Backend API helpers for element history
-async function fetchElementHistory(workspaceId: string, elementId: string) {
-  try {
-    const res = await fetch(`/api/element-history?workspace_id=${workspaceId}&element_id=${elementId}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    // data is array of { snapshot }
-    return Array.isArray(data) ? data.map((row) => row.snapshot) : [];
-  } catch {
-    return [];
-  }
+const MAX_ELEMENT_HISTORY = 8;
+
+function cloneElementSnapshot(element: CanvasElement): CanvasElement {
+  return withCompatFields({
+    ...element,
+    style: { ...element.style },
+    points: element.points ? [...element.points] : element.points,
+  });
 }
 
-async function saveElementSnapshot(workspaceId: string, elementId: string, snapshot: CanvasElement) {
-  try {
-    await fetch(`/api/element-history`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspace_id: workspaceId, element_id: elementId, snapshot }),
-    });
-  } catch {}
+function capElementHistory(history: CanvasElement[]) {
+  return history.slice(-MAX_ELEMENT_HISTORY);
+}
+
+function createInitialElementHistory(elements: CanvasElement[]) {
+  const elementHistory: Record<string, CanvasElement[]> = {};
+  const timeTravelCursor: Record<string, number> = {};
+
+  elements.forEach((element) => {
+    elementHistory[element.id] = [cloneElementSnapshot(element)];
+    timeTravelCursor[element.id] = 0;
+  });
+
+  return { elementHistory, timeTravelCursor };
+}
+
+function appendElementHistory(
+  state: Pick<WorkspaceState, "elementHistory" | "timeTravelCursor">,
+  elementId: string,
+  snapshot: CanvasElement
+) {
+  const currentHistory = state.elementHistory[elementId] ?? [];
+  const cursor = state.timeTravelCursor[elementId] ?? currentHistory.length - 1;
+  const baseHistory = cursor >= 0 ? currentHistory.slice(0, cursor + 1) : currentHistory.slice();
+  const nextHistory = capElementHistory([...baseHistory, cloneElementSnapshot(snapshot)]);
+
+  return {
+    elementHistory: {
+      ...state.elementHistory,
+      [elementId]: nextHistory,
+    },
+    timeTravelCursor: {
+      ...state.timeTravelCursor,
+      [elementId]: nextHistory.length - 1,
+    },
+  };
+}
+
+function ensureElementHistoryForElement(
+  state: Pick<WorkspaceState, "elementHistory" | "timeTravelCursor">,
+  element: CanvasElement
+) {
+  const history = state.elementHistory[element.id];
+  if (history && history.length > 0) {
+    return state;
+  }
+
+  return {
+    elementHistory: {
+      ...state.elementHistory,
+      [element.id]: [cloneElementSnapshot(element)],
+    },
+    timeTravelCursor: {
+      ...state.timeTravelCursor,
+      [element.id]: 0,
+    },
+  };
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -171,6 +217,8 @@ export type WorkspaceState = {
   setCanvasBackground: (color: string) => void;
   setCanvasDimensions: (dimensions: { width: number; height: number }) => void;
   elementHistory: Record<string, CanvasElement[]>;
+  timeTravelCursor: Record<string, number>;
+  timeTravelBaseline: Record<string, CanvasElement>;
   travelElementTo: (elementId: string, historyIndex: number) => void;
   restoreElementToCurrent: (elementId: string) => void;
   activityLog: ActivityEntry[];
@@ -279,6 +327,8 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
             activeTool: "select",
             eraserSize: 10,
             elementHistory: {},
+            timeTravelCursor: {},
+            timeTravelBaseline: {},
             activityLog: [],
             elevations: {},
             
@@ -310,7 +360,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
               const next = normalizeElements(elements);
               const selectedElementId = next.find((el) => el.id === state.selectedElementId)
                 ? state.selectedElementId : null;
-              return { ...setElementCollections(next), selectedElementId };
+              return { ...setElementCollections(next), selectedElementId, timeTravelBaseline: {} };
             }),
             setLoading: (loading) => set({ loading }),
             clear: () => set({
@@ -318,6 +368,8 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
               accessLevel: "edit", canEdit: true,
               elements: [], elementList: [], selectedElementId: null,
               loading: false, history: [], historyIndex: -1,
+              timeTravelCursor: {},
+              timeTravelBaseline: {},
             }),
             addElement: (type, extra) => set((state) => {
               const nextElement = createElement(type, state.elements.length, extra);
@@ -587,6 +639,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
                 loading: false,
                 history: [],
                 historyIndex: -1,
+                timeTravelCursor: {},
                 canvasBackground: "#fffdf8",
                 canvasDimensions: { width: 1280, height: 800 },
               }),
@@ -753,6 +806,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       activeTool: "select",
       eraserSize: 10,
       elementHistory: {},
+      timeTravelCursor: {},
       activityLog: [],
       elevations: {},
 
@@ -773,21 +827,40 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             style: { ...defaultElementStyle.pencil },
           });
           const nextElements = [...state.elements, element];
-          return { ...withHistory(state, nextElements), selectedElementId: element.id };
+          const historyState = ensureElementHistoryForElement(
+            { elementHistory: state.elementHistory, timeTravelCursor: state.timeTravelCursor },
+            element
+          );
+          return {
+            ...withHistory(state, nextElements),
+            selectedElementId: element.id,
+            elementHistory: historyState.elementHistory,
+            timeTravelCursor: historyState.timeTravelCursor,
+          };
         }),
 
       selectElement: (selectedElementId) => {
         set({ selectedElementId });
-        // Fetch element history from backend when selecting an element
         const state = get();
-        const workspaceId = state.workspace?.id;
-        if (selectedElementId && workspaceId) {
-          fetchElementHistory(workspaceId, selectedElementId).then((history) => {
-            if (history.length > 0) {
-              set((s) => ({ elementHistory: { ...s.elementHistory, [selectedElementId]: history } }));
-            }
-          });
-        }
+        if (!selectedElementId) return;
+
+        const selected = state.elements.find((el) => el.id === selectedElementId);
+        if (!selected) return;
+
+        set((current) => {
+          const historyState = ensureElementHistoryForElement(
+            { elementHistory: current.elementHistory, timeTravelCursor: current.timeTravelCursor },
+            selected
+          );
+
+          return {
+            elementHistory: historyState.elementHistory,
+            timeTravelCursor: {
+              ...historyState.timeTravelCursor,
+              [selectedElementId]: historyState.elementHistory[selectedElementId].length - 1,
+            },
+          };
+        });
       },
       setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
 
@@ -802,7 +875,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const next = normalizeElements(elements);
           const selectedElementId = next.find((el) => el.id === state.selectedElementId)
             ? state.selectedElementId : null;
-          return { ...setElementCollections(next), selectedElementId };
+          const historyBundle = createInitialElementHistory(next);
+          return { ...setElementCollections(next), selectedElementId, timeTravelBaseline: {}, ...historyBundle };
         }),
 
       resetWorkspaceState: () =>
@@ -817,6 +891,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           loading: false,
           history: [],
           historyIndex: -1,
+          timeTravelBaseline: {},
+          timeTravelCursor: {},
           canvasBackground: "#fffdf8",
           canvasDimensions: { width: 1280, height: 800 },
         }),
@@ -829,12 +905,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           accessLevel: "edit", canEdit: true,
           elements: [], elementList: [], selectedElementId: null,
           loading: false, history: [], historyIndex: -1,
+          timeTravelBaseline: {},
+          timeTravelCursor: {},
         }),
 
       addElement: (type, extra) =>
         set((state) => {
           const nextElement = createElement(type, state.elements.length, extra);
           const nextElements = [...state.elements, nextElement];
+          const historyState = appendElementHistory(
+            { elementHistory: state.elementHistory, timeTravelCursor: state.timeTravelCursor },
+            nextElement.id,
+            nextElement
+          );
           const entry: ActivityEntry = {
             id: createId("activity"),
             action: "added",
@@ -847,16 +930,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             ...withHistory(state, nextElements),
             selectedElementId: nextElement.id,
             activityLog: [entry, ...state.activityLog].slice(0, 50),
+            elementHistory: historyState.elementHistory,
+            timeTravelCursor: historyState.timeTravelCursor,
           };
         }),
 
       updateElement: (elementId, updates) =>
         set((state) => {
           const currentEl = state.elements.find((el) => el.id === elementId);
-          const prevHist = state.elementHistory[elementId] ?? [];
-          const elementHistory = currentEl
-            ? { ...state.elementHistory, [elementId]: [...prevHist, { ...currentEl, style: { ...currentEl.style } }].slice(-20) }
-            : state.elementHistory;
           const nextElements = state.elements.map((el) => {
             if (el.id !== elementId) return el;
             const u = updates as Partial<CanvasElement> & { style?: Partial<CanvasElementStyle> };
@@ -869,25 +950,37 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               style: u.style ? { ...el.style, ...u.style } : el.style,
             });
           });
-          // Save snapshot to backend
-          const workspaceId = state.workspace?.id;
-          if (workspaceId && currentEl) {
-            saveElementSnapshot(workspaceId, elementId, currentEl);
+          const updatedEl = nextElements.find((el) => el.id === elementId);
+          if (!updatedEl) {
+            return { ...withHistory(state, nextElements) };
           }
-          return { ...withHistory(state, nextElements), elementHistory };
+
+          const historyState = appendElementHistory(
+            { elementHistory: state.elementHistory, timeTravelCursor: state.timeTravelCursor },
+            elementId,
+            updatedEl
+          );
+
+          return { ...withHistory(state, nextElements), ...historyState };
         }),
 
       updateElementStyle: (elementId, style) =>
         set((state) => {
-          const currentEl = state.elements.find((el) => el.id === elementId);
-          const prevHist = state.elementHistory[elementId] ?? [];
-          const elementHistory = currentEl
-            ? { ...state.elementHistory, [elementId]: [...prevHist, { ...currentEl, style: { ...currentEl.style } }].slice(-20) }
-            : state.elementHistory;
           const nextElements = state.elements.map((el) =>
             el.id === elementId ? withCompatFields({ ...el, style: { ...el.style, ...style } }) : el
           );
-          return { ...withHistory(state, nextElements), elementHistory };
+          const updatedEl = nextElements.find((el) => el.id === elementId);
+          if (!updatedEl) {
+            return { ...withHistory(state, nextElements) };
+          }
+
+          const historyState = appendElementHistory(
+            { elementHistory: state.elementHistory, timeTravelCursor: state.timeTravelCursor },
+            elementId,
+            updatedEl
+          );
+
+          return { ...withHistory(state, nextElements), ...historyState };
         }),
 
       reorderElement: (elementId, direction) =>
@@ -958,7 +1051,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               .map((el, i) => withCompatFields({ ...el, layerOrder: i, layer_order: i }))
           );
           const { [id]: _r1, ...restH1 } = state.elementHistory;
-          return { ...withHistory(state, remaining), selectedElementId: remaining.at(-1)?.id ?? null, elementHistory: restH1 };
+          const { [id]: _c1, ...restC1 } = state.timeTravelCursor;
+          return {
+            ...withHistory(state, remaining),
+            selectedElementId: remaining.at(-1)?.id ?? null,
+            elementHistory: restH1,
+            timeTravelCursor: restC1,
+          };
         }),
 
       deleteElement: (id) =>
@@ -1021,7 +1120,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const nextElements = normalizeElements([...without, ...newElements]);
           const selectedElementId = state.selectedElementId === id ? null : state.selectedElementId;
           const { [id]: _r3, ...restH3 } = state.elementHistory;
-          return { ...withHistory(state, nextElements), selectedElementId, elementHistory: restH3 };
+          const { [id]: _c3, ...restC3 } = state.timeTravelCursor;
+          const historyState = createInitialElementHistory(newElements);
+          return {
+            ...withHistory(state, nextElements),
+            selectedElementId,
+            elementHistory: { ...restH3, ...historyState.elementHistory },
+            timeTravelCursor: { ...restC3, ...historyState.timeTravelCursor },
+          };
         }),
 
       toggleVisibility: (elementId) =>
@@ -1029,7 +1135,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const nextElements = state.elements.map((el) =>
             el.id === elementId ? withCompatFields({ ...el, visible: !el.visible }) : el
           );
-          return withHistory(state, nextElements);
+          const updatedEl = nextElements.find((el) => el.id === elementId);
+          if (!updatedEl) return withHistory(state, nextElements);
+
+          return {
+            ...withHistory(state, nextElements),
+            ...appendElementHistory(
+              { elementHistory: state.elementHistory, timeTravelCursor: state.timeTravelCursor },
+              elementId,
+              updatedEl
+            ),
+          };
         }),
 
       toggleLock: (elementId) =>
@@ -1037,7 +1153,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const nextElements = state.elements.map((el) =>
             el.id === elementId ? withCompatFields({ ...el, locked: !el.locked }) : el
           );
-          return withHistory(state, nextElements);
+          const updatedEl = nextElements.find((el) => el.id === elementId);
+          if (!updatedEl) return withHistory(state, nextElements);
+
+          return {
+            ...withHistory(state, nextElements),
+            ...appendElementHistory(
+              { elementHistory: state.elementHistory, timeTravelCursor: state.timeTravelCursor },
+              elementId,
+              updatedEl
+            ),
+          };
         }),
 
       updateLayerOrder: (elements) =>
@@ -1049,23 +1175,40 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       travelElementTo: (elementId, historyIndex) =>
         set((state) => {
           const history = state.elementHistory[elementId] ?? [];
-          if (historyIndex >= history.length) return state;
-          const snapshot = history[historyIndex];
-          if (!snapshot) return state;
-          const nextElements = state.elements.map((el) =>
-            el.id === elementId ? withCompatFields({ ...snapshot, style: { ...snapshot.style } }) : el
-          );
-          return setElementCollections(nextElements);
+          if (history.length === 0) {
+            return state;
+          }
+          const clampedIndex = Math.max(0, Math.min(historyIndex, history.length - 1));
+          const snapshot = history[clampedIndex];
+          if (!snapshot) {
+            return state;
+          }
+          const nextElements = state.elements.map((el) => {
+            if (el.id === elementId) {
+              return withCompatFields({ ...snapshot, style: { ...snapshot.style } });
+            }
+            return el;
+          });
+          return {
+            ...setElementCollections(nextElements),
+            timeTravelCursor: { ...state.timeTravelCursor, [elementId]: clampedIndex },
+          };
         }),
 
       restoreElementToCurrent: (elementId) =>
         set((state) => {
-          const snap = (state.history[state.historyIndex] ?? []).find((e) => e.id === elementId);
-          if (!snap) return state;
+          const history = state.elementHistory[elementId] ?? [];
+          if (history.length === 0) {
+            return state;
+          }
+          const snap = history[history.length - 1];
           const nextElements = state.elements.map((e) =>
             e.id === elementId ? withCompatFields({ ...snap, style: { ...snap.style } }) : e
           );
-          return setElementCollections(nextElements);
+          return {
+            ...setElementCollections(nextElements),
+            timeTravelCursor: { ...state.timeTravelCursor, [elementId]: history.length - 1 },
+          };
         }),
 
       logActivity: (action, elementName, elementType, userName = "You") =>

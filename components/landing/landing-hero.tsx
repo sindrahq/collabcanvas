@@ -12,6 +12,7 @@ import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
 import { TiltImage } from "@/components/landing/tilt-image";
 import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
+import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 
 type SectionId = "features" | "templates" | "about";
 
@@ -97,7 +98,23 @@ export function LandingHero() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const [logoHref, setLogoHref] = useState("/auth?next=%2Fprojects");
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const fullText = useMemo(() => "Design Without Limits", []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    let active = true;
+    void getSessionSafely(supabase).then((session) => {
+      if (!active) return;
+      setLogoHref(session?.user ? "/projects" : "/auth?next=%2Fprojects");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let i = 0;
@@ -148,9 +165,9 @@ export function LandingHero() {
           className="flex items-center justify-between px-6 py-3 rounded-2xl border border-black/[0.03] bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.03)]"
         >
           <div className="flex items-center gap-8">
-            <div className="text-xl font-bold tracking-tight italic flex items-center gap-2">
+            <Link href={logoHref} className="text-xl font-bold tracking-tight italic flex items-center gap-2">
               CollabCanvas
-            </div>
+            </Link>
             
             <div className="hidden md:flex items-center gap-6">
               {["Features", "Templates", "About"].map((item) => (

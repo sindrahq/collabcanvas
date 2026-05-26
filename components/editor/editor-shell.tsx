@@ -25,7 +25,7 @@ import {
 import { CommandBrain, type BrainCommand } from "@/components/editor/command-brain";
 import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } from "@/lib/comments";
 import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
@@ -57,6 +57,7 @@ function slugify(value: string) {
 
 type AutoSaveStatus = "saved" | "saving";
 const LOCAL_COMMENTS_STORAGE_PREFIX = "collabcanvas_workspace_comments_";
+const LOCAL_WORKSPACE_DRAFT_PREFIX = "collabcanvas_workspace_draft_";
 
 const PRESENCE_COLORS = ["#0b6e66", "#b35c1c", "#1f6fd6", "#7a3eb3", "#a03a58", "#3d6f2f"];
 
@@ -98,6 +99,11 @@ function isUuidValue(value: string): boolean {
 function isUuidSyntaxErrorMessage(message?: string | null): boolean {
   if (!message) return false;
   return /invalid input syntax for type uuid/i.test(message);
+}
+
+function isDuplicatePrimaryKeyMessage(message?: string | null): boolean {
+  if (!message) return false;
+  return /duplicate key value violates unique constraint\s+"canvas_elements_pkey"/i.test(message);
 }
 
 function buildLocalPresenceMeta(): PresenceMeta {
@@ -277,7 +283,49 @@ export function EditorShell() {
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPersistedSignatureRef = useRef<string>("");
+  const persistNowRef = useRef<(() => void) | null>(null);
+  const persistInFlightRef = useRef(false);
+  const pendingPersistRef = useRef(false);
   const fileBase = slugify(workspaceName);
+  const workspaceDraftKey = useMemo(
+    () => (workspaceIdFromUrl ? `${LOCAL_WORKSPACE_DRAFT_PREFIX}${workspaceIdFromUrl}` : ""),
+    [workspaceIdFromUrl]
+  );
+
+  useEffect(() => {
+    if (!workspaceDraftKey || typeof window === "undefined") return;
+
+    const payload = {
+      workspaceName,
+      selectedElementId,
+      elements,
+      updatedAt: Date.now(),
+    };
+
+    window.localStorage.setItem(workspaceDraftKey, JSON.stringify(payload));
+  }, [elements, selectedElementId, workspaceDraftKey, workspaceName]);
+
+  useEffect(() => {
+    if (!workspaceDraftKey || typeof window === "undefined") return;
+    if (elements.length > 0) return;
+
+    const raw = window.localStorage.getItem(workspaceDraftKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        elements?: typeof elements;
+        selectedElementId?: string | null;
+      };
+
+      if (Array.isArray(parsed.elements) && parsed.elements.length > 0) {
+        store.getState().setElements(parsed.elements);
+        store.getState().setSelectedElementId(parsed.selectedElementId ?? null);
+      }
+    } catch {
+      // Ignore malformed local drafts.
+    }
+  }, [elements.length, store, workspaceDraftKey]);
 
   useEffect(() => {
     // Switch to workspace theme
@@ -366,16 +414,16 @@ export function EditorShell() {
 
     let active = true;
 
-    void browserClient.auth.getSession().then(({ data }) => {
+    void getSessionSafely(browserClient).then((session) => {
       if (!active) return;
 
-      if (!data.session?.user) {
+      if (!session?.user) {
         setAuthChecked(true);
         router.replace(`/auth?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
-      setAuthUser(data.session.user);
+      setAuthUser(session.user);
       setAuthChecked(true);
     });
 
@@ -398,6 +446,19 @@ export function EditorShell() {
       subscription.unsubscribe();
     };
   }, [browserClient, nextPath, router]);
+
+  // Listen for tutorial events to open inspector sidebar
+  useEffect(() => {
+    const handleTutorialEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ section: string }>;
+      if (customEvent.detail?.section === "inspector") {
+        setActiveSection("inspector");
+      }
+    };
+
+    window.addEventListener("tutorial-open-sidebar", handleTutorialEvent);
+    return () => window.removeEventListener("tutorial-open-sidebar", handleTutorialEvent);
+  }, []);
 
   useEffect(() => {
     if (!workspaceIdFromUrl || !authUser) return;
@@ -769,110 +830,173 @@ export function EditorShell() {
       return;
     }
 
+    const persistNow = async () => {
+      if (persistInFlightRef.current) {
+        pendingPersistRef.current = true;
+        return;
+      }
+
+      persistInFlightRef.current = true;
+
+      try {
+        const elementsPayload = elements.map((element) => ({
+          id: element.id,
+          workspace_id: workspace.id,
+          type: element.type,
+          position: {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+          },
+          rotation: element.rotation,
+          text_content: element.text ?? null,
+          style_ext: {
+            fill: element.style.fill,
+            stroke: element.style.stroke,
+            strokeWidth: element.style.strokeWidth,
+            opacity: element.style.opacity,
+            fontSize: element.style.fontSize,
+            fontFamily: element.style.fontFamily,
+            fontStyle: element.style.fontStyle,
+            fontWeight: element.style.fontWeight,
+            textAlign: element.style.textAlign,
+            shadowEnabled: element.style.shadowEnabled,
+            shadowBlur: element.style.shadowBlur,
+            shadowColor: element.style.shadowColor,
+            shadowOffsetX: element.style.shadowOffsetX,
+            shadowOffsetY: element.style.shadowOffsetY,
+            brightness: (element.style as any).brightness ?? 0,
+            contrast: (element.style as any).contrast ?? 0,
+            tint: (element.style as any).tint ?? 0,
+            imageUrl: (element.style as any).imageUrl ?? null,
+          },
+          layer_order: element.layerOrder,
+          visible: element.visible,
+          locked: element.locked,
+        }));
+
+        const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
+        if (deleteResult.error) {
+          throw new Error(deleteResult.error.message || "Failed to clear existing workspace elements.");
+        }
+
+        if (elementsPayload.length) {
+          let candidatePayload = elementsPayload as Record<string, unknown>[];
+          let inserted = false;
+
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const insertResult = await client.from("canvas_elements").insert(candidatePayload);
+            if (!insertResult.error) {
+              inserted = true;
+              break;
+            }
+
+            if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
+              const hasInvalidId = candidatePayload.some(
+                (row) => typeof row.id === "string" && !isUuidValue(row.id)
+              );
+              if (hasInvalidId) {
+                candidatePayload = removeColumnFromRows(candidatePayload, "id");
+                continue;
+              }
+            }
+
+            if (isDuplicatePrimaryKeyMessage(insertResult.error.message)) {
+              const nextPayload = removeColumnFromRows(candidatePayload, "id");
+              if (JSON.stringify(nextPayload) !== JSON.stringify(candidatePayload)) {
+                candidatePayload = nextPayload;
+                continue;
+              }
+            }
+
+            const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
+            if (!missingColumn) {
+              throw new Error(insertResult.error.message || "Failed to insert workspace elements.");
+            }
+
+            const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
+            if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
+              throw new Error(insertResult.error.message || "Failed to adjust workspace element payload.");
+            }
+
+            candidatePayload = nextPayload;
+          }
+
+          if (!inserted) {
+            throw new Error("Could not save workspace elements due to schema mismatch.");
+          }
+        }
+
+        // History snapshot is optional — don't block the save if it fails
+        void saveWorkspaceHistorySnapshot(workspace.id, {
+          elements,
+          selectedElementId,
+          workspaceName,
+        }, "Autosave");
+
+        lastPersistedSignatureRef.current = signature;
+      } catch (error) {
+        console.error("[EditorShell] Autosave failed:", error);
+      } finally {
+        persistInFlightRef.current = false;
+
+        if (pendingPersistRef.current) {
+          pendingPersistRef.current = false;
+          setSaveStatus("saving");
+          setTimeout(() => {
+            persistNowRef.current?.();
+          }, 0);
+          return;
+        }
+
+        setSaveStatus("saved");
+      }
+    };
+
+    persistNowRef.current = () => {
+      void persistNow();
+    };
+
     setSaveStatus("saving");
     clearTimeout(persistTimerRef.current);
-
     persistTimerRef.current = setTimeout(() => {
-      void (async () => {
-        try {
-          const elementsPayload = elements.map((element) => ({
-            id: element.id,
-            workspace_id: workspace.id,
-            type: element.type,
-            position: {
-              x: element.x,
-              y: element.y,
-              width: element.width,
-              height: element.height,
-            },
-            rotation: element.rotation,
-            text_content: element.text ?? null,
-            style_ext: {
-              fill: element.style.fill,
-              stroke: element.style.stroke,
-              strokeWidth: element.style.strokeWidth,
-              opacity: element.style.opacity,
-              fontSize: element.style.fontSize,
-              fontFamily: element.style.fontFamily,
-              fontStyle: element.style.fontStyle,
-              fontWeight: element.style.fontWeight,
-              textAlign: element.style.textAlign,
-              shadowEnabled: element.style.shadowEnabled,
-              shadowBlur: element.style.shadowBlur,
-              shadowColor: element.style.shadowColor,
-              shadowOffsetX: element.style.shadowOffsetX,
-              shadowOffsetY: element.style.shadowOffsetY,
-              brightness: (element.style as any).brightness ?? 0,
-              contrast: (element.style as any).contrast ?? 0,
-              tint: (element.style as any).tint ?? 0,
-              imageUrl: (element.style as any).imageUrl ?? null,
-            },
-            layer_order: element.layerOrder,
-            visible: element.visible,
-            locked: element.locked,
-          }));
-
-          const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
-          if (deleteResult.error) {
-            throw deleteResult.error;
-          }
-
-          if (elementsPayload.length) {
-            let candidatePayload = elementsPayload as Record<string, unknown>[];
-            let inserted = false;
-
-            for (let attempt = 0; attempt < 8; attempt += 1) {
-              const insertResult = await client.from("canvas_elements").insert(candidatePayload);
-              if (!insertResult.error) {
-                inserted = true;
-                break;
-              }
-
-              if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
-                const hasInvalidId = candidatePayload.some(
-                  (row) => typeof row.id === "string" && !isUuidValue(row.id)
-                );
-                if (hasInvalidId) {
-                  candidatePayload = removeColumnFromRows(candidatePayload, "id");
-                  continue;
-                }
-              }
-
-              const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
-              if (!missingColumn) {
-                throw insertResult.error;
-              }
-
-              const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
-              if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
-                throw insertResult.error;
-              }
-
-              candidatePayload = nextPayload;
-            }
-
-            if (!inserted) {
-              throw new Error("Could not save workspace elements due to schema mismatch.");
-            }
-          }
-
-          // History snapshot is optional — don't block the save if it fails
-          void saveWorkspaceHistorySnapshot(workspace.id, {
-            elements,
-            selectedElementId,
-            workspaceName,
-          }, "Autosave");
-
-          lastPersistedSignatureRef.current = signature;
-          setSaveStatus("saved");
-        } catch {
-          setSaveStatus("saved");
-        }
-      })();
+      persistNowRef.current?.();
     }, 450);
 
     return () => clearTimeout(persistTimerRef.current);
   }, [authUser, browserClient, canEdit, elements, selectedElementId, workspace?.id, workspace?.owner_id, workspaceName]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const flushPendingChanges = () => {
+      if (workspaceDraftKey && typeof window !== "undefined") {
+        window.localStorage.setItem(
+          workspaceDraftKey,
+          JSON.stringify({ workspaceName, selectedElementId, elements, updatedAt: Date.now() })
+        );
+      }
+      clearTimeout(persistTimerRef.current);
+      persistNowRef.current?.();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        flushPendingChanges();
+      }
+    };
+
+    window.addEventListener("pagehide", flushPendingChanges);
+    window.addEventListener("beforeunload", flushPendingChanges);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("pagehide", flushPendingChanges);
+      window.removeEventListener("beforeunload", flushPendingChanges);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [elements, selectedElementId, workspaceDraftKey, workspaceName]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -997,211 +1121,213 @@ export function EditorShell() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28 }}
       >
-        <motion.header
-          className="editor-topbar"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.06, duration: 0.24 }}
-        >
-          <div className="editor-topbar-left min-w-0">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-                  {workspace?.owner_id !== authUser.id ? (
-                    <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
-                      {accessLevel}
-                    </span>
-                  ) : (
-                    <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 opacity-60">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
-                  <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
-                    {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
-                  </span>
-                </div>
-              </div>
-              <div className="workspace-name-wrap">
-                {isRenamingWorkspace ? (
-                  <>
-                    <input
-                      type="text"
-                      className="workspace-name-input"
-                      value={workspaceNameDraft}
-                      onChange={(event) => setWorkspaceNameDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void handleWorkspaceRenameSubmit();
-                        }
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          handleWorkspaceRenameCancel();
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      className="workspace-name-action"
-                      onClick={() => void handleWorkspaceRenameSubmit()}
-                      disabled={workspaceRenameSaving}
-                      title="Save workspace name"
-                    >
-                      {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
-                    </button>
-                    <button
-                      type="button"
-                      className="workspace-name-action"
-                      onClick={handleWorkspaceRenameCancel}
-                      disabled={workspaceRenameSaving}
-                      title="Cancel rename"
-                    >
-                      <X size={14} />
-                    </button>
-                  </>
-                ) : (
+        {!previewOpen ? (
+          <motion.header
+            className="editor-topbar"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06, duration: 0.24 }}
+          >
+            <div className="editor-topbar-left min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
-                    <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
-                    {canRenameWorkspace ? (
+                    <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+                    {workspace?.owner_id !== authUser.id ? (
+                      <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
+                        {accessLevel}
+                      </span>
+                    ) : (
+                      <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 opacity-60">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
+                    <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+                      {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+                    </span>
+                  </div>
+                </div>
+                <div className="workspace-name-wrap">
+                  {isRenamingWorkspace ? (
+                    <>
+                      <input
+                        type="text"
+                        className="workspace-name-input"
+                        value={workspaceNameDraft}
+                        onChange={(event) => setWorkspaceNameDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleWorkspaceRenameSubmit();
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            handleWorkspaceRenameCancel();
+                          }
+                        }}
+                        autoFocus
+                      />
                       <button
                         type="button"
                         className="workspace-name-action"
-                        onClick={() => setIsRenamingWorkspace(true)}
-                        title="Rename workspace"
+                        onClick={() => void handleWorkspaceRenameSubmit()}
+                        disabled={workspaceRenameSaving}
+                        title="Save workspace name"
                       >
-                        <Pencil size={12} />
+                        {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
                       </button>
-                    ) : null}
-                  </div>
-                )}
+                      <button
+                        type="button"
+                        className="workspace-name-action"
+                        onClick={handleWorkspaceRenameCancel}
+                        disabled={workspaceRenameSaving}
+                        title="Cancel rename"
+                      >
+                        <X size={14} />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
+                      {canRenameWorkspace ? (
+                        <button
+                          type="button"
+                          className="workspace-name-action"
+                          onClick={() => setIsRenamingWorkspace(true)}
+                          title="Rename workspace"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="editor-topbar-center">
-            <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
-              {NAV_SECTIONS.map((section) => {
-                const Icon = section.icon;
-                const active = activeSection === section.id;
-                return (
-                  <GlassTooltip key={section.id} content={section.label}>
-                    <motion.button
-                      type="button"
-                      onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
-                        active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"
-                      }`}
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.93 }}
-                    >
-                      <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                    </motion.button>
-                  </GlassTooltip>
-                );
-              })}
+            <div className="editor-topbar-center">
+              <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
+                {NAV_SECTIONS.map((section) => {
+                  const Icon = section.icon;
+                  const active = activeSection === section.id;
+                  return (
+                    <GlassTooltip key={section.id} content={section.label}>
+                      <motion.button
+                        type="button"
+                        onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
+                        className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
+                          active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"
+                        }`}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.93 }}
+                      >
+                        <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+                      </motion.button>
+                    </GlassTooltip>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="editor-topbar-right min-w-0">
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => setGenUIOpen(true)}
-              title="Generative UI — generate elements with AI"
-            >
-              <Sparkles size={14} />
-              <span>Generate</span>
-            </button>
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => setPreviewOpen(true)}
-              title="Multi-screen preview"
-            >
-              <Monitor size={14} />
-              <span>Preview</span>
-            </button>
-            <button
-              type="button"
-              className="toolbar-button editor-share-button"
-              onClick={() => setShareDialogOpen(true)}
-              title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
-            >
-              <Share2 size={14} />
-              <span className="">Share</span>
-            </button>
-            <motion.button
-              type="button"
-              className="toolbar-button"
-              onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
-              title="Help & Tutorial"
-              whileHover={{ y: -1, scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <HelpCircle size={14} />
-            </motion.button>
-
-            <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+            <div className="editor-topbar-right min-w-0">
               <button
                 type="button"
-                className="toolbar-button toolbar-button-compact editor-export-button"
-                onClick={() => setExportMenuOpen((open) => !open)}
-                title="Export workspace"
+                className="toolbar-button"
+                onClick={() => setGenUIOpen(true)}
+                title="Generative UI — generate elements with AI"
               >
-                <Download size={14} />
-                <span className="">Export</span>
-                <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+                <Sparkles size={14} />
+                <span>Generate</span>
               </button>
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => setPreviewOpen(true)}
+                title="Multi-screen preview"
+              >
+                <Monitor size={14} />
+                <span>Preview</span>
+              </button>
+              <button
+                type="button"
+                className="toolbar-button editor-share-button"
+                onClick={() => setShareDialogOpen(true)}
+                title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
+              >
+                <Share2 size={14} />
+                <span className="">Share</span>
+              </button>
+              <motion.button
+                type="button"
+                className="toolbar-button"
+                onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
+                title="Help & Tutorial"
+                whileHover={{ y: -1, scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <HelpCircle size={14} />
+              </motion.button>
 
-              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+              <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
                 <button
                   type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPng(`${fileBase}.png`);
-                  }}
+                  className="toolbar-button toolbar-button-compact editor-export-button"
+                  onClick={() => setExportMenuOpen((open) => !open)}
+                  title="Export workspace"
                 >
-                  PNG
+                  <Download size={14} />
+                  <span className="">Export</span>
+                  <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
                 </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                  }}
-                >
-                  JPEG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                  }}
-                >
-                  PDF
-                </button>
+
+                <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+                  <button
+                    type="button"
+                    className="toolbar-menu-item"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      void exportWorkspaceAsPng(`${fileBase}.png`);
+                    }}
+                  >
+                    PNG
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-menu-item"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                    }}
+                  >
+                    JPEG
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-menu-item"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                    }}
+                  >
+                    PDF
+                  </button>
+                </div>
               </div>
+              <AutoSaveBadge status={saveStatus} />
+              <ProfileMenu
+                displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
+                email={authUser.email ?? null}
+                avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
+                onLogout={async () => {
+                  if (!browserClient) return;
+                  await browserClient.auth.signOut();
+                  router.replace("/");
+                }}
+              />
             </div>
-            <AutoSaveBadge status={saveStatus} />
-            <ProfileMenu
-              displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
-              email={authUser.email ?? null}
-              avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
-              onLogout={async () => {
-                if (!browserClient) return;
-                await browserClient.auth.signOut();
-                router.replace("/");
-              }}
-            />
-          </div>
-        </motion.header>
+          </motion.header>
+        ) : null}
 
         <div className="workspace-layout">
           <motion.div

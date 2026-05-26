@@ -2,10 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import { ProfileMenu } from "@/components/profile/ProfileMenu";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
@@ -416,15 +417,15 @@ function ProjectsDashboardContent() {
 
     let active = true;
 
-    void browserClient.auth.getSession().then(({ data }) => {
+    void getSessionSafely(browserClient).then((session) => {
       if (!active) return;
 
-      if (!data.session?.user) {
+      if (!session?.user) {
         router.replace("/auth?next=%2Fprojects");
         return;
       }
 
-      const user = data.session.user;
+      const user = session.user;
       const metadata = user.user_metadata || {};
 
       setCurrentUserId(user.id);
@@ -1030,7 +1031,7 @@ function ProjectsDashboardContent() {
       {/* Top Menu Bar */}
       <nav className="flex w-full items-center justify-between border-b border-[var(--projects-line)] bg-[var(--projects-bg)] px-6 py-4 text-[var(--projects-text)]">
         <div className="flex items-center gap-5">
-          <div className={`${headingSerif.className} text-xl font-black tracking-[-0.02em]`}>CollabCanvas</div>
+          <Link href="/projects" className={`${headingSerif.className} text-xl font-black tracking-[-0.02em]`}>CollabCanvas</Link>
         </div>
         <div className="flex-1 px-4">
           <div className="relative w-full max-w-md">
