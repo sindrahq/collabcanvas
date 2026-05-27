@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
   Arrow as KonvaArrow,
+  Circle,
   Ellipse,
   Layer,
   Line as KonvaLine,
@@ -15,9 +16,13 @@ import {
   Transformer,
   Path as KonvaPath,
 } from "react-konva";
-import { type CanvasElement, useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory, useWorkspaceStore } from "@/store/workspaceStore";
+import type { CanvasElement } from "@/store/workspaceStore";
+import type { PresenceMeta } from "@/lib/collaboration";
+import { broadcastElementClick } from "@/lib/collaboration";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
+import { KonvaVideo } from "./konva-video";
 import { CustomContextMenu } from "./context-menu";
 
 // Returns [tEnter, tExit] where segment AB intersects circle (cx,cy,r), or null if no intersection.
@@ -98,6 +103,15 @@ const PENCIL_CURSOR =`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 
 const STAGE_SCALE = 1.6;
 
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -177,20 +191,33 @@ function getKonvaFontStyle(element: CanvasElement) {
   return parts.length ? parts.join(" ") : "normal";
 }
 
-export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
-  const elements = useWorkspaceStore((state) => state.elements);
-  const selectedElementId = useWorkspaceStore((state) => state.selectedElementId);
-  const selectElement = useWorkspaceStore((state) => state.selectElement);
-  const updateElement = useWorkspaceStore((state) => state.updateElement);
-  const canvasBackground = useWorkspaceStore((state) => state.canvasBackground);
-  const canvasDimensions = useWorkspaceStore((state) => state.canvasDimensions);
-  const canEdit = useWorkspaceStore((state) => state.canEdit);
-  const snapToGrid = useWorkspaceStore((state) => state.snapToGrid);
-  const activeTool = useWorkspaceStore((state) => state.activeTool);
-  const addPencilElement = useWorkspaceStore((state) => state.addPencilElement);
-  const deleteElement = useWorkspaceStore((state) => state.deleteElement);
-  const partialErasePencilStroke = useWorkspaceStore((state) => state.partialErasePencilStroke);
-  const eraserSize = useWorkspaceStore((state) => state.eraserSize);
+export function KonvaStageWorkspace({
+  workspaceId,
+  zoom = 1,
+  remoteCursors,
+  presences,
+}: {
+  workspaceId: string;
+  zoom?: number;
+  remoteCursors?: Record<string, { x: number; y: number; updatedAt: number }>;
+  presences?: Record<string, PresenceMeta>;
+}) {
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const elements = useStore((state) => state.elements);
+  const selectedElementId = useStore((state) => state.selectedElementId);
+  const selectElement = useStore((state) => state.selectElement);
+  const updateElement = useStore((state) => state.updateElement);
+  const canvasBackground = useStore((state) => state.canvasBackground);
+  const canvasDimensions = useStore((state) => state.canvasDimensions);
+  const canEdit = useStore((state) => state.canEdit);
+  const snapToGrid = useStore((state) => state.snapToGrid);
+  const activeTool = useStore((state) => state.activeTool);
+  const addPencilElement = useStore((state) => state.addPencilElement);
+  const deleteElement = useStore((state) => state.deleteElement);
+  const partialErasePencilStroke = useStore((state) => state.partialErasePencilStroke);
+  const eraserSize = useStore((state) => state.eraserSize);
+  const elevations = useStore((state) => state.elevations);
+  const currentUserMeta = useRef<string>("local");
 
   const eraserCursor = useMemo(() => {
     const r = Math.max(4, eraserSize);
@@ -427,7 +454,16 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               const elementHeight = element.height / STAGE_SCALE;
               const centerX = element.x / STAGE_SCALE + elementWidth / 2;
               const centerY = element.y / STAGE_SCALE + elementHeight / 2;
-              const sharedShadow = shadowProps(element);
+              const elevation = elevations[element.id] ?? 0;
+              const baseShadow = shadowProps(element);
+              const sharedShadow = elevation > 0
+                ? {
+                    ...baseShadow,
+                    shadowBlur: (baseShadow.shadowBlur ?? 10) + elevation * 12,
+                    shadowColor: "#D3A5B1",
+                    shadowOpacity: Math.min(0.9, (baseShadow.shadowOpacity ?? 0.7) + elevation * 0.15),
+                  }
+                : baseShadow;
 
               const commonProps = {
                 rotation: element.rotation,
@@ -440,8 +476,8 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
                 },
-                onClick: () => selectElement(element.id),
-                onTap: () => selectElement(element.id),
+                onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
+                onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
                   const stage = event.target.getStage();
@@ -474,8 +510,8 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
                 },
-                onClick: () => selectElement(element.id),
-                onTap: () => selectElement(element.id),
+                onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
+                onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
                   updateElement(element.id, {
@@ -534,7 +570,7 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                 );
               }
 
-              if (element.type === "image" && (element as any).imageUrl) {
+              if (element.type === "image" && element.imageUrl) {
                 return (
                   <KonvaImage
                     key={element.id}
@@ -543,13 +579,52 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
                     y={element.y / STAGE_SCALE}
                     width={elementWidth}
                     height={elementHeight}
-                    imageUrl={(element as any).imageUrl}
-                    ref={(node: any) => {
+                    imageUrl={element.imageUrl}
+                    ref={(node: Konva.Image | null) => {
                       nodeRefs.current[element.id] = node;
                     }}
                     {...sharedShadow}
-                    onTransformEnd={(event: any) =>
-                      updateFromTransform(element, event.target, updateElement)
+                    onTransformEnd={(event: Konva.KonvaEventObject<Event>) =>
+                      updateFromTransform(element, event.target as Konva.Image, updateElement)
+                    }
+                  />
+                );
+              }
+
+              if (element.type === "video") {
+                if ((element as any).videoUrl) {
+                  return (
+                    <KonvaVideo
+                      key={element.id}
+                      {...commonProps}
+                      x={element.x / STAGE_SCALE}
+                      y={element.y / STAGE_SCALE}
+                      width={elementWidth}
+                      height={elementHeight}
+                      videoUrl={(element as any).videoUrl}
+                      trimStart={(element as any).trimStart ?? 0}
+                      ref={(node: any) => { nodeRefs.current[element.id] = node; }}
+                      {...sharedShadow}
+                      onTransformEnd={(event: any) =>
+                        updateFromTransform(element, event.target, updateElement)
+                      }
+                    />
+                  );
+                }
+                return (
+                  <Rect
+                    key={element.id}
+                    {...commonProps}
+                    x={element.x / STAGE_SCALE}
+                    y={element.y / STAGE_SCALE}
+                    width={elementWidth}
+                    height={elementHeight}
+                    fill="#111"
+                    stroke="#444"
+                    strokeWidth={1}
+                    ref={(node) => { nodeRefs.current[element.id] = node; }}
+                    onTransformEnd={(event) =>
+                      updateFromTransform(element, event.target as Konva.Rect, updateElement)
                     }
                   />
                 );
@@ -978,6 +1053,30 @@ export function KonvaStageWorkspace({ zoom = 1 }: { zoom?: number }) {
               ]}
             />
           </Layer>
+
+          {remoteCursors && Object.keys(remoteCursors).length > 0 && (
+            <Layer listening={false}>
+              {Object.entries(remoteCursors).map(([userId, cursor]) => {
+                const color = presences?.[userId]?.color ?? "#D3A5B1";
+                const x = cursor.x * STAGE_WIDTH;
+                const y = cursor.y * STAGE_HEIGHT;
+                return (
+                  <Circle
+                    key={userId}
+                    x={x}
+                    y={y}
+                    radius={88}
+                    fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                    fillRadialGradientStartRadius={0}
+                    fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                    fillRadialGradientEndRadius={88}
+                    fillRadialGradientColorStops={[0, hexToRgba(color, 0.45), 0.45, hexToRgba(color, 0.2), 1, hexToRgba(color, 0)]}
+                    listening={false}
+                  />
+                );
+              })}
+            </Layer>
+          )}
         </Stage>
 
         <AnimatePresence>

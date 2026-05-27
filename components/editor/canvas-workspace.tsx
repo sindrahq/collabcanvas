@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Palette, ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
   broadcastCursor,
@@ -10,7 +10,8 @@ import {
   updatePresence,
   type PresenceMeta
 } from "@/lib/collaboration";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import type { WorkspaceState } from "@/store/workspaceStore";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -31,18 +32,17 @@ const MOBILE_BREAKPOINT = 860;
 const STAGE_SCALE = 1.6;
 
 type CanvasWorkspaceProps = {
+  workspaceId: string;
   currentUserId: string;
   presences: Record<string, PresenceMeta>;
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
 };
 
-export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
-  const elementCount        = useWorkspaceStore((s) => s.elements.length);
-  const canvasBackground    = useWorkspaceStore((s) => s.canvasBackground);
-  const setCanvasBackground = useWorkspaceStore((s) => s.setCanvasBackground);
-  const canvasDimensions    = useWorkspaceStore((s) => s.canvasDimensions);
-  const canEdit             = useWorkspaceStore((s) => s.canEdit);
-  const elements            = useWorkspaceStore((s) => s.elements);
+export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const canvasDimensions    = store((s: WorkspaceState) => s.canvasDimensions);
+  const canEdit             = store((s: WorkspaceState) => s.canEdit);
+  const elements            = store((s: WorkspaceState) => s.elements);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -89,6 +89,7 @@ export function CanvasWorkspace({ currentUserId, presences, remoteCursors }: Can
 
   useLayoutEffect(() => {
     if (isMobileViewport && autoFitEnabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setZoom(fitZoom);
     }
   }, [autoFitEnabled, fitZoom, isMobileViewport]);
@@ -189,26 +190,43 @@ function getTouchDistance(touches: React.TouchList) {
 
   return (
     <section className="canvas-stage-shell">
-      <div className="canvas-toolbar-row">
-        <div className="canvas-toolbar-copy">
-          <p className="eyebrow">Workspace Surface</p>
-          <h2 className="canvas-title">Canvas</h2>
+      <div
+        className="canvas-viewport"
+        ref={viewportRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseMove={(e) => {
+          if (!viewportRef.current) return;
+          const rect = viewportRef.current.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / rect.width;
+          const y = (e.clientY - rect.top) / rect.height;
+          broadcastCursor(currentUserId, x, y);
+        }}
+      >
+        <div
+          className="canvas-stage-container"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: "center center",
+          }}
+        >
+          <KonvaStageWorkspace
+            workspaceId={workspaceId}
+            zoom={zoom}
+            remoteCursors={remoteCursors}
+            presences={presences}
+          />
         </div>
-        <div className="canvas-toolbar-actions">
-          <div className="canvas-badge">
-            <strong>{elementCount}</strong>
-            <span>{elementCount === 1 ? "element" : "elements"}</span>
-          </div>
-          <div className="canvas-bg-picker" title="Canvas background color">
-            <Palette size={13} />
-            <input
-              type="color"
-              value={canvasBackground}
-              onChange={(e) => setCanvasBackground(e.target.value)}
-              disabled={!canEdit}
-              title="Canvas background"
-            />
-          </div>
+        
+        <RemoteCursors
+          cursors={remoteCursors}
+          presences={presences}
+          currentUserId={currentUserId}
+        />
+
+        {/* Bottom Zoom Controls */}
+        <div className="canvas-zoom-float">
           <div className="zoom-controls">
             <button
               type="button" className="zoom-btn"
@@ -230,75 +248,7 @@ function getTouchDistance(touches: React.TouchList) {
             >
               <ZoomIn size={14} />
             </button>
-            <button
-              type="button" className="zoom-btn"
-              onClick={zoomReset} title="Fit to screen"
-            >
-              <Maximize2 size={13} />
-            </button>
           </div>
-        </div>
-      </div>
-      <div className="canvas-viewport" ref={viewportRef}>
-        <div
-          className="konva-shell konva-stage-wrap"
-          style={{
-            transformOrigin: "center center",
-            transform: `translateX(-36px) scale(${zoom})`,
-            touchAction: isMobileViewport ? "pan-x" : "none",
-            width: `${stageRenderWidth}px`,
-            minWidth: `${stageRenderWidth}px`,
-            height: `${stageRenderHeight}px`,
-          }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMouseMove={(event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const normalized = normalizeCoords(event.clientX, event.clientY, rect);
-            const x = Math.min(Math.max(normalized.x, 0), 1);
-            const y = Math.min(Math.max(normalized.y, 0), 1);
-            updatePresence({ cursor: { x, y } });
-            broadcastCursor(currentUserId, x, y);
-          }}
-        >
-          <KonvaStageWorkspace zoom={zoom} />
-          <RemoteCursors
-            cursors={remoteCursors}
-            presences={presences}
-            currentUserId={currentUserId}
-          />
-        </div>
-      </div>
-
-      <div className="canvas-zoom-float">
-        <div className="zoom-controls">
-          <button
-            type="button" className="zoom-btn"
-            onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
-            title="Zoom out"
-          >
-            <ZoomOut size={14} />
-          </button>
-          <button
-            type="button" className="zoom-level"
-            onClick={zoomReset} title="Reset zoom"
-          >
-            {zoomPercent}%
-          </button>
-          <button
-            type="button" className="zoom-btn"
-            onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
-            title="Zoom in"
-          >
-            <ZoomIn size={14} />
-          </button>
-          <button
-            type="button" className="zoom-btn"
-            onClick={zoomReset} title="Fit to screen"
-          >
-            <Maximize2 size={13} />
-          </button>
         </div>
       </div>
     </section>

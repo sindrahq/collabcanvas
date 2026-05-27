@@ -8,9 +8,10 @@ import { RightSidebar } from "@/components/editor/right-sidebar";
 import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { TemplatePanel } from "@/components/editor/template-panel";
+import { ActivityFeed } from "@/components/editor/activity-feed";
 import type { WorkspaceComment } from "@/lib/comments";
 
-export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments" | "templates";
+export type WorkspaceSidebarSection = "layers" | "actions" | "inspector" | "comments" | "templates" | "activity";
 
 type WorkspaceSidebarProps = {
   workspaceName: string;
@@ -62,9 +63,10 @@ export function WorkspaceSidebar({
         </div>
 
         <div className="workspace-sidebar-panel-body">
-          {activeSection === "layers" ? <LeftSidebar /> : null}
+          {activeSection === "layers" && workspaceId !== undefined ? <LeftSidebar workspaceId={workspaceId || ""} /> : null}
           {activeSection === "actions" ? (
             <Toolbar
+              workspaceId={workspaceId || ""}
               workspaceName={workspaceName}
               layout="vertical"
               showSelectionActions={false}
@@ -72,7 +74,7 @@ export function WorkspaceSidebar({
           ) : null}
           {activeSection === "inspector" ? (
             <RightSidebar
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ""}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}
@@ -84,7 +86,7 @@ export function WorkspaceSidebar({
           ) : null}
           {activeSection === "comments" ? (
             <RightSidebar
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ""}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}
@@ -94,7 +96,8 @@ export function WorkspaceSidebar({
               mode="comments"
             />
           ) : null}
-          {activeSection === "templates" ? <TemplatePanel /> : null}
+          {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId || "default"} /> : null}
+          {activeSection === "activity" ? <ActivityFeed /> : null}
         </div>
       </motion.div>
     </aside>

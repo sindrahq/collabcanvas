@@ -6,19 +6,21 @@ import {
   Baseline, Bold, Circle, Copy, Crop, Eraser,
   Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
-  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon
+  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video
 } from "lucide-react";
-import { type CanvasElementStyle, useWorkspaceStore } from "@/store/workspaceStore";
+import { type CanvasElementStyle, useWorkspaceStoreFactory, type WorkspaceState, useWorkspaceStore } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { SmartCropModal } from "./smart-crop";
+import { FramePicker } from "./frame-picker";
 import React, { useRef, useState } from "react";
 
 
-function UploadPictureButton() {
+function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const addElement = useWorkspaceStore((s) => s.addElement);
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const addElement = store((s) => s.addElement);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -38,8 +40,8 @@ function UploadPictureButton() {
       console.log("Uploaded image URL:", data.url);
       // Add image element to canvas
       addElement("image", { imageUrl: data.url });
-    } catch (err: any) {
-      setUploadError(err.message || "Upload failed");
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -68,6 +70,52 @@ function UploadPictureButton() {
         </button>
       </GlassTooltip>
       {uploadError && <div style={{ color: "#c00", fontSize: 11 }}>{uploadError}</div>}
+    </div>
+  );
+}
+
+function AddVideoButton() {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const addElement = useWorkspaceStore((s) => s.addElement);
+
+  function handleAdd() {
+    if (!url.trim()) return;
+    addElement("video", { videoUrl: url.trim(), trimStart: 0, trimEnd: 0 } as never);
+    setUrl("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <GlassTooltip content="Add Video">
+        <button
+          type="button"
+          className="toolbar-icon-btn toolbar-shape-btn"
+          onClick={() => setOpen(true)}
+        >
+          <Video size={15} />
+        </button>
+      </GlassTooltip>
+    );
+  }
+
+  return (
+    <div className="video-url-popover">
+      <input
+        type="url"
+        className="video-url-input"
+        placeholder="Paste video URL…"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleAdd();
+          if (e.key === "Escape") setOpen(false);
+        }}
+        autoFocus
+      />
+      <button type="button" className="video-url-add-btn" onClick={handleAdd} disabled={!url.trim()}>Add</button>
+      <button type="button" className="video-url-cancel-btn" onClick={() => setOpen(false)}>✕</button>
     </div>
   );
 }
@@ -108,38 +156,40 @@ const ALIGNMENTS = [
 ];
 
 export function Toolbar({
+  workspaceId,
   workspaceName,
   layout = "horizontal",
   showHistoryActions = true,
   showAddActions = true,
   showSelectionActions = true,
 }: {
+  workspaceId: string;
   workspaceName: string;
   layout?: "horizontal" | "vertical";
   showHistoryActions?: boolean;
   showAddActions?: boolean;
   showSelectionActions?: boolean;
 }) {
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const elements = useWorkspaceStore((s) => s.elements);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
-  const addElement = useWorkspaceStore((s) => s.addElement);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const updateElementStyle = useWorkspaceStore((s) => s.updateElementStyle);
-  const undo = useWorkspaceStore((s) => s.undo);
-  const redo = useWorkspaceStore((s) => s.redo);
-  const historyIndex = useWorkspaceStore((s) => s.historyIndex);
-  const history = useWorkspaceStore((s) => s.history);
-  const snapToGrid = useWorkspaceStore((s) => s.snapToGrid);
-  const toggleSnapToGrid = useWorkspaceStore((s) => s.toggleSnapToGrid);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const selectedElementId        = store((s: WorkspaceState) => s.selectedElementId);
+  const elements                 = store((s: WorkspaceState) => s.elements);
+  const canEdit                  = store((s: WorkspaceState) => s.canEdit);
+  const addElement               = store((s: WorkspaceState) => s.addElement);
+  const duplicateSelectedElement = store((s: WorkspaceState) => s.duplicateSelectedElement);
+  const deleteSelectedElement    = store((s: WorkspaceState) => s.deleteSelectedElement);
+  const updateElementStyle       = store((s: WorkspaceState) => s.updateElementStyle);
+  const undo                     = store((s: WorkspaceState) => s.undo);
+  const redo                     = store((s: WorkspaceState) => s.redo);
+  const historyIndex             = store((s: WorkspaceState) => s.historyIndex);
+  const history                  = store((s: WorkspaceState) => s.history);
+  const snapToGrid               = store((s: WorkspaceState) => s.snapToGrid);
+  const toggleSnapToGrid         = store((s: WorkspaceState) => s.toggleSnapToGrid);
+  const updateElement            = store((s: WorkspaceState) => s.updateElement);
   const [isCropping, setIsCropping] = useState(false);
-  const activeTool = useWorkspaceStore((s) => s.activeTool);
-  const setActiveTool = useWorkspaceStore((s) => s.setActiveTool);
-  const eraserSize = useWorkspaceStore((s) => s.eraserSize);
-  const setEraserSize = useWorkspaceStore((s) => s.setEraserSize);
+  const activeTool               = store((s: WorkspaceState) => s.activeTool);
+  const setActiveTool            = store((s: WorkspaceState) => s.setActiveTool);
+  const eraserSize               = store((s: WorkspaceState) => s.eraserSize);
+  const setEraserSize            = store((s: WorkspaceState) => s.setEraserSize);
 
   const selectedElement = elements.find((el) => el.id === selectedElementId) ?? null;
   const isText = selectedElement?.type === "text";
@@ -301,10 +351,11 @@ export function Toolbar({
 
           {/* Upload subheading and icon */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Upload</span>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <UploadPictureButton />
+              <UploadPictureButton workspaceId={workspaceId} />
             </motion.div>
+            <AddVideoButton />
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
 
@@ -384,8 +435,8 @@ export function Toolbar({
 
           {/* Frame subheading */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Frame</span>
-          <div style={{ margin: '6px 0 0 0' }}>
-             <motion.button
+          <div style={{ margin: '6px 0 0 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <motion.button
               type="button"
               className="toolbar-icon-btn"
               style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(211, 165, 177, 0.15)', color: '#8b7355' }}
@@ -396,6 +447,7 @@ export function Toolbar({
             >
               <LayoutGrid size={18} />
             </motion.button>
+            <FramePicker workspaceId={workspaceId} />
           </div>
         </div>
       ) : null}
