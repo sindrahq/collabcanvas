@@ -2,11 +2,15 @@ import { supabase } from './supabaseClient';
 
 // Types for user presence metadata
 export interface PresenceMeta {
-	user_id: string;
-	name: string;
-	color: string;
-	avatarUrl: string;
-	cursor: { x: number; y: number };
+  user_id: string;
+  name: string;
+  color: string;
+  avatarUrl: string;
+  cursor: { x: number; y: number };
+  // New fields for collaboration
+  selection: string | null; // elementId currently selected by the user
+  typing: boolean; // true when user is typing in a text field
+  viewport: { zoom: number; panX: number; panY: number }; // current canvas view
 }
 
 // Presence channel instance (singleton)
@@ -108,16 +112,28 @@ export function initPresenceChannel(
 		events.onLeave?.(key);
 	});
 
-	// Attach cursor broadcast handler here (fixes TS error)
-	presenceChannel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
-		cursorListeners.forEach((fn) => fn(payload));
-	});
+// Attach cursor broadcast handler here (fixes TS error)
+presenceChannel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
+  cursorListeners.forEach((fn) => fn(payload));
+});
 
-	presenceChannel.on('broadcast', { event: 'element-click' }, ({ payload }: { payload: ElementClickBroadcast }) => {
-		elementClickListeners.forEach((fn) => fn(payload));
-	});
+presenceChannel.on('broadcast', { event: 'element-click' }, ({ payload }: { payload: ElementClickBroadcast }) => {
+  elementClickListeners.forEach((fn) => fn(payload));
+});
 
-	// Subscribe to the channel
+presenceChannel!.on('broadcast', { event: 'selection' }, ({ payload }: { payload: { user_id: string; element_id: string | null } }) => {
+  selectionListeners.forEach((fn) => fn(payload));
+});
+
+presenceChannel!.on('broadcast', { event: 'typing' }, ({ payload }: { payload: { user_id: string; typing: boolean } }) => {
+  typingListeners.forEach((fn) => fn(payload));
+});
+
+presenceChannel!.on('broadcast', { event: 'viewport' }, ({ payload }: { payload: { user_id: string; zoom: number; panX: number; panY: number } }) => {
+  viewportListeners.forEach((fn) => fn(payload));
+});
+
+// Subscribe to the channel
 	presenceChannel.subscribe((status: string) => {
 		if (status === 'SUBSCRIBED') {
 			presenceChannel?.track(meta);
@@ -155,15 +171,60 @@ export function onCursorBroadcast(listener: CursorListener) {
 	return () => { cursorListeners = cursorListeners.filter((fn) => fn !== listener); };
 }
 
-export const broadcastElementClick = (user_id: string, element_id: string) => {
-	if (presenceChannel) {
-		presenceChannel.send({
-			type: 'broadcast',
-			event: 'element-click',
-			payload: { user_id, element_id },
-		});
-	}
-};
+// New broadcast functions for collaboration metadata
+export const broadcastSelection = throttle((user_id: string, element_id: string | null) => {
+  if (presenceChannel) {
+    presenceChannel.send({
+      type: 'broadcast',
+      event: 'selection',
+      payload: { user_id, element_id },
+    });
+  }
+}, 50);
+
+export const broadcastTyping = throttle((user_id: string, typing: boolean) => {
+  if (presenceChannel) {
+    presenceChannel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { user_id, typing },
+    });
+  }
+}, 200);
+
+export const broadcastViewport = throttle((user_id: string, zoom: number, panX: number, panY: number) => {
+  if (presenceChannel) {
+    presenceChannel.send({
+      type: 'broadcast',
+      event: 'viewport',
+      payload: { user_id, zoom, panX, panY },
+    });
+  }
+}, 100);
+
+// Listener arrays
+type SelectionListener = (payload: { user_id: string; element_id: string | null }) => void;
+let selectionListeners: SelectionListener[] = [];
+export function onSelectionBroadcast(listener: SelectionListener) {
+  selectionListeners.push(listener);
+  return () => { selectionListeners = selectionListeners.filter((fn) => fn !== listener); };
+}
+
+type TypingListener = (payload: { user_id: string; typing: boolean }) => void;
+let typingListeners: TypingListener[] = [];
+export function onTypingBroadcast(listener: TypingListener) {
+  typingListeners.push(listener);
+  return () => { typingListeners = typingListeners.filter((fn) => fn !== listener); };
+}
+
+type ViewportListener = (payload: { user_id: string; zoom: number; panX: number; panY: number }) => void;
+let viewportListeners: ViewportListener[] = [];
+export function onViewportBroadcast(listener: ViewportListener) {
+  viewportListeners.push(listener);
+  return () => { viewportListeners = viewportListeners.filter((fn) => fn !== listener); };
+}
+
+
 
 export function onElementClickBroadcast(listener: ElementClickListener) {
 	elementClickListeners.push(listener);

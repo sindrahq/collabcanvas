@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, Sparkles } from "lucide-react";
+import { Menu, X, ArrowRight, Sparkles, Palette, ChevronDown } from "lucide-react";
 import { LandingFeatureCards } from "@/components/landing/landing-feature-cards";
 import { FeatureGridAnimated } from "@/components/landing/feature-grid-animated";
 import { FeatureComparisonTable } from "@/components/landing/feature-comparison-table";
@@ -12,6 +12,7 @@ import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
 import { TiltImage } from "@/components/landing/tilt-image";
 import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
+import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
 
 type SectionId = "features" | "templates" | "about";
 
@@ -95,8 +96,11 @@ const TEMPLATE_DESIGNS: Record<string, string[]> = {
 
 export function LandingHero() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const theme = useGlobalThemeStore((s) => s.theme);
+  const setTheme = useGlobalThemeStore((s) => s.setTheme);
   const fullText = useMemo(() => "Design Without Limits", []);
 
   useEffect(() => {
@@ -123,9 +127,9 @@ export function LandingHero() {
     <main className="cc-landing-theme min-h-screen text-[#2D3436] font-sans selection:bg-[#F0C3D1] relative">
       {/* Full Cherry Blossom Background */}
       <div 
-        className="fixed inset-0 pointer-events-none z-[0]"
+        className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
         style={{ 
-          backgroundImage: 'url("https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2500&auto=format&fit=crop")',
+          backgroundImage: `url(${THEME_BACKGROUNDS[theme] || THEME_BACKGROUNDS.cherry})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
@@ -136,9 +140,9 @@ export function LandingHero() {
       />
       
       <div className="relative z-10">
-        <PastelBlobBackground />
+        <PastelBlobBackground theme={theme} />
         <CustomCursor />
-        <FallingPetals />
+        <FallingPetals theme={theme} />
         
         {/* Floating Navbar */}
         <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[min(90%,1200px)]">
@@ -166,6 +170,55 @@ export function LandingHero() {
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="relative">
+              <button
+                type="button"
+                className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold transition-all hover:bg-black/[0.05]"
+                style={{ color: "var(--accent)" }}
+                onClick={() => setThemeMenuOpen((open) => !open)}
+              >
+                <Palette size={16} />
+                <span className="hidden sm:inline">Theme</span>
+                <ChevronDown size={14} className={`transition-transform ${themeMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              <AnimatePresence>
+                {themeMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full right-0 mt-2 p-2 w-48 bg-white rounded-xl shadow-xl border border-black/[0.05] flex flex-col gap-1 z-50"
+                  >
+                    {[
+                      { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
+                      { id: "forest", label: "Forest Moss", color: "#708238" },
+                      { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
+                      { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-black/[0.03] ${theme === t.id ? "font-bold" : "font-medium"}`}
+                        style={{ color: theme === t.id ? "var(--accent)" : "#2D3436" }}
+                        onClick={() => {
+                          setTheme(t.id as any);
+                          setThemeMenuOpen(false);
+                        }}
+                      >
+                        <span 
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" 
+                          style={{ backgroundColor: t.color }}
+                        />
+                        {t.label}
+                        {theme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <Link
               href="/projects"
               className="hidden sm:inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-sm font-bold shadow-lg shadow-[#D3A5B1]/30 transition-all hover:scale-[1.05]"
@@ -423,7 +476,7 @@ export function LandingHero() {
           </div>
         </div>
       </footer>
-      <AccumulatedPetals />
+      <AccumulatedPetals theme={theme} />
       </div>
     </main>
   );

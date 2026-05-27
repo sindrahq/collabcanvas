@@ -5,7 +5,7 @@ import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
+import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle, Palette } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -29,7 +29,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
-import { type WorkspaceAccessLevel, useWorkspaceStore, useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import { type WorkspaceAccessLevel, type CanvasTheme, useWorkspaceStore, useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
@@ -108,6 +109,9 @@ function buildLocalPresenceMeta(): PresenceMeta {
       color: PRESENCE_COLORS[0],
       avatarUrl: "",
       cursor: { x: 0.5, y: 0.5 },
+      selection: null,
+      typing: false,
+      viewport: { zoom: 1, panX: 0, panY: 0 },
     };
   }
 
@@ -121,14 +125,18 @@ function buildLocalPresenceMeta(): PresenceMeta {
     }
   }
 
-  const seed = crypto.randomUUID().slice(0, 8);
-  const meta: PresenceMeta = {
-    user_id: `guest-${seed}`,
-    name: `Guest ${seed.slice(0, 4).toUpperCase()}`,
-    color: PRESENCE_COLORS[Math.floor(Math.random() * PRESENCE_COLORS.length)],
-    avatarUrl: "",
-    cursor: { x: 0.5, y: 0.5 },
-  };
+    const seed = crypto.randomUUID().slice(0, 8);
+    const meta: PresenceMeta = {
+      user_id: `guest-${seed}`,
+      name: `Guest ${seed.slice(0, 4).toUpperCase()}`,
+      color: PRESENCE_COLORS[Math.floor(Math.random() * PRESENCE_COLORS.length)],
+      avatarUrl: "",
+      cursor: { x: 0.5, y: 0.5 },
+      selection: null,
+      typing: false,
+      viewport: { zoom: 1, panX: 0, panY: 0 },
+    };
+
   window.localStorage.setItem(key, JSON.stringify(meta));
   return meta;
 }
@@ -156,6 +164,8 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
     </motion.div>
   );
 }
+
+
 
 export function EditorShell() {
   // All hooks and state declarations must come first
@@ -187,6 +197,8 @@ export function EditorShell() {
   const setElevation = useStore((s) => s.setElevation);
   const pushActivityLog = useStore((s) => s.pushActivityLog);
   const clearActivityLog = useStore((s) => s.clearActivityLog);
+  const canvasTheme = useGlobalThemeStore((s) => s.theme);
+  const setCanvasTheme = useGlobalThemeStore((s) => s.setTheme);
 
   // Get the Zustand store instance
   // (Zustand does not expose store directly, so we use a workaround for imperative calls)
@@ -243,6 +255,8 @@ export function EditorShell() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
   const [comments, setComments] = useState<WorkspaceComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -272,6 +286,9 @@ export function EditorShell() {
       color: PRESENCE_COLORS[Math.abs(authUser.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % PRESENCE_COLORS.length],
       avatarUrl,
       cursor: { x: 0.5, y: 0.5 },
+      selection: null,
+      typing: false,
+      viewport: { zoom: 1, panX: 0, panY: 0 },
     } satisfies PresenceMeta;
   }, [authUser]);
 
@@ -288,8 +305,15 @@ export function EditorShell() {
       // Restore landing theme or remove workspace theme
       document.body.classList.remove("cc-workspace-theme");
       document.body.classList.add("cc-landing-theme");
+      document.body.classList.remove("theme-cherry", "theme-forest", "theme-ocean", "theme-sunset");
     };
   }, []);
+
+  useEffect(() => {
+    // Sync active theme class to document body
+    document.body.classList.remove("theme-cherry", "theme-forest", "theme-ocean", "theme-sunset");
+    document.body.classList.add(`theme-${canvasTheme}`);
+  }, [canvasTheme]);
 
   useEffect(() => {
     if (!isRenamingWorkspace) {
@@ -301,6 +325,9 @@ export function EditorShell() {
     function handlePointerDown(event: MouseEvent) {
       if (!exportMenuRef.current?.contains(event.target as Node)) {
         setExportMenuOpen(false);
+      }
+      if (!themeMenuRef.current?.contains(event.target as Node)) {
+        setThemeMenuOpen(false);
       }
     }
 
@@ -976,18 +1003,18 @@ export function EditorShell() {
     <main className="editor-page cc-landing-theme relative">
       {/* Mirror Landing Background */}
       <div 
-        className="fixed inset-0 pointer-events-none z-[0]"
+        className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
         style={{ 
-          backgroundImage: 'url("https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2500&auto=format&fit=crop")',
+          backgroundImage: `url(${THEME_BACKGROUNDS[canvasTheme] || THEME_BACKGROUNDS.cherry})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       />
       <div className="fixed inset-0 pointer-events-none bg-white/20 backdrop-blur-[2px] z-[1]" />
 
-      <PastelBlobBackground />
-      <FallingPetals variant="lavender" />
-      <AccumulatedPetals />
+      <PastelBlobBackground theme={canvasTheme} />
+      <FallingPetals theme={canvasTheme} />
+      <AccumulatedPetals theme={canvasTheme} />
       <div className="workspace-aura" aria-hidden="true" />
       <CustomCursor />
       <InteractiveTutorial />
@@ -1124,6 +1151,46 @@ export function EditorShell() {
               <Monitor size={14} />
               <span>Preview</span>
             </button>
+            {/* Theme Dropdown */}
+            <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
+              <button
+                type="button"
+                className="toolbar-button toolbar-button-compact"
+                onClick={() => setThemeMenuOpen((open) => !open)}
+                title="Change canvas theme"
+              >
+                <Palette size={14} />
+                <span>Theme</span>
+                <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+              </button>
+
+              <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
+                {[
+                  { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
+                  { id: "forest", label: "Forest Moss", color: "#708238" },
+                  { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
+                  { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`}
+                    onClick={() => {
+                      setCanvasTheme(t.id as any);
+                      setThemeMenuOpen(false);
+                    }}
+                  >
+                    <span 
+                      className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" 
+                      style={{ backgroundColor: t.color }}
+                    />
+                    <span>{t.label}</span>
+                    {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               className="toolbar-button editor-share-button"

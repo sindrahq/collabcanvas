@@ -58,6 +58,8 @@ async function saveElementSnapshot(workspaceId: string, elementId: string, snaps
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export type CanvasTheme = "cherry" | "forest" | "ocean" | "sunset";
+
 export type WorkspaceMeta = { id: string; name: string; owner_id: string };
 export type WorkspaceAccessLevel = "view" | "comment" | "edit";
 export type LayoutDirection = "horizontal" | "vertical";
@@ -184,6 +186,8 @@ export type WorkspaceState = {
   snapToGrid: boolean;
   toggleSnapToGrid: () => void;
   resetWorkspaceState: () => void;
+  canvasTheme: CanvasTheme;
+  setCanvasTheme: (theme: CanvasTheme) => void;
 };
 
 // ── Defaults ───────────────────────────────────────────────────────────────
@@ -276,6 +280,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
             canvasBackground: "#fffdf8",
             canvasDimensions: { width: 1280, height: 800 },
             snapToGrid: false,
+            canvasTheme: "cherry",
             activeTool: "select",
             eraserSize: 10,
             elementHistory: {},
@@ -284,6 +289,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
             
             setActiveTool: (tool) => set({ activeTool: tool }),
             setEraserSize: (eraserSize) => set({ eraserSize }),
+            setCanvasTheme: (canvasTheme) => set({ canvasTheme }),
 
             addPencilElement: (points) =>
               set((state) => {
@@ -589,6 +595,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
                 historyIndex: -1,
                 canvasBackground: "#fffdf8",
                 canvasDimensions: { width: 1280, height: 800 },
+                canvasTheme: "cherry",
               }),
           }),
           {
@@ -599,6 +606,7 @@ export function getOrCreateWorkspaceStore(workspaceId: string) {
               workspaceName: state.workspaceName,
               canvasBackground: state.canvasBackground,
               canvasDimensions: state.canvasDimensions,
+              canvasTheme: state.canvasTheme,
             }),
             onRehydrateStorage: () => (state) => {
               if (state && state.workspace && state.workspace.id && state.workspace.id.startsWith('local-')) {
@@ -750,6 +758,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       canvasBackground: "#fffdf8",
       canvasDimensions: { width: 1280, height: 800 },
       snapToGrid: false,
+      canvasTheme: "cherry",
       activeTool: "select",
       eraserSize: 10,
       elementHistory: {},
@@ -758,6 +767,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       setActiveTool: (tool) => set({ activeTool: tool }),
       setEraserSize: (eraserSize) => set({ eraserSize }),
+      setCanvasTheme: (canvasTheme) => set({ canvasTheme }),
 
       addPencilElement: (points) =>
         set((state) => {
@@ -819,6 +829,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           historyIndex: -1,
           canvasBackground: "#fffdf8",
           canvasDimensions: { width: 1280, height: 800 },
+          canvasTheme: "cherry",
         }),
 
       setLoading: (loading) => set({ loading }),
@@ -1118,6 +1129,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         workspaceName: state.workspaceName,
         canvasBackground: state.canvasBackground,
         canvasDimensions: state.canvasDimensions,
+        canvasTheme: state.canvasTheme,
       }),
       onRehydrateStorage: () => (state) => {
         // Only rehydrate for local workspaces

@@ -19,7 +19,12 @@ import {
 import { useWorkspaceStoreFactory, useWorkspaceStore } from "@/store/workspaceStore";
 import type { CanvasElement } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
-import { broadcastElementClick } from "@/lib/collaboration";
+
+import { RemoteCursors } from "@/components/presence/RemoteCursors";
+import { RemoteSelectionHighlights } from "@/components/presence/RemoteSelectionHighlights";
+import { TypingIndicator } from "@/components/presence/TypingIndicator";
+import { FollowButton } from "@/components/presence/FollowButton";
+import { usePresenceStore } from "@/store/presenceStore";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { KonvaVideo } from "./konva-video";
@@ -218,6 +223,8 @@ export function KonvaStageWorkspace({
   const eraserSize = useStore((state) => state.eraserSize);
   const elevations = useStore((state) => state.elevations);
   const currentUserMeta = useRef<string>("local");
+  const isFollowing = usePresenceStore((s) => !!s.followedUserId);
+  const localUserId = usePresenceStore((s) => s.localUserId);
 
   const eraserCursor = useMemo(() => {
     const r = Math.max(4, eraserSize);
@@ -370,6 +377,20 @@ export function KonvaStageWorkspace({
     });
   }, [orderedElements]);
 
+  /* Presence UI overlays */
+  useEffect(() => {
+    const followId = usePresenceStore.getState().followedUserId;
+    if (!followId) return;
+    const meta = usePresenceStore.getState().users[followId];
+    if (!meta?.viewport) return;
+    const { zoom, panX, panY } = meta.viewport;
+    if (stageRef.current) {
+      stageRef.current.scale({ x: zoom, y: zoom });
+      stageRef.current.position({ x: panX, y: panY });
+      stageRef.current.batchDraw();
+    }
+  }, [usePresenceStore.getState().followedUserId, usePresenceStore.getState().users]);
+
   return (
     <div className="konva-frame">
         <Stage
@@ -383,12 +404,14 @@ export function KonvaStageWorkspace({
               : "default",
           }}
           onMouseDown={(event) => {
-            if (activeTool === "eraser" && canEdit) {
+            if (isFollowing) return;
+      if (activeTool === "eraser" && canEdit) {
               isErasingRef.current = true;
               eraseAtCurrentPos();
               return;
             }
-            if (activeTool === "pencil" && canEdit) {
+            if (isFollowing) return;
+      if (activeTool === "pencil" && canEdit) {
               const pos = getStagePos(event);
               if (pos) setDrawingPoints([pos.x, pos.y]);
               return;
@@ -407,7 +430,8 @@ export function KonvaStageWorkspace({
             if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
           }}
           onMouseUp={() => {
-            if (activeTool === "eraser") {
+            if (isFollowing) return;
+      if (activeTool === "eraser") {
               isErasingRef.current = false;
               return;
             }
@@ -417,7 +441,8 @@ export function KonvaStageWorkspace({
           }}
           onMouseLeave={() => {
             isErasingRef.current = false;
-            if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
+            if (isFollowing) return;
+      if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
               addPencilElement(drawingPoints);
             }
             setDrawingPoints(null);
@@ -476,8 +501,8 @@ export function KonvaStageWorkspace({
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
                 },
-                onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
-                onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
+                onClick: () => selectElement(element.id),
+                onTap: () => selectElement(element.id),
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
                   const stage = event.target.getStage();
@@ -510,8 +535,8 @@ export function KonvaStageWorkspace({
                     y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
                   };
                 },
-                onClick: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
-                onTap: () => { selectElement(element.id); broadcastElementClick("local", element.id); },
+                onClick: () => selectElement(element.id),
+                onTap: () => selectElement(element.id),
                 onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
                   if (!canEdit) return;
                   updateElement(element.id, {
@@ -1078,6 +1103,9 @@ export function KonvaStageWorkspace({
             </Layer>
           )}
         </Stage>
+        <RemoteSelectionHighlights workspaceId={workspaceId} />
+        <TypingIndicator />
+        <FollowButton />
 
         <AnimatePresence>
           {menu?.visible && (
