@@ -97,7 +97,7 @@ export function WorkspaceSidebar({
             />
           ) : null}
           {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId || "default"} /> : null}
-          {activeSection === "activity" ? <ActivityFeed /> : null}
+          {activeSection === "activity" ? <ActivityFeed workspaceId={workspaceId || ""} /> : null}
         </div>
       </motion.div>
     </aside>

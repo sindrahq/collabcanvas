@@ -1,6 +1,6 @@
 "use client";
 
-import { useWorkspaceStore, type ActivityEntry } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory, type ActivityEntry } from "@/store/workspaceStore";
 
 function timeAgo(ts: number): string {
   const diff = Math.floor((Date.now() - ts) / 1000);
@@ -16,8 +16,9 @@ const ACTION_COLOR: Record<ActivityEntry["action"], string> = {
   moved: "#f59e0b",
 };
 
-export function ActivityFeed() {
-  const activityLog = useWorkspaceStore((s) => s.activityLog);
+export function ActivityFeed({ workspaceId }: { workspaceId: string }) {
+  const store = useWorkspaceStoreFactory(workspaceId);
+  const activityLog = store((s) => s.activityLog);
 
   if (activityLog.length === 0) {
     return (

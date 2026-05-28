@@ -116,6 +116,10 @@ using (
       and w.owner_id = auth.uid()
   )
   or shared_with_id = auth.uid()
+  or (
+    shared_with_email is not null
+    and lower(shared_with_email) = lower(coalesce(auth.jwt() ->> 'email', auth.email(), ''))
+  )
 );
 
 create policy "workspace_shares_write_owner"
@@ -298,7 +302,14 @@ using (
     select 1
     from public.workspace_shares s
     where s.workspace_id = workspace_comments.workspace_id
-      and s.shared_with_id = auth.uid()
+      and s.active = true
+      and (
+        s.shared_with_id = auth.uid()
+        or (
+          s.shared_with_email is not null
+          and lower(s.shared_with_email) = lower(coalesce(auth.jwt() ->> 'email', auth.email(), ''))
+        )
+      )
   )
 );
 
@@ -307,17 +318,28 @@ on public.workspace_comments
 for insert
 to authenticated
 with check (
-  exists (
-    select 1
-    from public.workspaces w
-    where w.id = workspace_comments.workspace_id
-      and w.owner_id = auth.uid()
-  )
-  or exists (
-    select 1
-    from public.workspace_shares s
-    where s.workspace_id = workspace_comments.workspace_id
-      and s.shared_with_id = auth.uid()
+  author_id = auth.uid()
+  and (
+    exists (
+      select 1
+      from public.workspaces w
+      where w.id = workspace_comments.workspace_id
+        and w.owner_id = auth.uid()
+    )
+    or exists (
+      select 1
+      from public.workspace_shares s
+      where s.workspace_id = workspace_comments.workspace_id
+        and s.active = true
+        and s.access_level in ('comment', 'edit')
+        and (
+          s.shared_with_id = auth.uid()
+          or (
+            s.shared_with_email is not null
+            and lower(s.shared_with_email) = lower(coalesce(auth.jwt() ->> 'email', auth.email(), ''))
+          )
+        )
+    )
   )
 );
 

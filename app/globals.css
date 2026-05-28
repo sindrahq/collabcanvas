@@ -2169,11 +2169,11 @@ body.cc-workspace-theme .workspace-sidebar-button-label.visible {
 
 body.cc-workspace-theme .workspace-sidebar-panel {
   overflow: visible;
-  border: 1px solid rgba(211, 165, 177, 0.3);
-  border-radius: 20px;
-  background: #FFFFFF !important;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.1);
-  min-height: 400px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  min-height: 0;
   z-index: 50;
 }
 
@@ -2239,6 +2239,19 @@ body.cc-workspace-theme .workspace-sidebar-panel-body {
   max-height: calc(100vh - 160px);
   overflow-y: auto;
   color: #1a1a1a !important;
+}
+
+body.cc-workspace-theme .workspace-sidebar-panel-body .editor-panel {
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+body.cc-workspace-theme .workspace-sidebar-panel-body .layers-panel,
+body.cc-workspace-theme .workspace-sidebar-panel-body .inspector-panel {
+  min-height: 0;
 }
 
 body.cc-workspace-theme .workspace-sidebar-panel-empty {

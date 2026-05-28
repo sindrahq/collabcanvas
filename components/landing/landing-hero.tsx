@@ -13,6 +13,7 @@ import { FallingPetals } from "@/components/landing/falling-petals";
 import { TiltImage } from "@/components/landing/tilt-image";
 import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
+import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 
 type SectionId = "features" | "templates" | "about";
 
@@ -101,7 +102,23 @@ export function LandingHero() {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const theme = useGlobalThemeStore((s) => s.theme);
   const setTheme = useGlobalThemeStore((s) => s.setTheme);
+  const [logoHref, setLogoHref] = useState("/auth?next=%2Fprojects");
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const fullText = useMemo(() => "Design Without Limits", []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    let active = true;
+    void getSessionSafely(supabase).then((session) => {
+      if (!active) return;
+      setLogoHref(session?.user ? "/projects" : "/auth?next=%2Fprojects");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let i = 0;
@@ -126,357 +143,357 @@ export function LandingHero() {
   return (
     <main className="cc-landing-theme min-h-screen text-[#2D3436] font-sans selection:bg-[#F0C3D1] relative">
       {/* Full Cherry Blossom Background */}
-      <div 
+      <div
         className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
-        style={{ 
+        style={{
           backgroundImage: `url(${THEME_BACKGROUNDS[theme] || THEME_BACKGROUNDS.cherry})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       />
       {/* Soft overlay to ensure buttons and content are readable over the floral background */}
-      <div 
-        className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" 
+      <div
+        className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]"
       />
-      
+
       <div className="relative z-10">
         <PastelBlobBackground theme={theme} />
         <CustomCursor />
         <FallingPetals theme={theme} />
-        
+
         {/* Floating Navbar */}
         <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[min(90%,1200px)]">
-        <motion.div 
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="flex items-center justify-between px-6 py-3 rounded-2xl border border-black/[0.03] bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.03)]"
-        >
-          <div className="flex items-center gap-8">
-            <div className="text-xl font-bold tracking-tight italic flex items-center gap-2">
-              CollabCanvas
-            </div>
-            
-            <div className="hidden md:flex items-center gap-6">
-              {["Features", "Templates", "About"].map((item) => (
-                <button
-                  key={item}
-                  onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
-                  className="text-sm font-medium text-[#636E72] hover:text-[#2D3436] transition-colors"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="flex items-center justify-between px-6 py-3 rounded-2xl border border-black/[0.03] bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.03)]"
+          >
+            <div className="flex items-center gap-8">
+              <Link href={logoHref} className="text-xl font-bold tracking-tight italic flex items-center gap-2">
+                CollabCanvas
+              </Link>
 
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <button
-                type="button"
-                className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold transition-all hover:bg-black/[0.05]"
-                style={{ color: "var(--accent)" }}
-                onClick={() => setThemeMenuOpen((open) => !open)}
-              >
-                <Palette size={16} />
-                <span className="hidden sm:inline">Theme</span>
-                <ChevronDown size={14} className={`transition-transform ${themeMenuOpen ? "rotate-180" : ""}`} />
-              </button>
-
-              <AnimatePresence>
-                {themeMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full right-0 mt-2 p-2 w-48 bg-white rounded-xl shadow-xl border border-black/[0.05] flex flex-col gap-1 z-50"
-                  >
-                    {[
-                      { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
-                      { id: "forest", label: "Forest Moss", color: "#708238" },
-                      { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
-                      { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
-                    ].map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-black/[0.03] ${theme === t.id ? "font-bold" : "font-medium"}`}
-                        style={{ color: theme === t.id ? "var(--accent)" : "#2D3436" }}
-                        onClick={() => {
-                          setTheme(t.id as any);
-                          setThemeMenuOpen(false);
-                        }}
-                      >
-                        <span 
-                          className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" 
-                          style={{ backgroundColor: t.color }}
-                        />
-                        {t.label}
-                        {theme === t.id && <span className="ml-auto text-[10px]">✓</span>}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <Link
-              href="/projects"
-              className="hidden sm:inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-sm font-bold shadow-lg shadow-[#D3A5B1]/30 transition-all hover:scale-[1.05]"
-              style={{ backgroundColor: "var(--accent)" }}
-            >
-              Open App
-            </Link>
-            <button 
-              className="md:hidden p-2 text-[#636E72]"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute top-full left-0 right-0 mt-4 p-4 rounded-2xl border border-black/[0.03] bg-white/90 backdrop-blur-2xl shadow-xl md:hidden"
-            >
-              <div className="flex flex-col gap-2">
+              <div className="hidden md:flex items-center gap-6">
                 {["Features", "Templates", "About"].map((item) => (
                   <button
                     key={item}
                     onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
-                    className="w-full text-left p-4 rounded-xl hover:bg-black/[0.02] text-sm font-semibold transition-colors"
+                    className="text-sm font-medium text-[#636E72] hover:text-[#2D3436] transition-colors"
                   >
                     {item}
                   </button>
                 ))}
-                <div className="h-px bg-black/[0.03] my-2" />
-                <Link
-                  href="/projects"
-                  className="w-full p-4 rounded-xl text-white text-center text-sm font-bold"
-                  style={{ backgroundColor: "var(--accent)" }}
-                >
-                  Open App
-                </Link>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
+            </div>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 md:pt-48 md:pb-32 lg:pt-56 z-10">
-        <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="mt-6" />
-            
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] text-[#2D3436] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
-              {typed}
-              <motion.span 
-                animate={{ opacity: [1, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity }}
-                className="inline-block w-1.5 h-[0.85em] bg-[#D4B595] ml-1 align-middle"
-              />
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8b7355] to-[#D4B595] italic">
-                Your Shared Canvas
-              </span>
-            </h1>
-            
-            <p className="text-lg md:text-xl text-[#636E72] leading-relaxed max-w-xl mb-10">
-              Transform your creative workflow with a seamless, collaborative editor. Build, style, and ship together in real-time.
-            </p>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold transition-all hover:bg-black/[0.05]"
+                  style={{ color: "var(--accent)" }}
+                  onClick={() => setThemeMenuOpen((open) => !open)}
+                >
+                  <Palette size={16} />
+                  <span className="hidden sm:inline">Theme</span>
+                  <ChevronDown size={14} className={`transition-transform ${themeMenuOpen ? "rotate-180" : ""}`} />
+                </button>
 
-            <div className="flex flex-col sm:flex-row gap-4">
+                <AnimatePresence>
+                  {themeMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute top-full right-0 mt-2 p-2 w-48 bg-white rounded-xl shadow-xl border border-black/[0.05] flex flex-col gap-1 z-50"
+                    >
+                      {[
+                        { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
+                        { id: "forest", label: "Forest Moss", color: "#708238" },
+                        { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
+                        { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-black/[0.03] ${theme === t.id ? "font-bold" : "font-medium"}`}
+                          style={{ color: theme === t.id ? "var(--accent)" : "#2D3436" }}
+                          onClick={() => {
+                            setTheme(t.id as any);
+                            setThemeMenuOpen(false);
+                          }}
+                        >
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0"
+                            style={{ backgroundColor: t.color }}
+                          />
+                          {t.label}
+                          {theme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <Link
                 href="/projects"
-                className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-2xl text-white font-bold text-lg transition-all hover:scale-[1.02] hover:shadow-2xl hover:shadow-[#D3A5B1]/40"
+                className="hidden sm:inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-sm font-bold shadow-lg shadow-[#D3A5B1]/30 transition-all hover:scale-[1.05]"
                 style={{ backgroundColor: "var(--accent)" }}
               >
-                Start Designing
-                <ArrowRight size={20} />
+                Open App
               </Link>
               <button
-                onClick={() => scrollToSection("templates")}
-                className="h-14 px-8 rounded-2xl bg-white border border-black/[0.05] text-[#2D3436] font-bold text-lg transition-all hover:bg-black/[0.02]"
+                className="md:hidden p-2 text-[#636E72]"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
               >
-                View Templates
+                {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ x: 20, opacity: 0, scale: 0.95 }}
-            animate={{ x: 0, opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4 }}
-            className="relative perspective-1000"
-          >
-            <TiltImage src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop" />
-            {/* Decorative elements */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#FADBD8] rounded-full blur-[60px] opacity-60" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#D5F5E3] rounded-full blur-[60px] opacity-60" />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <motion.section 
-        id="features" 
-        initial={{ y: 40, opacity: 0 }}
-        whileInView={{ y: 0, opacity: 1 }}
-        viewport={{ once: true }}
-        className="py-24 px-6"
-      >
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-16 text-center">
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Everything you need</h2>
-            <p className="text-[#636E72] text-lg">Powerful tools built for creative teams.</p>
-          </div>
-          <LandingFeatureCards />
-        </div>
-      </motion.section>
-
-
-      {/* Templates Section */}
-      <section id="templates" className="py-24 px-6 overflow-hidden">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12">
-            <div>
-              <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
-              <p className="text-[#636E72]">Pick a starting point and make it yours.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-            {templates.map((template, idx) => (
-              <motion.div
-                key={template.label}
-                initial={{ y: 20, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                transition={{ delay: idx * 0.1 }}
-                viewport={{ once: true }}
-              >
-                <div
-                  onClick={() => setSelectedTemplate(template)}
-                  className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all cursor-pointer"
-                >
-                  <div className={`${template.aspectClass} overflow-hidden bg-black/[0.02]`}>
-                    <img
-                      src={template.img}
-                      alt={template.label}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="font-bold text-sm">{template.label}</span>
-                    <ArrowRight size={16} className="text-black/20 group-hover:text-black transition-colors" />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
+          {/* Mobile Menu */}
           <AnimatePresence>
-            {selectedTemplate && (
+            {isMenuOpen && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-8 bg-[#D3A5B1]/10 backdrop-blur-xl"
-                onClick={() => setSelectedTemplate(null)}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute top-full left-0 right-0 mt-4 p-4 rounded-2xl border border-black/[0.03] bg-white/90 backdrop-blur-2xl shadow-xl md:hidden"
               >
-                <motion.div
-                  initial={{ scale: 0.95, y: 20, opacity: 0 }}
-                  animate={{ scale: 1, y: 0, opacity: 1 }}
-                  exit={{ scale: 0.95, y: 20, opacity: 0 }}
-                  className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-[2.5rem] bg-white shadow-[0_32px_64px_rgba(211,165,177,0.25)] border border-[#D3A5B1]/10 flex flex-col relative"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-[#FFF5F8] to-transparent pointer-events-none" />
-
-                  <div className="p-8 md:p-12 pb-6 border-b border-[#D3A5B1]/10 flex items-center justify-between relative z-10">
-                    <div>
-                      <h3 className="text-3xl md:text-4xl font-bold tracking-tight text-[#2D3436]" style={{ fontFamily: "'Playfair Display', serif" }}>
-                        {selectedTemplate.label} Templates
-                      </h3>
-                      <p className="text-[#636E72] mt-2 text-lg">Select a beautifully crafted starting point.</p>
-                    </div>
-                    <button 
-                      onClick={() => setSelectedTemplate(null)}
-                      className="w-12 h-12 rounded-full bg-white border border-[#D3A5B1]/20 flex items-center justify-center text-[#D3A5B1] hover:bg-[#D3A5B1] hover:text-white transition-all hover:scale-105"
+                <div className="flex flex-col gap-2">
+                  {["Features", "Templates", "About"].map((item) => (
+                    <button
+                      key={item}
+                      onClick={() => scrollToSection(item.toLowerCase() as SectionId)}
+                      className="w-full text-left p-4 rounded-xl hover:bg-black/[0.02] text-sm font-semibold transition-colors"
                     >
-                      <X size={24} />
+                      {item}
                     </button>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#FDFBFB]">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 md:gap-8">
-                      {(TEMPLATE_DESIGNS[selectedTemplate.query] || []).map((imgUrl, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className={`group relative ${selectedTemplate.aspectClass} rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#D3A5B1]/30 transition-all duration-300 border border-black/[0.03] bg-white`}
-                        >
-                          <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                            <button
-                              className="group/btn relative px-8 py-3 rounded-full bg-white text-black font-semibold text-sm transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg overflow-hidden"
-                              onClick={() => {
-                                // User requested to disable interaction
-                                console.log("Use Design clicked - disabled by request");
-                              }}
-                            >
-                              Use Design
-                            </button>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
+                  ))}
+                  <div className="h-px bg-black/[0.03] my-2" />
+                  <Link
+                    href="/projects"
+                    className="w-full p-4 rounded-xl text-white text-center text-sm font-bold"
+                    style={{ backgroundColor: "var(--accent)" }}
+                  >
+                    Open App
+                  </Link>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </section>
+        </nav>
 
-      {/* Footer / About */}
-      <footer id="about" className="py-20 px-6 border-t border-black/[0.03]">
-        <div className="mx-auto max-w-7xl">
-          <div className="rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden shadow-2xl shadow-[#D3A5B1]/30" style={{ backgroundColor: "var(--accent)" }}>
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
-            <h2 className="text-4xl md:text-6xl font-bold text-white mb-8 relative z-10"> Ready to create <br /> something amazing? </h2>
-            <Link
-              href="/projects"
-              className="inline-flex items-center justify-center h-16 px-10 rounded-2xl bg-white font-bold text-xl transition-all hover:scale-[1.05] relative z-10"
-              style={{ color: "var(--accent)" }}
+        {/* Hero Section */}
+        <section className="relative pt-32 pb-20 px-6 md:pt-48 md:pb-32 lg:pt-56 z-10">
+          <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
             >
-              Get Started Now
-            </Link>
+              <div className="mt-6" />
+
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] text-[#2D3436] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
+                {typed}
+                <motion.span
+                  animate={{ opacity: [1, 0] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                  className="inline-block w-1.5 h-[0.85em] bg-[#D4B595] ml-1 align-middle"
+                />
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8b7355] to-[#D4B595] italic">
+                  Your Shared Canvas
+                </span>
+              </h1>
+
+              <p className="text-lg md:text-xl text-[#636E72] leading-relaxed max-w-xl mb-10">
+                Transform your creative workflow with a seamless, collaborative editor. Build, style, and ship together in real-time.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link
+                  href="/projects"
+                  className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-2xl text-white font-bold text-lg transition-all hover:scale-[1.02] hover:shadow-2xl hover:shadow-[#D3A5B1]/40"
+                  style={{ backgroundColor: "var(--accent)" }}
+                >
+                  Start Designing
+                  <ArrowRight size={20} />
+                </Link>
+                <button
+                  onClick={() => scrollToSection("templates")}
+                  className="h-14 px-8 rounded-2xl bg-white border border-black/[0.05] text-[#2D3436] font-bold text-lg transition-all hover:bg-black/[0.02]"
+                >
+                  View Templates
+                </button>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ x: 20, opacity: 0, scale: 0.95 }}
+              animate={{ x: 0, opacity: 1, scale: 1 }}
+              transition={{ delay: 0.4 }}
+              className="relative perspective-1000"
+            >
+              <TiltImage src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop" />
+              {/* Decorative elements */}
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#FADBD8] rounded-full blur-[60px] opacity-60" />
+              <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#D5F5E3] rounded-full blur-[60px] opacity-60" />
+            </motion.div>
           </div>
-          
-          <div className="mt-20 flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-black/[0.03]">
-            <div className="text-xl font-bold italic">CollabCanvas</div>
-            <div className="flex gap-8 text-sm font-medium text-[#636E72]">
-              <Link href="#" className="hover:text-black">Privacy</Link>
-              <Link href="#" className="hover:text-black">Terms</Link>
-              <Link href="#" className="hover:text-black">Contact</Link>
+        </section>
+
+        {/* Features Section */}
+        <motion.section
+          id="features"
+          initial={{ y: 40, opacity: 0 }}
+          whileInView={{ y: 0, opacity: 1 }}
+          viewport={{ once: true }}
+          className="py-24 px-6"
+        >
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-16 text-center">
+              <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Everything you need</h2>
+              <p className="text-[#636E72] text-lg">Powerful tools built for creative teams.</p>
             </div>
-            <div className="text-sm text-[#B2BEC3]">© 2026 CollabCanvas. All rights reserved.</div>
+            <LandingFeatureCards />
           </div>
-        </div>
-      </footer>
-      <AccumulatedPetals theme={theme} />
+        </motion.section>
+
+
+        {/* Templates Section */}
+        <section id="templates" className="py-24 px-6 overflow-hidden">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-12">
+              <div>
+                <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
+                <p className="text-[#636E72]">Pick a starting point and make it yours.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              {templates.map((template, idx) => (
+                <motion.div
+                  key={template.label}
+                  initial={{ y: 20, opacity: 0 }}
+                  whileInView={{ y: 0, opacity: 1 }}
+                  transition={{ delay: idx * 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <div
+                    onClick={() => setSelectedTemplate(template)}
+                    className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all cursor-pointer"
+                  >
+                    <div className={`${template.aspectClass} overflow-hidden bg-black/[0.02]`}>
+                      <img
+                        src={template.img}
+                        alt={template.label}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    </div>
+                    <div className="p-4 flex items-center justify-between">
+                      <span className="font-bold text-sm">{template.label}</span>
+                      <ArrowRight size={16} className="text-black/20 group-hover:text-black transition-colors" />
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <AnimatePresence>
+              {selectedTemplate && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-8 bg-[#D3A5B1]/10 backdrop-blur-xl"
+                  onClick={() => setSelectedTemplate(null)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, y: 20, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.95, y: 20, opacity: 0 }}
+                    className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-[2.5rem] bg-white shadow-[0_32px_64px_rgba(211,165,177,0.25)] border border-[#D3A5B1]/10 flex flex-col relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-[#FFF5F8] to-transparent pointer-events-none" />
+
+                    <div className="p-8 md:p-12 pb-6 border-b border-[#D3A5B1]/10 flex items-center justify-between relative z-10">
+                      <div>
+                        <h3 className="text-3xl md:text-4xl font-bold tracking-tight text-[#2D3436]" style={{ fontFamily: "'Playfair Display', serif" }}>
+                          {selectedTemplate.label} Templates
+                        </h3>
+                        <p className="text-[#636E72] mt-2 text-lg">Select a beautifully crafted starting point.</p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedTemplate(null)}
+                        className="w-12 h-12 rounded-full bg-white border border-[#D3A5B1]/20 flex items-center justify-center text-[#D3A5B1] hover:bg-[#D3A5B1] hover:text-white transition-all hover:scale-105"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#FDFBFB]">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 md:gap-8">
+                        {(TEMPLATE_DESIGNS[selectedTemplate.query] || []).map((imgUrl, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            className={`group relative ${selectedTemplate.aspectClass} rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#D3A5B1]/30 transition-all duration-300 border border-black/[0.03] bg-white`}
+                          >
+                            <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                              <button
+                                className="group/btn relative px-8 py-3 rounded-full bg-white text-black font-semibold text-sm transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg overflow-hidden"
+                                onClick={() => {
+                                  // User requested to disable interaction
+                                  console.log("Use Design clicked - disabled by request");
+                                }}
+                              >
+                                Use Design
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </section>
+
+        {/* Footer / About */}
+        <footer id="about" className="py-20 px-6 border-t border-black/[0.03]">
+          <div className="mx-auto max-w-7xl">
+            <div className="rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden shadow-2xl shadow-[#D3A5B1]/30" style={{ backgroundColor: "var(--accent)" }}>
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+              <h2 className="text-4xl md:text-6xl font-bold text-white mb-8 relative z-10"> Ready to create <br /> something amazing? </h2>
+              <Link
+                href="/projects"
+                className="inline-flex items-center justify-center h-16 px-10 rounded-2xl bg-white font-bold text-xl transition-all hover:scale-[1.05] relative z-10"
+                style={{ color: "var(--accent)" }}
+              >
+                Get Started Now
+              </Link>
+            </div>
+
+            <div className="mt-20 flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-black/[0.03]">
+              <div className="text-xl font-bold italic">CollabCanvas</div>
+              <div className="flex gap-8 text-sm font-medium text-[#636E72]">
+                <Link href="#" className="hover:text-black">Privacy</Link>
+                <Link href="#" className="hover:text-black">Terms</Link>
+                <Link href="#" className="hover:text-black">Contact</Link>
+              </div>
+              <div className="text-sm text-[#B2BEC3]">© 2026 CollabCanvas. All rights reserved.</div>
+            </div>
+          </div>
+        </footer>
+        <AccumulatedPetals theme={theme} />
       </div>
     </main>
   );

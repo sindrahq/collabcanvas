@@ -25,7 +25,7 @@ import {
 import { CommandBrain, type BrainCommand } from "@/components/editor/command-brain";
 import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } from "@/lib/comments";
 import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
@@ -58,6 +58,7 @@ function slugify(value: string) {
 
 type AutoSaveStatus = "saved" | "saving";
 const LOCAL_COMMENTS_STORAGE_PREFIX = "collabcanvas_workspace_comments_";
+const LOCAL_WORKSPACE_DRAFT_PREFIX = "collabcanvas_workspace_draft_";
 
 const PRESENCE_COLORS = ["#0b6e66", "#b35c1c", "#1f6fd6", "#7a3eb3", "#a03a58", "#3d6f2f"];
 
@@ -66,13 +67,13 @@ const NAV_SECTIONS: Array<{
   label: string;
   icon: any;
 }> = [
-  { id: "layers", label: "Layers", icon: Layers },
-  { id: "actions", label: "Add", icon: LayoutGrid },
-  { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
-  { id: "comments", label: "Comments", icon: MessageSquare },
-  { id: "templates", label: "Templates", icon: Bookmark },
-  { id: "activity", label: "Activity", icon: Activity },
-];
+    { id: "layers", label: "Layers", icon: Layers },
+    { id: "actions", label: "Add", icon: LayoutGrid },
+    { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
+    { id: "comments", label: "Comments", icon: MessageSquare },
+    { id: "templates", label: "Templates", icon: Bookmark },
+    { id: "activity", label: "Activity", icon: Activity },
+  ];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
   if (!message) return null;
@@ -101,6 +102,11 @@ function isUuidSyntaxErrorMessage(message?: string | null): boolean {
   return /invalid input syntax for type uuid/i.test(message);
 }
 
+function isDuplicatePrimaryKeyMessage(message?: string | null): boolean {
+  if (!message) return false;
+  return /duplicate key value violates unique constraint\s+"canvas_elements_pkey"/i.test(message);
+}
+
 function buildLocalPresenceMeta(): PresenceMeta {
   if (typeof window === "undefined") {
     return {
@@ -125,17 +131,17 @@ function buildLocalPresenceMeta(): PresenceMeta {
     }
   }
 
-    const seed = crypto.randomUUID().slice(0, 8);
-    const meta: PresenceMeta = {
-      user_id: `guest-${seed}`,
-      name: `Guest ${seed.slice(0, 4).toUpperCase()}`,
-      color: PRESENCE_COLORS[Math.floor(Math.random() * PRESENCE_COLORS.length)],
-      avatarUrl: "",
-      cursor: { x: 0.5, y: 0.5 },
-      selection: null,
-      typing: false,
-      viewport: { zoom: 1, panX: 0, panY: 0 },
-    };
+  const seed = crypto.randomUUID().slice(0, 8);
+  const meta: PresenceMeta = {
+    user_id: `guest-${seed}`,
+    name: `Guest ${seed.slice(0, 4).toUpperCase()}`,
+    color: PRESENCE_COLORS[Math.floor(Math.random() * PRESENCE_COLORS.length)],
+    avatarUrl: "",
+    cursor: { x: 0.5, y: 0.5 },
+    selection: null,
+    typing: false,
+    viewport: { zoom: 1, panX: 0, panY: 0 },
+  };
 
   window.localStorage.setItem(key, JSON.stringify(meta));
   return meta;
@@ -240,7 +246,7 @@ export function EditorShell() {
       element_type: elementType,
     });
   };
-  
+
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -294,13 +300,55 @@ export function EditorShell() {
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPersistedSignatureRef = useRef<string>("");
+  const persistNowRef = useRef<(() => void) | null>(null);
+  const persistInFlightRef = useRef(false);
+  const pendingPersistRef = useRef(false);
   const fileBase = slugify(workspaceName);
+  const workspaceDraftKey = useMemo(
+    () => (workspaceIdFromUrl ? `${LOCAL_WORKSPACE_DRAFT_PREFIX}${workspaceIdFromUrl}` : ""),
+    [workspaceIdFromUrl]
+  );
+
+  useEffect(() => {
+    if (!workspaceDraftKey || typeof window === "undefined") return;
+
+    const payload = {
+      workspaceName,
+      selectedElementId,
+      elements,
+      updatedAt: Date.now(),
+    };
+
+    window.localStorage.setItem(workspaceDraftKey, JSON.stringify(payload));
+  }, [elements, selectedElementId, workspaceDraftKey, workspaceName]);
+
+  useEffect(() => {
+    if (!workspaceDraftKey || typeof window === "undefined") return;
+    if (elements.length > 0) return;
+
+    const raw = window.localStorage.getItem(workspaceDraftKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        elements?: typeof elements;
+        selectedElementId?: string | null;
+      };
+
+      if (Array.isArray(parsed.elements) && parsed.elements.length > 0) {
+        store.getState().setElements(parsed.elements);
+        store.getState().setSelectedElementId(parsed.selectedElementId ?? null);
+      }
+    } catch {
+      // Ignore malformed local drafts.
+    }
+  }, [elements.length, store, workspaceDraftKey]);
 
   useEffect(() => {
     // Switch to workspace theme
     document.body.classList.add("cc-workspace-theme");
     document.body.classList.remove("cc-landing-theme");
-    
+
     return () => {
       // Restore landing theme or remove workspace theme
       document.body.classList.remove("cc-workspace-theme");
@@ -393,16 +441,16 @@ export function EditorShell() {
 
     let active = true;
 
-    void browserClient.auth.getSession().then(({ data }) => {
+    void getSessionSafely(browserClient).then((session) => {
       if (!active) return;
 
-      if (!data.session?.user) {
+      if (!session?.user) {
         setAuthChecked(true);
         router.replace(`/auth?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
-      setAuthUser(data.session.user);
+      setAuthUser(session.user);
       setAuthChecked(true);
     });
 
@@ -425,6 +473,19 @@ export function EditorShell() {
       subscription.unsubscribe();
     };
   }, [browserClient, nextPath, router]);
+
+  // Listen for tutorial events to open inspector sidebar
+  useEffect(() => {
+    const handleTutorialEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ section: string }>;
+      if (customEvent.detail?.section === "inspector") {
+        setActiveSection("inspector");
+      }
+    };
+
+    window.addEventListener("tutorial-open-sidebar", handleTutorialEvent);
+    return () => window.removeEventListener("tutorial-open-sidebar", handleTutorialEvent);
+  }, []);
 
   useEffect(() => {
     if (!workspaceIdFromUrl || !authUser) return;
@@ -622,14 +683,14 @@ export function EditorShell() {
     const localCommentsKey = `${LOCAL_COMMENTS_STORAGE_PREFIX}${workspace.id}`;
     const localComments = typeof window !== "undefined"
       ? (() => {
-          const raw = window.localStorage.getItem(localCommentsKey);
-          if (!raw) return [] as WorkspaceComment[];
-          try {
-            return JSON.parse(raw) as WorkspaceComment[];
-          } catch {
-            return [] as WorkspaceComment[];
-          }
-        })()
+        const raw = window.localStorage.getItem(localCommentsKey);
+        if (!raw) return [] as WorkspaceComment[];
+        try {
+          return JSON.parse(raw) as WorkspaceComment[];
+        } catch {
+          return [] as WorkspaceComment[];
+        }
+      })()
       : [];
 
     const response = await fetch("/api/workspaces/sync-local", {
@@ -796,110 +857,173 @@ export function EditorShell() {
       return;
     }
 
+    const persistNow = async () => {
+      if (persistInFlightRef.current) {
+        pendingPersistRef.current = true;
+        return;
+      }
+
+      persistInFlightRef.current = true;
+
+      try {
+        const elementsPayload = elements.map((element) => ({
+          id: element.id,
+          workspace_id: workspace.id,
+          type: element.type,
+          position: {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+          },
+          rotation: element.rotation,
+          text_content: element.text ?? null,
+          style_ext: {
+            fill: element.style.fill,
+            stroke: element.style.stroke,
+            strokeWidth: element.style.strokeWidth,
+            opacity: element.style.opacity,
+            fontSize: element.style.fontSize,
+            fontFamily: element.style.fontFamily,
+            fontStyle: element.style.fontStyle,
+            fontWeight: element.style.fontWeight,
+            textAlign: element.style.textAlign,
+            shadowEnabled: element.style.shadowEnabled,
+            shadowBlur: element.style.shadowBlur,
+            shadowColor: element.style.shadowColor,
+            shadowOffsetX: element.style.shadowOffsetX,
+            shadowOffsetY: element.style.shadowOffsetY,
+            brightness: (element.style as any).brightness ?? 0,
+            contrast: (element.style as any).contrast ?? 0,
+            tint: (element.style as any).tint ?? 0,
+            imageUrl: (element.style as any).imageUrl ?? null,
+          },
+          layer_order: element.layerOrder,
+          visible: element.visible,
+          locked: element.locked,
+        }));
+
+        const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
+        if (deleteResult.error) {
+          throw new Error(deleteResult.error.message || "Failed to clear existing workspace elements.");
+        }
+
+        if (elementsPayload.length) {
+          let candidatePayload = elementsPayload as Record<string, unknown>[];
+          let inserted = false;
+
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const insertResult = await client.from("canvas_elements").insert(candidatePayload);
+            if (!insertResult.error) {
+              inserted = true;
+              break;
+            }
+
+            if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
+              const hasInvalidId = candidatePayload.some(
+                (row) => typeof row.id === "string" && !isUuidValue(row.id)
+              );
+              if (hasInvalidId) {
+                candidatePayload = removeColumnFromRows(candidatePayload, "id");
+                continue;
+              }
+            }
+
+            if (isDuplicatePrimaryKeyMessage(insertResult.error.message)) {
+              const nextPayload = removeColumnFromRows(candidatePayload, "id");
+              if (JSON.stringify(nextPayload) !== JSON.stringify(candidatePayload)) {
+                candidatePayload = nextPayload;
+                continue;
+              }
+            }
+
+            const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
+            if (!missingColumn) {
+              throw new Error(insertResult.error.message || "Failed to insert workspace elements.");
+            }
+
+            const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
+            if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
+              throw new Error(insertResult.error.message || "Failed to adjust workspace element payload.");
+            }
+
+            candidatePayload = nextPayload;
+          }
+
+          if (!inserted) {
+            throw new Error("Could not save workspace elements due to schema mismatch.");
+          }
+        }
+
+        // History snapshot is optional — don't block the save if it fails
+        void saveWorkspaceHistorySnapshot(workspace.id, {
+          elements,
+          selectedElementId,
+          workspaceName,
+        }, "Autosave");
+
+        lastPersistedSignatureRef.current = signature;
+      } catch (error) {
+        console.error("[EditorShell] Autosave failed:", error);
+      } finally {
+        persistInFlightRef.current = false;
+
+        if (pendingPersistRef.current) {
+          pendingPersistRef.current = false;
+          setSaveStatus("saving");
+          setTimeout(() => {
+            persistNowRef.current?.();
+          }, 0);
+          return;
+        }
+
+        setSaveStatus("saved");
+      }
+    };
+
+    persistNowRef.current = () => {
+      void persistNow();
+    };
+
     setSaveStatus("saving");
     clearTimeout(persistTimerRef.current);
-
     persistTimerRef.current = setTimeout(() => {
-      void (async () => {
-        try {
-          const elementsPayload = elements.map((element) => ({
-            id: element.id,
-            workspace_id: workspace.id,
-            type: element.type,
-            position: {
-              x: element.x,
-              y: element.y,
-              width: element.width,
-              height: element.height,
-            },
-            rotation: element.rotation,
-            text_content: element.text ?? null,
-            style_ext: {
-              fill: element.style.fill,
-              stroke: element.style.stroke,
-              strokeWidth: element.style.strokeWidth,
-              opacity: element.style.opacity,
-              fontSize: element.style.fontSize,
-              fontFamily: element.style.fontFamily,
-              fontStyle: element.style.fontStyle,
-              fontWeight: element.style.fontWeight,
-              textAlign: element.style.textAlign,
-              shadowEnabled: element.style.shadowEnabled,
-              shadowBlur: element.style.shadowBlur,
-              shadowColor: element.style.shadowColor,
-              shadowOffsetX: element.style.shadowOffsetX,
-              shadowOffsetY: element.style.shadowOffsetY,
-              brightness: (element.style as any).brightness ?? 0,
-              contrast: (element.style as any).contrast ?? 0,
-              tint: (element.style as any).tint ?? 0,
-              imageUrl: (element.style as any).imageUrl ?? null,
-            },
-            layer_order: element.layerOrder,
-            visible: element.visible,
-            locked: element.locked,
-          }));
-
-          const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
-          if (deleteResult.error) {
-            throw deleteResult.error;
-          }
-
-          if (elementsPayload.length) {
-            let candidatePayload = elementsPayload as Record<string, unknown>[];
-            let inserted = false;
-
-            for (let attempt = 0; attempt < 8; attempt += 1) {
-              const insertResult = await client.from("canvas_elements").insert(candidatePayload);
-              if (!insertResult.error) {
-                inserted = true;
-                break;
-              }
-
-              if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
-                const hasInvalidId = candidatePayload.some(
-                  (row) => typeof row.id === "string" && !isUuidValue(row.id)
-                );
-                if (hasInvalidId) {
-                  candidatePayload = removeColumnFromRows(candidatePayload, "id");
-                  continue;
-                }
-              }
-
-              const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
-              if (!missingColumn) {
-                throw insertResult.error;
-              }
-
-              const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
-              if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
-                throw insertResult.error;
-              }
-
-              candidatePayload = nextPayload;
-            }
-
-            if (!inserted) {
-              throw new Error("Could not save workspace elements due to schema mismatch.");
-            }
-          }
-
-          // History snapshot is optional — don't block the save if it fails
-          void saveWorkspaceHistorySnapshot(workspace.id, {
-            elements,
-            selectedElementId,
-            workspaceName,
-          }, "Autosave");
-
-          lastPersistedSignatureRef.current = signature;
-          setSaveStatus("saved");
-        } catch {
-          setSaveStatus("saved");
-        }
-      })();
+      persistNowRef.current?.();
     }, 450);
 
     return () => clearTimeout(persistTimerRef.current);
   }, [authUser, browserClient, canEdit, elements, selectedElementId, workspace?.id, workspace?.owner_id, workspaceName]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const flushPendingChanges = () => {
+      if (workspaceDraftKey && typeof window !== "undefined") {
+        window.localStorage.setItem(
+          workspaceDraftKey,
+          JSON.stringify({ workspaceName, selectedElementId, elements, updatedAt: Date.now() })
+        );
+      }
+      clearTimeout(persistTimerRef.current);
+      persistNowRef.current?.();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        flushPendingChanges();
+      }
+    };
+
+    window.addEventListener("pagehide", flushPendingChanges);
+    window.addEventListener("beforeunload", flushPendingChanges);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("pagehide", flushPendingChanges);
+      window.removeEventListener("beforeunload", flushPendingChanges);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [elements, selectedElementId, workspaceDraftKey, workspaceName]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -1002,9 +1126,9 @@ export function EditorShell() {
   return (
     <main className="editor-page cc-landing-theme relative">
       {/* Mirror Landing Background */}
-      <div 
+      <div
         className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
-        style={{ 
+        style={{
           backgroundImage: `url(${THEME_BACKGROUNDS[canvasTheme] || THEME_BACKGROUNDS.cherry})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
@@ -1024,405 +1148,446 @@ export function EditorShell() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28 }}
       >
-        <motion.header
-          className="editor-topbar"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.06, duration: 0.24 }}
-        >
-          <div className="editor-topbar-left min-w-0">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-                  {workspace?.owner_id !== authUser.id ? (
-                    <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
-                      {accessLevel}
-                    </span>
-                  ) : (
-                    <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 opacity-60">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
-                  <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
-                    {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
-                  </span>
-                </div>
-              </div>
-              <div className="workspace-name-wrap">
-                {isRenamingWorkspace ? (
-                  <>
-                    <input
-                      type="text"
-                      className="workspace-name-input"
-                      value={workspaceNameDraft}
-                      onChange={(event) => setWorkspaceNameDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void handleWorkspaceRenameSubmit();
-                        }
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          handleWorkspaceRenameCancel();
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      className="workspace-name-action"
-                      onClick={() => void handleWorkspaceRenameSubmit()}
-                      disabled={workspaceRenameSaving}
-                      title="Save workspace name"
-                    >
-                      {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
-                    </button>
-                    <button
-                      type="button"
-                      className="workspace-name-action"
-                      onClick={handleWorkspaceRenameCancel}
-                      disabled={workspaceRenameSaving}
-                      title="Cancel rename"
-                    >
-                      <X size={14} />
-                    </button>
-                  </>
-                ) : (
+        {!previewOpen ? (
+          <motion.header
+            className="editor-topbar"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06, duration: 0.24 }}
+          >
+            <div className="editor-topbar-left min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
-                    <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
-                    {canRenameWorkspace ? (
+                    <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+                    {workspace?.owner_id !== authUser.id ? (
+                      <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
+                        {accessLevel}
+                      </span>
+                    ) : (
+                      <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 opacity-60">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
+                    <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+                      {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+                    </span>
+                  </div>
+                </div>
+                <div className="workspace-name-wrap">
+                  {isRenamingWorkspace ? (
+                    <>
+                      <input
+                        type="text"
+                        className="workspace-name-input"
+                        value={workspaceNameDraft}
+                        onChange={(event) => setWorkspaceNameDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleWorkspaceRenameSubmit();
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            handleWorkspaceRenameCancel();
+                          }
+                        }}
+                        autoFocus
+                      />
                       <button
                         type="button"
                         className="workspace-name-action"
-                        onClick={() => setIsRenamingWorkspace(true)}
-                        title="Rename workspace"
+                        onClick={() => void handleWorkspaceRenameSubmit()}
+                        disabled={workspaceRenameSaving}
+                        title="Save workspace name"
                       >
-                        <Pencil size={12} />
+                        {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
                       </button>
-                    ) : null}
-                  </div>
-                )}
+                      <button
+                        type="button"
+                        className="workspace-name-action"
+                        onClick={handleWorkspaceRenameCancel}
+                        disabled={workspaceRenameSaving}
+                        title="Cancel rename"
+                      >
+                        <X size={14} />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
+                      {canRenameWorkspace ? (
+                        <button
+                          type="button"
+                          className="workspace-name-action"
+                          onClick={() => setIsRenamingWorkspace(true)}
+                          title="Rename workspace"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="editor-topbar-center">
-            <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
-              {NAV_SECTIONS.map((section) => {
-                const Icon = section.icon;
-                const active = activeSection === section.id;
-                return (
-                  <GlassTooltip key={section.id} content={section.label}>
-                    <motion.button
+            <div className="editor-topbar-center">
+              <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
+                {NAV_SECTIONS.map((section) => {
+                  const Icon = section.icon;
+                  const active = activeSection === section.id;
+                  return (
+                    <GlassTooltip key={section.id} content={section.label}>
+                      <motion.button
+                        type="button"
+                        onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
+                        className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"
+                          }`}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.93 }}
+                      >
+                        <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+                      </motion.button>
+                    </GlassTooltip>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="editor-topbar-right min-w-0">
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => setGenUIOpen(true)}
+                title="Generative UI — generate elements with AI"
+              >
+                <Sparkles size={14} />
+                <span>Generate</span>
+              </button>
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => setPreviewOpen(true)}
+                title="Multi-screen preview"
+              >
+                <Monitor size={14} />
+                <span>Preview</span>
+              </button>
+              {/* Theme Dropdown */}
+              <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
+                <button
+                  type="button"
+                  className="toolbar-button toolbar-button-compact"
+                  onClick={() => setThemeMenuOpen((open) => !open)}
+                  title="Change canvas theme"
+                >
+                  <Palette size={14} />
+                  <span>Theme</span>
+                  <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+                </button>
+
+                <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
+                  {[
+                    { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
+                    { id: "forest", label: "Forest Moss", color: "#708238" },
+                    { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
+                    { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
                       type="button"
-                      onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
-                        active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"
-                      }`}
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.93 }}
+                      className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`}
+                      onClick={() => {
+                        setCanvasTheme(t.id as any);
+                        setThemeMenuOpen(false);
+                      }}
                     >
-                      <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                    </motion.button>
-                  </GlassTooltip>
-                );
-              })}
-            </div>
-          </div>
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0"
+                        style={{ backgroundColor: t.color }}
+                      />
+                      <span>{t.label}</span>
+                      {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <div className="editor-topbar-right min-w-0">
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => setGenUIOpen(true)}
-              title="Generative UI — generate elements with AI"
-            >
-              <Sparkles size={14} />
-              <span>Generate</span>
-            </button>
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => setPreviewOpen(true)}
-              title="Multi-screen preview"
-            >
-              <Monitor size={14} />
-              <span>Preview</span>
-            </button>
-            {/* Theme Dropdown */}
-            <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
               <button
                 type="button"
-                className="toolbar-button toolbar-button-compact"
-                onClick={() => setThemeMenuOpen((open) => !open)}
-                title="Change canvas theme"
+                className="toolbar-button editor-share-button"
+                onClick={() => setShareDialogOpen(true)}
+                title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
               >
-                <Palette size={14} />
-                <span>Theme</span>
-                <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+                <Share2 size={14} />
+                <span className="">Share</span>
               </button>
+              <motion.button
+                type="button"
+                className="toolbar-button"
+                onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
+                title="Help & Tutorial"
+                whileHover={{ y: -1, scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <HelpCircle size={14} />
+              </motion.button>
 
-              <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
-                {[
-                  { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
-                  { id: "forest", label: "Forest Moss", color: "#708238" },
-                  { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
-                  { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
-                ].map((t) => (
+              <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+                <div className="editor-topbar-right min-w-0">
                   <button
-                    key={t.id}
                     type="button"
-                    className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`}
-                    onClick={() => {
-                      setCanvasTheme(t.id as any);
-                      setThemeMenuOpen(false);
-                    }}
+                    className="toolbar-button"
+                    onClick={() => setGenUIOpen(true)}
+                    title="Generative UI — generate elements with AI"
                   >
-                    <span 
-                      className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" 
-                      style={{ backgroundColor: t.color }}
-                    />
-                    <span>{t.label}</span>
-                    {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+                    <Sparkles size={14} />
+                    <span>Generate</span>
                   </button>
-                ))}
-              </div>
-            </div>
+                  <button
+                    type="button"
+                    className="toolbar-button"
+                    onClick={() => setPreviewOpen(true)}
+                    title="Multi-screen preview"
+                  >
+                    <Monitor size={14} />
+                    <span>Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-button editor-share-button"
+                    onClick={() => setShareDialogOpen(true)}
+                    title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
+                  >
+                    <Share2 size={14} />
+                    <span className="">Share</span>
+                  </button>
+                  <motion.button
+                    type="button"
+                    className="toolbar-button"
+                    onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
+                    title="Help & Tutorial"
+                    whileHover={{ y: -1, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <HelpCircle size={14} />
+                  </motion.button>
 
-            <button
-              type="button"
-              className="toolbar-button editor-share-button"
-              onClick={() => setShareDialogOpen(true)}
-              title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
-            >
-              <Share2 size={14} />
-              <span className="">Share</span>
-            </button>
-            <motion.button
-              type="button"
-              className="toolbar-button"
-              onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
-              title="Help & Tutorial"
-              whileHover={{ y: -1, scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <HelpCircle size={14} />
-            </motion.button>
+                  <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+                    <button
+                      type="button"
+                      className="toolbar-button toolbar-button-compact editor-export-button"
+                      onClick={() => setExportMenuOpen((open) => !open)}
+                      title="Export workspace"
+                    >
+                      <Download size={14} />
+                      <span className="">Export</span>
+                      <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+                    </button>
 
-            <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
-              <button
-                type="button"
-                className="toolbar-button toolbar-button-compact editor-export-button"
-                onClick={() => setExportMenuOpen((open) => !open)}
-                title="Export workspace"
-              >
-                <Download size={14} />
-                <span className="">Export</span>
-                <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-              </button>
-
-              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPng(`${fileBase}.png`);
-                  }}
-                >
-                  PNG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                  }}
-                >
-                  JPEG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                  }}
-                >
-                  PDF
-                </button>
-              </div>
-            </div>
-            <AutoSaveBadge status={saveStatus} />
-            <ProfileMenu
-              displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
-              email={authUser.email ?? null}
-              avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
-              onLogout={async () => {
-                if (!browserClient) return;
-                await browserClient.auth.signOut();
-                router.replace("/");
-              }}
-            />
-          </div>
-        </motion.header>
-
-        <div className="workspace-layout">
-          <motion.div
-            className="workspace-dock-shell"
-            initial={false}
-            animate={{ 
-              width: activeSection ? 'auto' : 0,
-              opacity: activeSection ? 1 : 0,
-              marginRight: activeSection ? 16 : 0
-            }}
-            transition={{ duration: 0.24 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <WorkspaceSidebar
-              workspaceName={workspaceName}
-              workspaceId={workspaceIdFromUrl}
-              comments={comments}
-              commentsLoading={commentsLoading}
-              commentsError={commentsError}
-              currentUserId={authUser.id}
-              canComment={accessLevel === "comment" || canEdit}
-              onAddComment={handleAddComment}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-            />
-          </motion.div>
-
-          <motion.div
-            className="workspace-main-shell"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.14, duration: 0.24 }}
-          >
-            <AnimatePresence mode="wait">
-              {selectedElementId ? (
-                <motion.div
-                  key="canvas-selection-toolbar"
-                  className="canvas-selection-toolbar-shell"
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <Toolbar
-                      workspaceId={workspaceIdFromUrl || ""}
-                      workspaceName={workspaceName}
-                      showHistoryActions={false}
-                      showAddActions={false}
-                      showSelectionActions
-                    />
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-
-            <CanvasWorkspace
-              workspaceId={workspaceIdFromUrl}
-              currentUserId={currentUserMeta.user_id}
-              presences={presences}
-              remoteCursors={remoteCursors}
-            />
-          </motion.div>
-        </div>
-
-        <div className="editor-mobile-layout">
-          <div className="editor-mobile-tabs" role="tablist" aria-label="Editor panels">
-            {mobileTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setMobilePanel(tab.key)}
-                className={`editor-mobile-tab${mobilePanel === tab.key ? " active" : ""}`}
-                aria-pressed={mobilePanel === tab.key}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="editor-mobile-panel">
-            {mobilePanel === "canvas" ? (
-              <div className="editor-mobile-panel-inner">
-                <Toolbar workspaceId={workspaceIdFromUrl || ""} workspaceName={workspaceName} />
-                <CanvasWorkspace
-                  workspaceId={workspaceIdFromUrl || ""}
-                  currentUserId={currentUserMeta.user_id}
-                  presences={presences}
-                  remoteCursors={remoteCursors}
-                />
-              </div>
-            ) : null}
-
-            {mobilePanel === "layers" ? (
-              <div className="editor-mobile-panel-inner">
-                <LeftSidebar workspaceId={workspaceIdFromUrl || ""} />
-              </div>
-            ) : null}
-
-            {mobilePanel === "inspector" ? (
-              <div className="editor-mobile-panel-inner">
-                <RightSidebar
-                  workspaceId={workspace?.id}
-                  comments={comments}
-                  commentsLoading={commentsLoading}
-                  commentsError={commentsError}
-                  currentUserId={authUser.id}
-                  canComment={accessLevel === "comment" || canEdit}
-                  onAddComment={handleAddComment}
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-  <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} workspaceId={workspaceIdFromUrl} />
-  <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} workspaceId={workspaceIdFromUrl} />
-
-        {workspace?.id ? (
-          <ShareDialog
-            workspaceId={workspace.id}
-            workspaceName={workspaceName}
-            open={shareDialogOpen}
-            onSyncLocalWorkspace={syncLocalWorkspaceToSupabase}
-            onClose={() => setShareDialogOpen(false)}
-          />
+                    <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+                      <button
+                        type="button"
+                        className="toolbar-menu-item"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          void exportWorkspaceAsPng(`${fileBase}.png`);
+                        }}
+                      >
+                        PNG
+                      </button>
+                      <button
+                        type="button"
+                        className="toolbar-menu-item"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                        }}
+                      >
+                        JPEG
+                      </button>
+                      <button
+                        type="button"
+                        className="toolbar-menu-item"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                        }}
+                      >
+                        PDF
+                      </button>
+                    </div>
+                  </div>
+                  <AutoSaveBadge status={saveStatus} />
+                  <ProfileMenu
+                    displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
+                    email={authUser.email ?? null}
+                    avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
+                    onLogout={async () => {
+                      if (!browserClient) return;
+                      await browserClient.auth.signOut();
+                      router.replace("/");
+                    }}
+                  />
+                </div>
+              </motion.header>
         ) : null}
 
-        <CommandBrain
-          open={commandBrainOpen}
-          onClose={() => setCommandBrainOpen(false)}
-          commands={[
-            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => handleAddElement("rectangle") },
-            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => handleAddElement("circle") },
-            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => handleAddElement("text") },
-            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => handleAddElement("arrow") },
-            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => handleAddElement("star") },
-            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => handleAddElement("triangle") },
-            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => handleAddElement("diamond") },
-            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => handleAddElement("frame") },
-            { id: "undo",    label: "Undo",    category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
-            { id: "redo",    label: "Redo",    category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
-            { id: "layers",    label: "Open Layers",    category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
-            { id: "inspector", label: "Open Inspector", category: "Navigate", icon: <span>⚙</span>, action: () => setActiveSection("inspector") },
-            { id: "comments",  label: "Open Comments",  category: "Navigate", icon: <span>💬</span>, action: () => setActiveSection("comments") },
-            { id: "templates", label: "Open Templates", category: "Navigate", icon: <span>🔖</span>, action: () => setActiveSection("templates") },
-            { id: "activity",  label: "Open Activity",  category: "Navigate", icon: <span>📋</span>, action: () => setActiveSection("activity") },
-            { id: "share",   label: "Share Workspace",   category: "Workspace", icon: <span>🔗</span>, action: () => setShareDialogOpen(true) },
-            { id: "preview", label: "Multi-Screen Preview", category: "Workspace", icon: <span>📱</span>, action: () => setPreviewOpen(true) },
-            { id: "export-png", label: "Export as PNG", category: "Export", icon: <span>🖼</span>, action: () => void exportWorkspaceAsPng(`${workspaceName}.png`) },
-            { id: "export-pdf", label: "Export as PDF", category: "Export", icon: <span>📄</span>, action: () => void exportWorkspaceAsPdf(`${workspaceName}.pdf`) },
-            { id: "gen-ui",  label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
-          ] satisfies BrainCommand[]}
-        />
-        <VoiceCommandManager workspaceId={workspaceIdFromUrl || ""} />
-      </motion.section>
-    </main>
-  );
+              <div className="workspace-layout">
+                <motion.div
+                  className="workspace-dock-shell"
+                  initial={false}
+                  animate={{
+                    width: activeSection ? 'auto' : 0,
+                    opacity: activeSection ? 1 : 0,
+                    marginRight: activeSection ? 16 : 0
+                  }}
+                  transition={{ duration: 0.24 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <WorkspaceSidebar
+                    workspaceName={workspaceName}
+                    workspaceId={workspaceIdFromUrl}
+                    comments={comments}
+                    commentsLoading={commentsLoading}
+                    commentsError={commentsError}
+                    currentUserId={authUser.id}
+                    canComment={accessLevel === "comment" || canEdit}
+                    onAddComment={handleAddComment}
+                    activeSection={activeSection}
+                    setActiveSection={setActiveSection}
+                  />
+                </motion.div>
+
+                <motion.div
+                  className="workspace-main-shell"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.14, duration: 0.24 }}
+                >
+                  <AnimatePresence mode="wait">
+                    {selectedElementId ? (
+                      <motion.div
+                        key="canvas-selection-toolbar"
+                        className="canvas-selection-toolbar-shell"
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <Toolbar
+                          workspaceId={workspaceIdFromUrl || ""}
+                          workspaceName={workspaceName}
+                          showHistoryActions={false}
+                          showAddActions={false}
+                          showSelectionActions
+                        />
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+
+                  <CanvasWorkspace
+                    workspaceId={workspaceIdFromUrl}
+                    currentUserId={currentUserMeta.user_id}
+                    presences={presences}
+                    remoteCursors={remoteCursors}
+                  />
+                </motion.div>
+              </div>
+
+              <div className="editor-mobile-layout">
+                <div className="editor-mobile-tabs" role="tablist" aria-label="Editor panels">
+                  {mobileTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setMobilePanel(tab.key)}
+                      className={`editor-mobile-tab${mobilePanel === tab.key ? " active" : ""}`}
+                      aria-pressed={mobilePanel === tab.key}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="editor-mobile-panel">
+                  {mobilePanel === "canvas" ? (
+                    <div className="editor-mobile-panel-inner">
+                      <Toolbar workspaceId={workspaceIdFromUrl || ""} workspaceName={workspaceName} />
+                      <CanvasWorkspace
+                        workspaceId={workspaceIdFromUrl || ""}
+                        currentUserId={currentUserMeta.user_id}
+                        presences={presences}
+                        remoteCursors={remoteCursors}
+                      />
+                    </div>
+                  ) : null}
+
+                  {mobilePanel === "layers" ? (
+                    <div className="editor-mobile-panel-inner">
+                      <LeftSidebar workspaceId={workspaceIdFromUrl || ""} />
+                    </div>
+                  ) : null}
+
+                  {mobilePanel === "inspector" ? (
+                    <div className="editor-mobile-panel-inner">
+                      <RightSidebar
+                        workspaceId={workspace?.id}
+                        comments={comments}
+                        commentsLoading={commentsLoading}
+                        commentsError={commentsError}
+                        currentUserId={authUser.id}
+                        canComment={accessLevel === "comment" || canEdit}
+                        onAddComment={handleAddComment}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} workspaceId={workspaceIdFromUrl} />
+              <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} workspaceId={workspaceIdFromUrl} />
+
+              {workspace?.id ? (
+                <ShareDialog
+                  workspaceId={workspace.id}
+                  workspaceName={workspaceName}
+                  open={shareDialogOpen}
+                  onSyncLocalWorkspace={syncLocalWorkspaceToSupabase}
+                  onClose={() => setShareDialogOpen(false)}
+                />
+              ) : null}
+
+              <CommandBrain
+                open={commandBrainOpen}
+                onClose={() => setCommandBrainOpen(false)}
+                commands={[
+                  { id: "add-rect", label: "Add Rectangle", category: "Add Elements", icon: <span>▭</span>, action: () => handleAddElement("rectangle") },
+                  { id: "add-circle", label: "Add Circle", category: "Add Elements", icon: <span>○</span>, action: () => handleAddElement("circle") },
+                  { id: "add-text", label: "Add Text", category: "Add Elements", icon: <span>T</span>, action: () => handleAddElement("text") },
+                  { id: "add-arrow", label: "Add Arrow", category: "Add Elements", icon: <span>→</span>, action: () => handleAddElement("arrow") },
+                  { id: "add-star", label: "Add Star", category: "Add Elements", icon: <span>★</span>, action: () => handleAddElement("star") },
+                  { id: "add-triangle", label: "Add Triangle", category: "Add Elements", icon: <span>△</span>, action: () => handleAddElement("triangle") },
+                  { id: "add-diamond", label: "Add Diamond", category: "Add Elements", icon: <span>◆</span>, action: () => handleAddElement("diamond") },
+                  { id: "add-frame", label: "Add Frame", category: "Add Elements", icon: <span>⬜</span>, action: () => handleAddElement("frame") },
+                  { id: "undo", label: "Undo", category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
+                  { id: "redo", label: "Redo", category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
+                  { id: "layers", label: "Open Layers", category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
+                  { id: "inspector", label: "Open Inspector", category: "Navigate", icon: <span>⚙</span>, action: () => setActiveSection("inspector") },
+                  { id: "comments", label: "Open Comments", category: "Navigate", icon: <span>💬</span>, action: () => setActiveSection("comments") },
+                  { id: "templates", label: "Open Templates", category: "Navigate", icon: <span>🔖</span>, action: () => setActiveSection("templates") },
+                  { id: "activity", label: "Open Activity", category: "Navigate", icon: <span>📋</span>, action: () => setActiveSection("activity") },
+                  { id: "share", label: "Share Workspace", category: "Workspace", icon: <span>🔗</span>, action: () => setShareDialogOpen(true) },
+                  { id: "preview", label: "Multi-Screen Preview", category: "Workspace", icon: <span>📱</span>, action: () => setPreviewOpen(true) },
+                  { id: "export-png", label: "Export as PNG", category: "Export", icon: <span>🖼</span>, action: () => void exportWorkspaceAsPng(`${workspaceName}.png`) },
+                  { id: "export-pdf", label: "Export as PDF", category: "Export", icon: <span>📄</span>, action: () => void exportWorkspaceAsPdf(`${workspaceName}.pdf`) },
+                  { id: "gen-ui", label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
+                ] satisfies BrainCommand[]}
+              />
+              <VoiceCommandManager workspaceId={workspaceIdFromUrl || ""} />
+            </motion.section>
+          </main>
+        );
 }
