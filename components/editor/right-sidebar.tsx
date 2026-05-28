@@ -538,7 +538,7 @@ export function RightSidebar({
 
             <ElementTimeTravelSlider workspaceId={workspaceId ?? ""} />
 
-            {false && selectedElement.type === "video" && (
+            {selectedElement && selectedElement.type === "video" && (
               <div className="inspector-section">
                 <p className="inspector-section-title">Video Controls</p>
                 <VideoTrimControls workspaceId={workspaceId} elementId={selectedElement.id} element={selectedElement} />

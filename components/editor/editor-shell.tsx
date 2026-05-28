@@ -1146,295 +1146,107 @@ export function EditorShell() {
         className="editor-shell relative z-10"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.28 }}
-      >
-        {!previewOpen ? (
-          <motion.header
-            className="editor-topbar"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.06, duration: 0.24 }}
-          >
-            <div className="editor-topbar-left min-w-0">
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-                    {workspace?.owner_id !== authUser.id ? (
-                      <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
-                        {accessLevel}
-                      </span>
-                    ) : (
-                      <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 opacity-60">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
-                    <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
-                      {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
-                    </span>
-                  </div>
-                </div>
-                <div className="workspace-name-wrap">
-                  {isRenamingWorkspace ? (
-                    <>
-                      <input
-                        type="text"
-                        className="workspace-name-input"
-                        value={workspaceNameDraft}
-                        onChange={(event) => setWorkspaceNameDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void handleWorkspaceRenameSubmit();
-                          }
-                          if (event.key === "Escape") {
-                            event.preventDefault();
-                            handleWorkspaceRenameCancel();
-                          }
-                        }}
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        className="workspace-name-action"
-                        onClick={() => void handleWorkspaceRenameSubmit()}
-                        disabled={workspaceRenameSaving}
-                        title="Save workspace name"
-                      >
-                        {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
-                      </button>
-                      <button
-                        type="button"
-                        className="workspace-name-action"
-                        onClick={handleWorkspaceRenameCancel}
-                        disabled={workspaceRenameSaving}
-                        title="Cancel rename"
-                      >
-                        <X size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
-                      {canRenameWorkspace ? (
-                        <button
-                          type="button"
-                          className="workspace-name-action"
-                          onClick={() => setIsRenamingWorkspace(true)}
-                          title="Rename workspace"
-                        >
-                          <Pencil size={12} />
-                        </button>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </div>
+        transition={{ duration: 0.28 }}>
+      
+        {!previewOpen && (
+  <motion.header
+    className="editor-topbar"
+    initial={{ opacity: 0, y: -8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.06, duration: 0.24 }}
+  >
+    <div className="editor-topbar-left min-w-0">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+            {workspace?.owner_id !== authUser.id ? (
+              <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">{accessLevel}</span>
+            ) : (
+              <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 opacity-60">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
+            <span className="text-[9px] font-medium text-[#2d3436] bg-[#D5A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+              {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+            </span>
+          </div>
+        </div>
+        <div className="workspace-name-wrap">
+          {isRenamingWorkspace ? (
+            <>
+              <input type="text" className="workspace-name-input" value={workspaceNameDraft} onChange={(event) => setWorkspaceNameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void handleWorkspaceRenameSubmit(); } if (event.key === "Escape") { event.preventDefault(); handleWorkspaceRenameCancel(); } }} autoFocus />
+              <button type="button" className="workspace-name-action" onClick={() => void handleWorkspaceRenameSubmit()} disabled={workspaceRenameSaving} title="Save workspace name">
+                {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
+              </button>
+              <button type="button" className="workspace-name-action" onClick={handleWorkspaceRenameCancel} disabled={workspaceRenameSaving} title="Cancel rename">
+                <X size={14} />
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
+              {canRenameWorkspace && (
+                <button type="button" className="workspace-name-action" onClick={() => setIsRenamingWorkspace(true)} title="Rename workspace"><Pencil size={12} /></button>
+              )}
             </div>
-
-            <div className="editor-topbar-center">
-              <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
-                {NAV_SECTIONS.map((section) => {
-                  const Icon = section.icon;
-                  const active = activeSection === section.id;
-                  return (
-                    <GlassTooltip key={section.id} content={section.label}>
-                      <motion.button
-                        type="button"
-                        onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                        className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"
-                          }`}
-                        whileHover={{ scale: 1.08 }}
-                        whileTap={{ scale: 0.93 }}
-                      >
-                        <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                      </motion.button>
-                    </GlassTooltip>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="editor-topbar-right min-w-0">
-              <button
-                type="button"
-                className="toolbar-button"
-                onClick={() => setGenUIOpen(true)}
-                title="Generative UI — generate elements with AI"
-              >
-                <Sparkles size={14} />
-                <span>Generate</span>
-              </button>
-              <button
-                type="button"
-                className="toolbar-button"
-                onClick={() => setPreviewOpen(true)}
-                title="Multi-screen preview"
-              >
-                <Monitor size={14} />
-                <span>Preview</span>
-              </button>
-              {/* Theme Dropdown */}
-              <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
-                <button
-                  type="button"
-                  className="toolbar-button toolbar-button-compact"
-                  onClick={() => setThemeMenuOpen((open) => !open)}
-                  title="Change canvas theme"
-                >
-                  <Palette size={14} />
-                  <span>Theme</span>
-                  <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-                </button>
-
-                <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
-                  {[
-                    { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
-                    { id: "forest", label: "Forest Moss", color: "#708238" },
-                    { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
-                    { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`}
-                      onClick={() => {
-                        setCanvasTheme(t.id as any);
-                        setThemeMenuOpen(false);
-                      }}
-                    >
-                      <span
-                        className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0"
-                        style={{ backgroundColor: t.color }}
-                      />
-                      <span>{t.label}</span>
-                      {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="toolbar-button editor-share-button"
-                onClick={() => setShareDialogOpen(true)}
-                title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
-              >
-                <Share2 size={14} />
-                <span className="">Share</span>
-              </button>
-              <motion.button
-                type="button"
-                className="toolbar-button"
-                onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
-                title="Help & Tutorial"
-                whileHover={{ y: -1, scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <HelpCircle size={14} />
+          )}
+        </div>
+      </div>
+    </div>
+    <div className="editor-topbar-center">
+      <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border-[#D3A5B1]/10 backdrop-blur-md">
+        {NAV_SECTIONS.map((section) => {
+          const Icon = section.icon;
+          const active = activeSection === section.id;
+          return (
+            <GlassTooltip key={section.id} content={section.label}>
+              <motion.button type="button" onClick={() => setActiveSection(current => current === section.id ? null : section.id)} className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"}`} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.93 }}>
+                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
               </motion.button>
-
-              <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
-                <div className="editor-topbar-right min-w-0">
-                  <button
-                    type="button"
-                    className="toolbar-button"
-                    onClick={() => setGenUIOpen(true)}
-                    title="Generative UI — generate elements with AI"
-                  >
-                    <Sparkles size={14} />
-                    <span>Generate</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="toolbar-button"
-                    onClick={() => setPreviewOpen(true)}
-                    title="Multi-screen preview"
-                  >
-                    <Monitor size={14} />
-                    <span>Preview</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="toolbar-button editor-share-button"
-                    onClick={() => setShareDialogOpen(true)}
-                    title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
-                  >
-                    <Share2 size={14} />
-                    <span className="">Share</span>
-                  </button>
-                  <motion.button
-                    type="button"
-                    className="toolbar-button"
-                    onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
-                    title="Help & Tutorial"
-                    whileHover={{ y: -1, scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <HelpCircle size={14} />
-                  </motion.button>
-
-                  <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
-                    <button
-                      type="button"
-                      className="toolbar-button toolbar-button-compact editor-export-button"
-                      onClick={() => setExportMenuOpen((open) => !open)}
-                      title="Export workspace"
-                    >
-                      <Download size={14} />
-                      <span className="">Export</span>
-                      <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
-                    </button>
-
-                    <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
-                      <button
-                        type="button"
-                        className="toolbar-menu-item"
-                        onClick={() => {
-                          setExportMenuOpen(false);
-                          void exportWorkspaceAsPng(`${fileBase}.png`);
-                        }}
-                      >
-                        PNG
-                      </button>
-                      <button
-                        type="button"
-                        className="toolbar-menu-item"
-                        onClick={() => {
-                          setExportMenuOpen(false);
-                          void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                        }}
-                      >
-                        JPEG
-                      </button>
-                      <button
-                        type="button"
-                        className="toolbar-menu-item"
-                        onClick={() => {
-                          setExportMenuOpen(false);
-                          void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                        }}
-                      >
-                        PDF
-                      </button>
-                    </div>
-                  </div>
-                  <AutoSaveBadge status={saveStatus} />
-                  <ProfileMenu
-                    displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
-                    email={authUser.email ?? null}
-                    avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
-                    onLogout={async () => {
-                      if (!browserClient) return;
-                      await browserClient.auth.signOut();
-                      router.replace("/");
-                    }}
-                  />
-                </div>
-              </motion.header>
-        ) : null}
-
+            </GlassTooltip>
+          );
+        })}
+      </div>
+    </div>
+    <div className="editor-topbar-right min-w-0">
+      <button type="button" className="toolbar-button" onClick={() => setGenUIOpen(true)} title="Generative UI — generate elements with AI"><Sparkles size={14} /><span>Generate</span></button>
+      <button type="button" className="toolbar-button" onClick={() => setPreviewOpen(true)} title="Multi-screen preview"><Monitor size={14} /><span>Preview</span></button>
+      {/* Theme Dropdown */}
+      <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
+        <button type="button" className="toolbar-button toolbar-button-compact" onClick={() => setThemeMenuOpen(open => !open)} title="Change canvas theme">
+          <Palette size={14} />
+          <span>Theme</span>
+          <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+        </button>
+        <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
+          {[{ id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" }, { id: "forest", label: "Forest Moss", color: "#708238" }, { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" }, { id: "sunset", label: "Sunset Dusk", color: "#d97d41" }].map((t) => (
+            <button key={t.id} type="button" className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`} onClick={() => { setCanvasTheme(t.id as any); setThemeMenuOpen(false); }}>
+              <span className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" style={{ backgroundColor: t.color }} />
+              <span>{t.label}</span>
+              {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button type="button" className="toolbar-button editor-share-button" onClick={() => setShareDialogOpen(true)} title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}><Share2 size={14} /><span>Share</span></button>
+      <motion.button type="button" className="toolbar-button" onClick={() => window.dispatchEvent(new CustomEvent('start-tutorial'))} title="Help & Tutorial" whileHover={{ y: -1, scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <HelpCircle size={14} />
+      </motion.button>
+      <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+        <button type="button" className="toolbar-button toolbar-button-compact editor-export-button" onClick={() => setExportMenuOpen(open => !open)} title="Export workspace"><Download size={14} /><span>Export</span><ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} /></button>
+        <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+          <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsPng(`${fileBase}.png`); }}>PNG</button>
+          <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsJpeg(`${fileBase}.jpeg`); }}>JPEG</button>
+          <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsPdf(`${fileBase}.pdf`); }}>PDF</button>
+        </div>
+      </div>
+      <AutoSaveBadge status={saveStatus} />
+      <ProfileMenu displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)} email={authUser.email ?? null} avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null} onLogout={async () => { if (!browserClient) return; await browserClient.auth.signOut(); router.replace("/"); }} />
+    </div>
+  </motion.header>
+)}
               <div className="workspace-layout">
                 <motion.div
                   className="workspace-dock-shell"

@@ -223,7 +223,7 @@ function getBoxAnchors(
 function getAllowedAnchorMatch(
   axis: "x" | "y",
   currentAnchor: SnapAxisAnchor,
-  targetAnchor: SnapAxisAnchor,
+  targetAnchor: { name: SnapAxisAnchor["name"] },
   targetKind: SnapTarget["kind"]
 ) {
   if (axis === "x") {
@@ -259,8 +259,8 @@ function getAllowedAnchorMatch(
   );
 }
 
-function snapBoxToTargets(
-  box: { x: number; y: number; width: number; height: number },
+function snapBoxToTargets<T extends { x: number; y: number; width: number; height: number }>(
+  box: T,
   targets: SnapTarget[],
   stageWidth: number,
   stageHeight: number,
@@ -548,7 +548,7 @@ export function KonvaStageWorkspace({
     return getPositionFromBox(element, result.box);
   }, [STAGE_HEIGHT, STAGE_WIDTH, buildSnapTargets, clearSnapGuides, setSnapGuidesIfChanged]);
 
-  const applyTransformSnap = useCallback((element: CanvasElement, box: { x: number; y: number; width: number; height: number }) => {
+  const applyTransformSnap = useCallback(<T extends { x: number; y: number; width: number; height: number }>(element: CanvasElement, box: T): T => {
     if (!isSnappableType(element.type)) {
       clearSnapGuides();
       return box;

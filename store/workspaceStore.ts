@@ -816,6 +816,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       eraserSize: 10,
       elementHistory: {},
       timeTravelCursor: {},
+      timeTravelBaseline: {},
       activityLog: [],
       elevations: {},
 
