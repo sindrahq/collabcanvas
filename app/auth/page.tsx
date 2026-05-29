@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient, getSessionSafely, setSupabaseSessionPersis
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
+import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
 
 function AuthPage() {
   const router = useRouter();
@@ -14,6 +15,8 @@ function AuthPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const nextPath = searchParams.get("next") || "/projects";
+
+  const theme = useGlobalThemeStore((s) => s.theme);
 
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [firstName, setFirstName] = useState("");
@@ -222,9 +225,9 @@ function AuthPage() {
     <main className="min-h-screen text-[#1a1a1a] relative overflow-hidden">
       {/* Background Assets */}
       <div 
-        className="fixed inset-0 pointer-events-none z-[0]"
+        className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
         style={{
-          backgroundImage: "url('https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2670&auto=format&fit=crop')",
+          backgroundImage: `url(${THEME_BACKGROUNDS[theme] || THEME_BACKGROUNDS.cherry})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -232,9 +235,9 @@ function AuthPage() {
       <div className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" />
       
       <div className="relative z-10 w-full h-full min-h-screen">
-        <PastelBlobBackground />
+        <PastelBlobBackground theme={theme} />
         <CustomCursor />
-        <FallingPetals variant="lavender" />
+        <FallingPetals theme={theme} />
 
         <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-6 py-12 relative z-20">
           <div className="mb-8 text-center">

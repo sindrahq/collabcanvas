@@ -102,7 +102,8 @@ export function VibeCheckPanel({ workspaceId }: { workspaceId?: string | null })
       if (t === "shape") return "Shape";
       if (t === "frame") return "Frame";
       if (t === "image" || t === "video") return "Media";
-      return t.charAt(0).toUpperCase() + t.slice(1);
+      const str = t as string;
+      return str.charAt(0).toUpperCase() + str.slice(1);
     });
     return mapped.join(" / ") + " styling";
   }

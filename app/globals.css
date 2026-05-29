@@ -101,6 +101,50 @@ body.cc-workspace-theme {
   --pastel-lavender: #FF8EAA;
 }
 
+body.cc-workspace-theme.theme-cherry {
+  --accent: #D3A5B1;
+  --accent-soft: rgba(211, 165, 177, 0.16);
+  --accent-soft-2: rgba(211, 165, 177, 0.28);
+  --muted: #645C52;
+  --line: rgba(211, 165, 177, 0.14);
+  --line-strong: rgba(211, 165, 177, 0.2);
+  --pastel-peach: #F0C3D1;
+  --pastel-lavender: #FF8EAA;
+}
+
+body.cc-workspace-theme.theme-forest {
+  --accent: #708238;
+  --accent-soft: rgba(112, 130, 56, 0.16);
+  --accent-soft-2: rgba(112, 130, 56, 0.28);
+  --muted: #555e37;
+  --line: rgba(112, 130, 56, 0.14);
+  --line-strong: rgba(112, 130, 56, 0.2);
+  --pastel-peach: #d2e3bd;
+  --pastel-lavender: #8ea358;
+}
+
+body.cc-workspace-theme.theme-ocean {
+  --accent: #3b7bb8;
+  --accent-soft: rgba(59, 123, 184, 0.16);
+  --accent-soft-2: rgba(59, 123, 184, 0.28);
+  --muted: #3d5975;
+  --line: rgba(59, 123, 184, 0.14);
+  --line-strong: rgba(59, 123, 184, 0.2);
+  --pastel-peach: #bde3f0;
+  --pastel-lavender: #589fa3;
+}
+
+body.cc-workspace-theme.theme-sunset {
+  --accent: #d97d41;
+  --accent-soft: rgba(217, 125, 65, 0.16);
+  --accent-soft-2: rgba(217, 125, 65, 0.28);
+  --muted: #75553d;
+  --line: rgba(217, 125, 65, 0.14);
+  --line-strong: rgba(217, 125, 65, 0.2);
+  --pastel-peach: #f0d5bd;
+  --pastel-lavender: #a37a58;
+}
+
 body.cc-workspace-theme::before {
   display: none;
 }
@@ -278,7 +322,7 @@ body.cc-workspace-theme .workspace-aura {
   transform: translate(-50%, -50%);
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle, rgba(255, 148, 180, 0.25) 0%, rgba(211, 165, 177, 0.1) 40%, transparent 70%);
+  background: radial-gradient(circle, var(--accent-soft-2) 0%, var(--accent-soft) 40%, transparent 70%);
   z-index: 0;
   pointer-events: none;
   filter: blur(80px);
@@ -320,8 +364,8 @@ body.cc-workspace-theme .editor-topbar {
 }
 
 body.cc-workspace-theme .editor-logo-mark {
-  background: linear-gradient(180deg, #e1b4bf, #c998a5);
-  box-shadow: 0 0 0 6px rgba(211, 165, 177, 0.2);
+  background: linear-gradient(180deg, var(--accent), var(--pastel-peach));
+  box-shadow: 0 0 0 6px var(--accent-soft);
 }
 
 body.cc-workspace-theme .editor-heading,
