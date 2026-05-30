@@ -16,10 +16,12 @@ import { WorkspaceSidebar, type WorkspaceSidebarSection } from "@/components/edi
 import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import {
+  acquireSelectionLock,
   initPresenceChannel,
   leavePresenceChannel,
   onCursorBroadcast,
   onElementClickBroadcast,
+  onSelectionBroadcast,
   type PresenceMeta,
 } from "@/lib/collaboration";
 import { CommandBrain, type BrainCommand } from "@/components/editor/command-brain";
@@ -40,6 +42,7 @@ import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 import { InteractiveTutorial } from "@/components/ui/interactive-tutorial";
 import { VoiceCommandManager } from "@/components/voice/VoiceCommandManager";
 import { Bookmark } from "lucide-react";
+import { usePresenceStore } from "@/store/presenceStore";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -186,6 +189,7 @@ export function EditorShell() {
   const useStore = useWorkspaceStoreFactory(workspaceIdFromUrl);
 
   const selectedElementId = useStore((s) => s.selectedElementId);
+  const selectElement = useStore((s) => s.selectElement);
   const duplicateSelectedElement = useStore((s) => s.duplicateSelectedElement);
   const deleteSelectedElement = useStore((s) => s.deleteSelectedElement);
   const copySelectedElement = useStore((s) => s.copySelectedElement);
@@ -270,6 +274,9 @@ export function EditorShell() {
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState(workspaceName);
   const [workspaceRenameSaving, setWorkspaceRenameSaving] = useState(false);
   const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
+  const setLocalUserId = usePresenceStore((s) => s.setLocalUserId);
+  const updatePresenceUser = usePresenceStore((s) => s.updateUser);
+  const removePresenceUser = usePresenceStore((s) => s.removeUser);
   // Duplicate declaration removed
   const nextPath = useMemo(() => {
     const query = searchParams.toString();
@@ -757,18 +764,55 @@ export function EditorShell() {
     }
 
     initPresenceChannel(workspace.id, currentUserMeta, {
-      onSync: (nextPresences) => setPresences(nextPresences),
-      onJoin: (userId, meta) => setPresences((previous) => ({ ...previous, [userId]: meta })),
-      onLeave: (userId) =>
+      onSync: (nextPresences) => {
+        setPresences(nextPresences);
+
+        const nextIds = new Set(Object.keys(nextPresences));
+        for (const [userId, meta] of Object.entries(nextPresences)) {
+          updatePresenceUser(userId, meta);
+        }
+        const currentUsers = usePresenceStore.getState().users;
+        for (const userId of Object.keys(currentUsers)) {
+          if (!nextIds.has(userId)) {
+            removePresenceUser(userId);
+          }
+        }
+        setRemoteCursors((previous) => {
+          const next = { ...previous };
+          for (const userId of Object.keys(next)) {
+            if (!nextIds.has(userId)) {
+              delete next[userId];
+            }
+          }
+          return Object.keys(next).length === Object.keys(previous).length ? previous : next;
+        });
+      },
+      onJoin: (userId, meta) => {
+        setPresences((previous) => ({ ...previous, [userId]: meta }));
+        updatePresenceUser(userId, meta);
+      },
+      onLeave: (userId) => {
         setPresences((previous) => {
           const next = { ...previous };
           delete next[userId];
           return next;
-        }),
+        });
+        removePresenceUser(userId);
+        setRemoteCursors((previous) => {
+          if (!(userId in previous)) return previous;
+          const next = { ...previous };
+          delete next[userId];
+          return next;
+        });
+      },
     });
 
     return () => leavePresenceChannel();
-  }, [workspace?.id, currentUserMeta]);
+  }, [workspace?.id, currentUserMeta, removePresenceUser, updatePresenceUser]);
+
+  useEffect(() => {
+    setLocalUserId(currentUserMeta.user_id);
+  }, [currentUserMeta.user_id, setLocalUserId]);
 
   useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__") return;
@@ -803,6 +847,35 @@ export function EditorShell() {
 
     return unsubscribe;
   }, [currentUserMeta.user_id]);
+
+  useEffect(() => {
+    const unsubscribe = onSelectionBroadcast(({ user_id, element_id }) => {
+      if (user_id === currentUserMeta.user_id) return;
+      updatePresenceUser(user_id, { selection: element_id });
+      setPresences((previous) => {
+        const existing = previous[user_id];
+        if (!existing) return previous;
+        return {
+          ...previous,
+          [user_id]: {
+            ...existing,
+            selection: element_id,
+          },
+        };
+      });
+    });
+
+    return unsubscribe;
+  }, [currentUserMeta.user_id, updatePresenceUser]);
+
+  useEffect(() => {
+    if (!workspace?.id || workspace.owner_id === "__loading__") return;
+
+    const result = acquireSelectionLock(currentUserMeta.user_id, selectedElementId);
+    if (!result.ok && selectedElementId) {
+      selectElement(null);
+    }
+  }, [currentUserMeta.user_id, selectedElementId, selectElement, workspace?.id, workspace?.owner_id]);
 
   // Collaborative elevation: boost shadow when remote users click the same element
   useEffect(() => {

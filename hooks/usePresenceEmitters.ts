@@ -18,8 +18,8 @@ const throttle = (func: (...args: any[]) => void, wait: number) => {
   };
 };
 import {
+  acquireSelectionLock,
   broadcastCursor,
-  broadcastSelection,
   broadcastTyping,
   broadcastViewport,
   onCursorBroadcast,
@@ -46,7 +46,7 @@ export function usePresenceEmitters() {
   );
 
   const sendSelection = useCallback((elementId: string | null) => {
-    broadcastSelection(localUserId, elementId);
+    acquireSelectionLock(localUserId, elementId);
   }, [localUserId]);
 
   const sendTyping = useCallback((isTyping: boolean) => {
@@ -70,9 +70,9 @@ export function usePresenceEmitters() {
       updateUser(user_id, { selection: element_id });
     });
     const cleanupTyping = onTypingBroadcast((payload) => {
-      const { user_id, typing } = payload;
-      if (user_id === localUserId) return;
-      updateUser(user_id, { typing });
+      const { userId, isTyping } = payload;
+      if (userId === localUserId) return;
+      updateUser(userId, { typing: isTyping });
     });
     const cleanupViewport = onViewportBroadcast((payload) => {
       const { user_id, zoom, panX, panY } = payload;

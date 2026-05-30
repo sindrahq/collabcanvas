@@ -771,6 +771,10 @@ export function KonvaStageWorkspace({
               eraseAtCurrentPos();
               return;
             }
+          } catch (e) {
+            // ignore errors reading pointer
+          }
+
           if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
           const pos = getStagePos(event);
           if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
