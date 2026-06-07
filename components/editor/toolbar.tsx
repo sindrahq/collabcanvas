@@ -6,7 +6,8 @@ import {
   Baseline, Bold, Circle, Copy, Crop, Eraser,
   Italic, Minus, Pencil, Redo2, RectangleHorizontal, Sparkles,
   Star, Trash2, Triangle, Type, Undo2, Image as ImageIcon, Magnet, LayoutGrid,
-  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video
+  Hexagon, Heart, Cloud, Diamond, Shield, Octagon, Zap, Sun, Moon, Video,
+  FolderOpen, Bookmark
 } from "lucide-react";
 import { type CanvasElementStyle, useWorkspaceStoreFactory, type WorkspaceState, useWorkspaceStore } from "@/store/workspaceStore";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
@@ -162,6 +163,8 @@ export function Toolbar({
   showHistoryActions = true,
   showAddActions = true,
   showSelectionActions = true,
+  openAssetLibrary,
+  openTemplatePicker,
 }: {
   workspaceId: string;
   workspaceName: string;
@@ -169,6 +172,8 @@ export function Toolbar({
   showHistoryActions?: boolean;
   showAddActions?: boolean;
   showSelectionActions?: boolean;
+  openAssetLibrary?: () => void;
+  openTemplatePicker?: () => void;
 }) {
   const store = useWorkspaceStoreFactory(workspaceId);
   const selectedElementId        = store((s: WorkspaceState) => s.selectedElementId);
@@ -358,6 +363,32 @@ export function Toolbar({
             <AddVideoButton />
           </div>
           <div className="toolbar-divider" style={{ margin: '12px 0', opacity: 0.06, backgroundColor: '#8b7355' }} />
+          <GlassTooltip content="Asset Library">
+            <motion.button
+              type="button"
+              className="toolbar-icon-btn toolbar-shape-btn"
+              onClick={openAssetLibrary}
+              disabled={!canEdit}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <FolderOpen size={15} />
+            </motion.button>
+          </GlassTooltip>
+
+          {/* Template Picker button */}
+          <GlassTooltip content="Template Picker">
+            <motion.button
+              type="button"
+              className="toolbar-icon-btn toolbar-shape-btn"
+              onClick={openTemplatePicker}
+              disabled={!canEdit}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Bookmark size={15} />
+            </motion.button>
+          </GlassTooltip>
 
           {/* Grid Snap Toggle */}
           <span className="toolbar-subheading" style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#636E72', marginBottom: 6, display: 'block' }}>Grid</span>

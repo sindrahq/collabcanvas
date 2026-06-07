@@ -192,13 +192,14 @@ body.cc-workspace-theme .editor-topbar {
   width: calc(100% - 32px);
   max-width: 1600px;
   box-shadow: 0 16px 64px rgba(0, 0, 0, 0.06);
-  display: flex !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center !important;
-  justify-content: space-between !important;
+  justify-content: normal !important;
   position: relative;
   z-index: 1000;
   height: 72px;
-  gap: 8px !important;
+  column-gap: 16px !important;
   overflow: visible !important;
 }
 
@@ -247,7 +248,9 @@ body.cc-workspace-theme .editor-topbar-center {
   align-items: center;
   flex-shrink: 0;
   overflow: visible;
-  margin-right: 40px;
+  width: max-content;
+  justify-self: center;
+  margin-right: 0;
 }
 
 body.cc-workspace-theme .editor-topbar-center > div {
@@ -256,10 +259,11 @@ body.cc-workspace-theme .editor-topbar-center > div {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(211, 165, 177, 0.2);
   border-radius: 9999px;
-  padding: 4px 8px;
-  display: flex;
+  padding: 4px 6px;
+  display: inline-flex;
   gap: 6px;
   white-space: nowrap;
+  width: max-content;
 }
 
 body.cc-workspace-theme .editor-topbar-right {
