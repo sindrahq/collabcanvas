@@ -7,7 +7,6 @@ import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
   broadcastCameraSync,
   broadcastCursor,
-  normalizeCoords,
   onCameraSyncBroadcast,
   type PresenceMeta
 } from "@/lib/collaboration";
@@ -38,13 +37,12 @@ type CanvasWorkspaceProps = {
   currentUserId: string;
   presences: Record<string, PresenceMeta>;
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
+  onRealtimeCursorMove?: (x: number, y: number) => void;
 };
 
-export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors, onRealtimeCursorMove }: CanvasWorkspaceProps) {
   const store = useWorkspaceStoreFactory(workspaceId);
   const canvasDimensions    = store((s: WorkspaceState) => s.canvasDimensions);
-  const canEdit             = store((s: WorkspaceState) => s.canEdit);
-  const elements            = store((s: WorkspaceState) => s.elements);
   const isFollowing         = usePresenceStore((s) => !!s.followedUserId);
   const updatePresenceUser  = usePresenceStore((s) => s.updateUser);
 
@@ -231,6 +229,7 @@ function getTouchDistance(touches: React.TouchList) {
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
           broadcastCursor(currentUserId, x, y);
+          onRealtimeCursorMove?.(x, y);
         }}
       >
         <div

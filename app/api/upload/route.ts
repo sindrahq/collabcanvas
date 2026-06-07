@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export const runtime = 'edge'; // or 'nodejs' if you need Node APIs
+import { NextRequest, NextResponse } from "next/server";
+import {
+  applyRequestCookies,
+  createAuthenticatedRequestClients,
+} from "@/lib/supabase/request";
 
 export async function POST(req: NextRequest) {
+  const { user, dbClient, cookiesToSet } = await createAuthenticatedRequestClients(req);
+  if (!user) {
+    return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
+  }
+
   // Only allow multipart/form-data
   const contentType = req.headers.get('content-type') || '';
   if (!contentType.includes('multipart/form-data')) {
@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
 
   // Generate unique filename
   const ext = file.type === 'image/png' ? 'png' : 'jpg';
-  const filename = `uploads/${crypto.randomUUID()}.${ext}`;
+  const filename = `${user.id}/${crypto.randomUUID()}.${ext}`;
 
   // Upload to Supabase Storage
-  const { data, error } = await supabase.storage
+  const { error } = await dbClient.storage
     .from('user-uploads')
     .upload(filename, file.stream(), {
       contentType: file.type,
@@ -46,9 +46,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Get public URL
-  const { data: publicUrlData } = supabase.storage
-    .from('user-uploads')
-    .getPublicUrl(filename);
+  const { data: signedData, error: signedError } = await dbClient.storage
+    .from("user-uploads")
+    .createSignedUrl(filename, 60 * 60);
+  if (signedError) {
+    return NextResponse.json({ error: signedError.message }, { status: 500 });
+  }
 
-  return NextResponse.json({ url: publicUrlData.publicUrl });
+  return applyRequestCookies(
+    NextResponse.json({ url: signedData.signedUrl }),
+    cookiesToSet
+  );
 }

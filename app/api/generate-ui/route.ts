@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const promptText = `${SYSTEM_PROMPT}\n${prompt}`;
   let lastErrorText = "";
-  let data: any = null;
+  let data: unknown = null;
 
   for (const model of preferredModels) {
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
       data = await res.json();
       // success
       break;
-    } catch (err: any) {
-      lastErrorText = String(err?.message ?? err);
+    } catch (err) {
+      lastErrorText = err instanceof Error ? err.message : String(err);
       continue;
     }
   }
@@ -62,7 +62,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `AI API error: ${lastErrorText}` }, { status: 502 });
   }
   // Gemini returns candidates[0].content.parts[0].text
-  let text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+  const geminiData = data as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  let text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
   // Log raw output for debugging
   console.log("[Gemini raw output]", text);
 

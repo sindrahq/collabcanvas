@@ -24,6 +24,8 @@ type WorkspaceSidebarProps = {
   onAddComment: (message: string, targetElementId: string | null) => Promise<void>;
   activeSection: WorkspaceSidebarSection | null;
   setActiveSection: (section: WorkspaceSidebarSection | null) => void;
+  openAssetLibrary?: () => void;
+  openTemplatePicker?: () => void;
 };
 
 export function WorkspaceSidebar({
@@ -37,6 +39,8 @@ export function WorkspaceSidebar({
   onAddComment,
   activeSection,
   setActiveSection,
+  openAssetLibrary,
+  openTemplatePicker,
 }: WorkspaceSidebarProps) {
   const panelVisible = activeSection !== null;
 
@@ -70,6 +74,8 @@ export function WorkspaceSidebar({
               workspaceName={workspaceName}
               layout="vertical"
               showSelectionActions={false}
+              openAssetLibrary={openAssetLibrary}
+              openTemplatePicker={openTemplatePicker}
             />
           ) : null}
           {activeSection === "inspector" ? (

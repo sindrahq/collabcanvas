@@ -127,7 +127,7 @@ export function CommandBrain({ open, onClose, commands }: CommandBrainProps) {
 
             <div className="command-brain-list" ref={listRef}>
               {filtered.length === 0 ? (
-                <div className="command-brain-empty">No commands match "{query}"</div>
+                <div className="command-brain-empty">No commands match &quot;{query}&quot;</div>
               ) : (
                 Object.entries(groups).map(([category, cmds]) => (
                   <div key={category} className="command-brain-group">

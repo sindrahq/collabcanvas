@@ -1,9 +1,33 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Mic, MicOff, Volume2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Mic, MicOff } from "lucide-react";
 import { processVoiceCommand } from "@/lib/voice/commandProcessor";
 import { motion, AnimatePresence } from "framer-motion";
+
+type SpeechRecognitionEventResult = {
+  0: { transcript: string };
+};
+
+type SpeechRecognitionEventLike = {
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionEventResult;
+  };
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 export function VoiceCommandManager({ workspaceId }: { workspaceId: string }) {
   const [isListening, setIsListening] = useState(false);
@@ -16,7 +40,7 @@ export function VoiceCommandManager({ workspaceId }: { workspaceId: string }) {
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = ((window as Record<string, unknown>).SpeechRecognition || (window as Record<string, unknown>).webkitSpeechRecognition) as SpeechRecognitionConstructor;
     const recognition = new SpeechRecognition();
 
     recognition.continuous = false; 
@@ -25,7 +49,7 @@ export function VoiceCommandManager({ workspaceId }: { workspaceId: string }) {
     
     let active = true;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const current = event.results[event.results.length - 1];
       const text = current[0].transcript.toLowerCase();
       setTranscript(text);
@@ -41,18 +65,18 @@ export function VoiceCommandManager({ workspaceId }: { workspaceId: string }) {
 
     recognition.onerror = () => {
       if (isListening && active) {
-        try { recognition.start(); } catch(e) {}
+        try { recognition.start(); } catch {}
       }
     };
 
     recognition.onend = () => {
       if (isListening && active) {
-        try { recognition.start(); } catch(e) {}
+        try { recognition.start(); } catch {}
       }
     };
 
     if (isListening) {
-      try { recognition.start(); } catch (e) {}
+      try { recognition.start(); } catch {}
     } else {
       recognition.stop();
     }
@@ -61,7 +85,7 @@ export function VoiceCommandManager({ workspaceId }: { workspaceId: string }) {
       active = false;
       recognition.stop();
     };
-  }, [isListening]);
+  }, [isListening, workspaceId]);
 
   return (
     <div className="fixed bottom-6 right-24 z-[100] flex items-center gap-3">

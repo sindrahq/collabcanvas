@@ -1,8 +1,8 @@
-import { useCallback, useEffect } from 'react';
-const throttle = (func: (...args: any[]) => void, wait: number) => {
+import { useCallback, useEffect, useMemo } from 'react';
+const throttle = <T extends unknown[]>(func: (...args: T) => void, wait: number) => {
   let timeout: NodeJS.Timeout | null = null;
-  let lastArgs: any;
-  return (...args: any[]) => {
+  let lastArgs: T | null = null;
+  return (...args: T) => {
     if (!timeout) {
       func(...args);
       timeout = setTimeout(() => {
@@ -26,7 +26,6 @@ import {
   onSelectionBroadcast,
   onTypingBroadcast,
   onViewportBroadcast,
-  PresenceMeta,
 } from '@/lib/collaboration';
 import { usePresenceStore } from '@/store/presenceStore';
 
@@ -38,8 +37,8 @@ export function usePresenceEmitters() {
   const updateUser = usePresenceStore((s) => s.updateUser);
 
   // Throttled cursor emitter (50ms)
-  const sendCursor = useCallback(
-    throttle((x: number, y: number) => {
+  const sendCursor = useMemo(
+    () => throttle((x: number, y: number) => {
       broadcastCursor(localUserId, x, y);
     }, 50),
     [localUserId]

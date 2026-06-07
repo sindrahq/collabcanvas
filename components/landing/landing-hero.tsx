@@ -14,6 +14,7 @@ import { TiltImage } from "@/components/landing/tilt-image";
 import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
 import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
+import type { CanvasTheme } from "@/store/workspaceStore";
 
 type SectionId = "features" | "templates" | "about";
 
@@ -219,7 +220,7 @@ export function LandingHero() {
                           className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-black/[0.03] ${theme === t.id ? "font-bold" : "font-medium"}`}
                           style={{ color: theme === t.id ? "var(--accent)" : "#2D3436" }}
                           onClick={() => {
-                            setTheme(t.id as any);
+                            setTheme(t.id as CanvasTheme);
                             setThemeMenuOpen(false);
                           }}
                         >
@@ -442,7 +443,7 @@ export function LandingHero() {
                             transition={{ delay: i * 0.05 }}
                             className={`group relative ${selectedTemplate.aspectClass} rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#D3A5B1]/30 transition-all duration-300 border border-black/[0.03] bg-white`}
                           >
-                            <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                            <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="" />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
                               <button
                                 className="group/btn relative px-8 py-3 rounded-full bg-white text-black font-semibold text-sm transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg overflow-hidden"

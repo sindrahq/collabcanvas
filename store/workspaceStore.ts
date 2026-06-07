@@ -143,6 +143,7 @@ export type CanvasElementStyle = {
   brightness: number; // 0 to 2
   contrast: number;   // -100 to 100
   tint: number;       // 0 to 1
+  imageUrl?: string;
 };
 
 export type CanvasElement = {

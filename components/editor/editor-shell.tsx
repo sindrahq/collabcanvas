@@ -2,10 +2,10 @@
 
 import { subscribeToActivityFeed, broadcastActivity } from "@/lib/activityFeedRealtime";
 import { logActivity as logActivityServer } from "@/lib/logActivity";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle, Palette } from "lucide-react";
+import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle, Palette, type LucideIcon } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -36,6 +36,7 @@ import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore
 import PresenceOverlay from "@/components/ui/PresenceOverlay";
 import TemplatePicker from "@/components/ui/TemplatePicker";
 import AssetLibraryPanel from "@/components/ui/AssetLibraryPanel";
+import RoleBadge from "@/components/ui/RoleBadge";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
@@ -46,6 +47,9 @@ import { InteractiveTutorial } from "@/components/ui/interactive-tutorial";
 import { VoiceCommandManager } from "@/components/voice/VoiceCommandManager";
 import { Bookmark } from "lucide-react";
 import { usePresenceStore } from "@/store/presenceStore";
+import { useCanvasIntegration } from "@/hooks/useCanvasIntegration";
+import { useRealtime } from "@/hooks/useRealtime";
+import type { CanvasTemplate } from "@/types/integration";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -71,7 +75,7 @@ const PRESENCE_COLORS = ["#0b6e66", "#b35c1c", "#1f6fd6", "#7a3eb3", "#a03a58", 
 const NAV_SECTIONS: Array<{
   id: WorkspaceSidebarSection;
   label: string;
-  icon: any;
+  icon: LucideIcon;
 }> = [
     { id: "layers", label: "Layers", icon: Layers },
     { id: "actions", label: "Add", icon: LayoutGrid },
@@ -215,12 +219,11 @@ export function EditorShell() {
 
   // Get the Zustand store instance
   // (Zustand does not expose store directly, so we use a workaround for imperative calls)
-  // @ts-ignore
   const store = useStore;
 
   // Wrapped element actions to log and broadcast activity
-  function handleAddElement(type: string, extra?: any) {
-    addElement(type as any, extra);
+  function handleAddElement(type: Parameters<typeof addElement>[0], extra?: Parameters<typeof addElement>[1]) {
+    addElement(type, extra);
     logAndBroadcastActivity("added", extra?.name || type, type);
   }
 
@@ -307,6 +310,41 @@ export function EditorShell() {
       viewport: { zoom: 1, panX: 0, panY: 0 },
     } satisfies PresenceMeta;
   }, [authUser]);
+
+  const {
+    store: integrationStore,
+    refreshAssets,
+    refreshTemplates,
+    saveTemplate,
+    updateRoleOptimistically,
+  } = useCanvasIntegration(workspaceIdFromUrl, Boolean(authUser));
+  const currentUserRole = integrationStore((state) => state.currentUserRole);
+  const roleAssignments = integrationStore((state) => state.roleAssignments);
+  const assetList = integrationStore((state) => state.assetList);
+  const templateList = integrationStore((state) => state.templateList);
+  const assetStatus = integrationStore((state) => state.assetStatus);
+  const templateStatus = integrationStore((state) => state.templateStatus);
+  const assetError = integrationStore((state) => state.assetError);
+  const templateError = integrationStore((state) => state.templateError);
+
+  const handleRealtimeCanvasUpdate = useCallback(() => {
+    if (workspace?.id && !workspace.id.startsWith("local-")) {
+      void loadWorkspace(workspace.id);
+    }
+  }, [workspace?.id]);
+
+  const realtimeUser = authUser
+    ? {
+        id: currentUserMeta.user_id,
+        name: currentUserMeta.name,
+        color: currentUserMeta.color,
+      }
+    : null;
+  const { sendCursor: sendRealtimeCursor } = useRealtime({
+    canvasId: workspaceIdFromUrl,
+    currentUser: realtimeUser,
+    onCanvasUpdate: handleRealtimeCanvasUpdate,
+  });
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPersistedSignatureRef = useRef<string>("");
@@ -561,6 +599,18 @@ export function EditorShell() {
       active = false;
     };
   }, [authUser, browserClient, router, searchParams, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
+
+  useEffect(() => {
+    if (!workspace || !authUser || workspace.owner_id === "__loading__") return;
+    const nextRole = workspace.owner_id === authUser.id
+      ? "owner"
+      : accessLevel === "edit"
+        ? "editor"
+        : accessLevel === "comment"
+          ? "commenter"
+          : "viewer";
+    integrationStore.getState().setCurrentUserRole(nextRole);
+  }, [accessLevel, authUser, integrationStore, workspace]);
 
   useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) {
@@ -969,10 +1019,10 @@ export function EditorShell() {
             shadowColor: element.style.shadowColor,
             shadowOffsetX: element.style.shadowOffsetX,
             shadowOffsetY: element.style.shadowOffsetY,
-            brightness: (element.style as any).brightness ?? 0,
-            contrast: (element.style as any).contrast ?? 0,
-            tint: (element.style as any).tint ?? 0,
-            imageUrl: (element.style as any).imageUrl ?? null,
+            brightness: element.style.brightness ?? 0,
+            contrast: element.style.contrast ?? 0,
+            tint: element.style.tint ?? 0,
+            imageUrl: element.style.imageUrl ?? null,
           },
           layer_order: element.layerOrder,
           visible: element.visible,
@@ -1175,7 +1225,20 @@ export function EditorShell() {
 
   const [openAssetLibrary, setOpenAssetLibrary] = useState(false);
   const [openTemplatePicker, setOpenTemplatePicker] = useState(false);
-  const [showPresence, setShowPresence] = useState(true); // always show remote cursors
+
+  const handleUseTemplate = useCallback((template: CanvasTemplate) => {
+    const idMap = new Map(template.elements.map((element) => [element.id, crypto.randomUUID()]));
+    template.elements.forEach((element) => {
+      addElement(element.type, {
+        ...element,
+        id: idMap.get(element.id),
+        parentId: element.parentId ? idMap.get(element.parentId) : undefined,
+        x: element.x + 40,
+        y: element.y + 40,
+        style: { ...element.style },
+      });
+    });
+  }, [addElement]);
 
   const mobileTabs = [
     { key: "canvas", label: "Canvas" },
@@ -1240,11 +1303,7 @@ export function EditorShell() {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-            {workspace?.owner_id !== authUser.id ? (
-              <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">{accessLevel}</span>
-            ) : (
-              <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-            )}
+            <RoleBadge role={currentUserRole} />
           </div>
           <div className="flex items-center gap-1.5 opacity-60">
             <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
@@ -1301,8 +1360,13 @@ export function EditorShell() {
           <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
         </button>
         <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
-          {[{ id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" }, { id: "forest", label: "Forest Moss", color: "#708238" }, { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" }, { id: "sunset", label: "Sunset Dusk", color: "#d97d41" }].map((t) => (
-            <button key={t.id} type="button" className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`} onClick={() => { setCanvasTheme(t.id as any); setThemeMenuOpen(false); }}>
+          {([
+            { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
+            { id: "forest", label: "Forest Moss", color: "#708238" },
+            { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
+            { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
+          ] satisfies Array<{ id: CanvasTheme; label: string; color: string }>).map((t) => (
+            <button key={t.id} type="button" className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`} onClick={() => { setCanvasTheme(t.id); setThemeMenuOpen(false); }}>
               <span className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" style={{ backgroundColor: t.color }} />
               <span>{t.label}</span>
               {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
@@ -1350,6 +1414,8 @@ export function EditorShell() {
                     onAddComment={handleAddComment}
                     activeSection={activeSection}
                     setActiveSection={setActiveSection}
+                    openAssetLibrary={() => setOpenAssetLibrary(true)}
+                    openTemplatePicker={() => setOpenTemplatePicker(true)}
                   />
                 </motion.div>
 
@@ -1387,6 +1453,7 @@ export function EditorShell() {
                     currentUserId={currentUserMeta.user_id}
                     presences={presences}
                     remoteCursors={remoteCursors}
+                    onRealtimeCursorMove={sendRealtimeCursor}
                   />
                 </motion.div>
               </div>
@@ -1420,6 +1487,7 @@ export function EditorShell() {
                         currentUserId={currentUserMeta.user_id}
                         presences={presences}
                         remoteCursors={remoteCursors}
+                        onRealtimeCursorMove={sendRealtimeCursor}
                       />
                     </div>
                   ) : null}
@@ -1452,18 +1520,23 @@ export function EditorShell() {
                       addElement("image", { imageUrl: url });
                       setOpenAssetLibrary(false);
                     }}
+                    assets={assetList}
+                    loading={assetStatus === "loading"}
+                    error={assetError}
+                    onRefresh={() => void refreshAssets()}
                   />
                 )}
-                {showPresence && <PresenceOverlay />}
+                <PresenceOverlay canvasId={workspaceIdFromUrl} />
                 {openTemplatePicker && (
                   <TemplatePicker
                     open={openTemplatePicker}
                     onClose={() => setOpenTemplatePicker(false)}
-                    workspaceId={workspaceIdFromUrl || ""}
-                    onSelect={(templateId) => {
-                      console.log('Template selected', templateId);
-                      setOpenTemplatePicker(false);
-                    }}
+                    onSelect={handleUseTemplate}
+                    templates={templateList}
+                    loading={templateStatus === "loading"}
+                    error={templateError}
+                    onRefresh={() => void refreshTemplates()}
+                    onSaveCurrent={() => void saveTemplate(workspaceName, elements)}
                   />
                 )}
               </div>
@@ -1478,6 +1551,11 @@ export function EditorShell() {
                   open={shareDialogOpen}
                   onSyncLocalWorkspace={syncLocalWorkspaceToSupabase}
                   onClose={() => setShareDialogOpen(false)}
+                  currentUserRole={currentUserRole}
+                  roleAssignments={roleAssignments}
+                  onRoleChange={async (userId, role) => {
+                    await updateRoleOptimistically(userId, role);
+                  }}
                 />
               ) : null}
 

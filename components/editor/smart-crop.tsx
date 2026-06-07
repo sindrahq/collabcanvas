@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, SlidersHorizontal, Image as ImageIcon } from "lucide-react";
 import { createPortal } from "react-dom";
 
+type CropArea = { x: number; y: number; width: number; height: number };
+
 type SmartCropProps = {
   imageUrl: string;
   onClose: () => void;
@@ -55,14 +57,14 @@ const getCroppedImg = async (
 export function SmartCropModal({ imageUrl, onClose, onApply }: SmartCropProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
   
   // Filter states
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [tint, setTint] = useState(0); // 0 to 100 for a spring/sepia tint
 
-  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+  const onCropComplete = useCallback((_croppedArea: CropArea, croppedAreaPixels: CropArea) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 

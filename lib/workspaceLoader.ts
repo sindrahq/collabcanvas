@@ -47,7 +47,8 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
       contrast:      pick("contrast", 0),
       tint:          pick("tint", 0),
       imageUrl:      pick("imageUrl", undefined),
-    } as any,
+    },
+    imageUrl: pick("imageUrl", undefined),
   };
 }
 
@@ -117,8 +118,15 @@ export async function loadWorkspace(workspaceId: string, redirect404?: () => voi
       console.warn("Activity log load error:", activityError);
     } else if (activityLogs && activityLogs.length > 0) {
       console.log(`Loaded ${activityLogs.length} activity entries for workspace ${workspaceId}`);
-      const activityEntries = activityLogs
-        .map((log: any) => ({
+      const activityEntries = (activityLogs as Array<{
+        id: string;
+        action: "added" | "deleted" | "updated" | "moved";
+        user_name?: string | null;
+        element_name?: string | null;
+        element_type?: string | null;
+        created_at: string;
+      }>)
+        .map((log) => ({
           id: log.id,
           action: log.action as "added" | "deleted" | "updated" | "moved",
           userName: log.user_name || "User",

@@ -1,41 +1,39 @@
 "use client";
 
 import React from "react";
-import { usePresenceStore } from "@/store/presenceStore";
 import { motion } from "framer-motion";
+import { useCanvasIntegrationStoreFactory } from "@/store/canvasIntegrationStore";
 
-// Simple PresenceOverlay that renders a circle for each remote user.
-// In a full implementation this would use actual cursor positions from the presence store.
-// For now we display a placeholder based on user id.
-
-export default function PresenceOverlay() {
-  const users = usePresenceStore((s) => s.users);
-  const localUserId = usePresenceStore((s) => s.localUserId);
-
-  // Filter out local user
-  const remoteUsers = Object.entries(users).filter(([id]) => id !== localUserId);
+export default function PresenceOverlay({ canvasId }: { canvasId: string }) {
+  const store = useCanvasIntegrationStoreFactory(canvasId);
+  const remoteCursors = store((state) => state.remoteCursors);
 
   return (
     <div className="presence-overlay absolute inset-0 pointer-events-none">
-      {remoteUsers.map(([id, meta]) => (
+      {Object.entries(remoteCursors).map(([id, cursor]) => (
         <motion.div
           key={id}
           className="presence-cursor"
           style={{
             position: "absolute",
-            // For demo purposes, place randomly based on hash of id
-            left: `${(parseInt(id.slice(-2), 16) % 90) + 5}%`,
-            top: `${(parseInt(id.slice(-4, -2), 16) % 90) + 5}%`,
+            left: `${cursor.x * 100}%`,
+            top: `${cursor.y * 100}%`,
             width: 12,
             height: 12,
             borderRadius: "50%",
-            backgroundColor: meta?.color ?? "#ff0000",
+            backgroundColor: cursor.color,
             border: "2px solid #fff",
           }}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
-        />
+        >
+          {cursor.name ? (
+            <span className="absolute left-3 top-3 whitespace-nowrap rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+              {cursor.name}
+            </span>
+          ) : null}
+        </motion.div>
       ))}
     </div>
   );

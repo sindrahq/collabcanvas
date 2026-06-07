@@ -86,8 +86,8 @@ export function InteractiveTutorial() {
 
   useEffect(() => {
     if (!isActive || selectorCandidates.length === 0) {
-      setTargetRect(null);
-      return;
+      const raf = requestAnimationFrame(() => setTargetRect(null));
+      return () => cancelAnimationFrame(raf);
     }
 
     let raf = 0;
@@ -176,7 +176,7 @@ export function InteractiveTutorial() {
       cancelAnimationFrame(raf);
       if (observer) observer.disconnect();
     };
-  }, [isActive, currentStep, selectorCandidates]);
+  }, [isActive, currentStep, selectorCandidates, step.id]);
 
   const handleStartTour = () => {
     setHasShownPrompt(false);
