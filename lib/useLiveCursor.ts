@@ -33,7 +33,8 @@ export function useLiveCursor(
     }
 
     // Listen for remote mouse movements
-    channel.on('broadcast', { event: 'mouse-move' }, (payload: CursorPayload) => {
+    channel.on('broadcast', { event: 'mouse-move' }, (response: any) => {
+      const payload = response.payload as CursorPayload;
       if (!payload) return;
       // Ignore own echoes by `userId` (client may still receive its own broadcast)
       if (user && payload.userId === user.id) return;

@@ -33,8 +33,11 @@ import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { type WorkspaceAccessLevel, type CanvasTheme, useWorkspaceStore, useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
-import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+import PresenceOverlay from "@/components/ui/PresenceOverlay";
+import TemplatePicker from "@/components/ui/TemplatePicker";
+import AssetLibraryPanel from "@/components/ui/AssetLibraryPanel";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
+import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -1170,6 +1173,10 @@ export function EditorShell() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [canEdit, copySelectedElement, deleteSelectedElement, duplicateSelectedElement, elements, pasteElement, selectedElementId, undo, redo, updateElement]);
 
+  const [openAssetLibrary, setOpenAssetLibrary] = useState(false);
+  const [openTemplatePicker, setOpenTemplatePicker] = useState(false);
+  const [showPresence, setShowPresence] = useState(true); // always show remote cursors
+
   const mobileTabs = [
     { key: "canvas", label: "Canvas" },
     { key: "layers", label: "Layers" },
@@ -1268,14 +1275,14 @@ export function EditorShell() {
         </div>
       </div>
     </div>
-    <div className="editor-topbar-center">
-      <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border-[#D3A5B1]/10 backdrop-blur-md">
+    <div className="editor-topbar-center flex w-max justify-center">
+      <div className="inline-flex w-max items-center gap-1.5 rounded-full bg-[#D3A5B1]/5 px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
         {NAV_SECTIONS.map((section) => {
           const Icon = section.icon;
           const active = activeSection === section.id;
           return (
             <GlassTooltip key={section.id} content={section.label}>
-              <motion.button type="button" onClick={() => setActiveSection(current => current === section.id ? null : section.id)} className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"}`} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.93 }}>
+              <motion.button type="button" onClick={() => setActiveSection(current => current === section.id ? null : section.id)} className={`nav-pill-btn flex-none flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"}`} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.93 }}>
                 <Icon size={18} strokeWidth={active ? 2.5 : 2} />
               </motion.button>
             </GlassTooltip>
@@ -1365,6 +1372,8 @@ export function EditorShell() {
                         <Toolbar
                           workspaceId={workspaceIdFromUrl || ""}
                           workspaceName={workspaceName}
+                          openAssetLibrary={() => setOpenAssetLibrary(true)}
+                          openTemplatePicker={() => setOpenTemplatePicker(true)}
                           showHistoryActions={false}
                           showAddActions={false}
                           showSelectionActions
@@ -1400,7 +1409,12 @@ export function EditorShell() {
                 <div className="editor-mobile-panel">
                   {mobilePanel === "canvas" ? (
                     <div className="editor-mobile-panel-inner">
-                      <Toolbar workspaceId={workspaceIdFromUrl || ""} workspaceName={workspaceName} />
+                      <Toolbar
+                      workspaceId={workspaceIdFromUrl || ""}
+                      workspaceName={workspaceName}
+                      openAssetLibrary={() => setOpenAssetLibrary(true)}
+                      openTemplatePicker={() => setOpenTemplatePicker(true)}
+                    />
                       <CanvasWorkspace
                         workspaceId={workspaceIdFromUrl || ""}
                         currentUserId={currentUserMeta.user_id}
@@ -1430,6 +1444,28 @@ export function EditorShell() {
                     </div>
                   ) : null}
                 </div>
+                {openAssetLibrary && (
+                  <AssetLibraryPanel
+                    open={openAssetLibrary}
+                    onClose={() => setOpenAssetLibrary(false)}
+                    onSelect={(url) => {
+                      addElement("image", { imageUrl: url });
+                      setOpenAssetLibrary(false);
+                    }}
+                  />
+                )}
+                {showPresence && <PresenceOverlay />}
+                {openTemplatePicker && (
+                  <TemplatePicker
+                    open={openTemplatePicker}
+                    onClose={() => setOpenTemplatePicker(false)}
+                    workspaceId={workspaceIdFromUrl || ""}
+                    onSelect={(templateId) => {
+                      console.log('Template selected', templateId);
+                      setOpenTemplatePicker(false);
+                    }}
+                  />
+                )}
               </div>
 
               <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} workspaceId={workspaceIdFromUrl} />

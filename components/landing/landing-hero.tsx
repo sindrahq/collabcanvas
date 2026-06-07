@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, Sparkles, Palette, ChevronDown } from "lucide-react";
+import { Menu, X, ArrowRight, Palette, ChevronDown } from "lucide-react";
 import { LandingFeatureCards } from "@/components/landing/landing-feature-cards";
 import { FeatureGridAnimated } from "@/components/landing/feature-grid-animated";
 import { FeatureComparisonTable } from "@/components/landing/feature-comparison-table";
@@ -293,8 +293,6 @@ export function LandingHero() {
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
             >
-              <div className="mt-6" />
-
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] text-[#2D3436] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
                 {typed}
                 <motion.span
