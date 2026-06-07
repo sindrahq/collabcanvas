@@ -25,6 +25,7 @@ import { RemoteSelectionHighlights } from "@/components/presence/RemoteSelection
 import { TypingIndicator } from "@/components/presence/TypingIndicator";
 import { FollowButton } from "@/components/presence/FollowButton";
 import { usePresenceStore } from "@/store/presenceStore";
+import { useLiveCursor } from "@/lib/useLiveCursor";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { KonvaVideo } from "./konva-video";
@@ -460,6 +461,7 @@ export function KonvaStageWorkspace({
   const currentUserMeta = useRef<string>("local");
   const isFollowing = usePresenceStore((s) => !!s.followedUserId);
   const localUserId = usePresenceStore((s) => s.localUserId);
+  const updatePresenceUser = usePresenceStore((s) => s.updateUser);
 
   const eraserCursor = useMemo(() => {
     const r = Math.max(4, eraserSize);
@@ -592,6 +594,19 @@ export function KonvaStageWorkspace({
     if (!pos) return null;
     return { x: pos.x * STAGE_SCALE, y: pos.y * STAGE_SCALE };
   }, []);
+
+  // Build a minimal user object for the live-cursor hook
+  const currentUser = localUserId
+    ? { id: localUserId, name: presences?.[localUserId]?.name, color: presences?.[localUserId]?.color }
+    : null;
+
+  // Update presence store when remote cursor moves are received
+  const onRemoteMove = useCallback((p: { userId: string; x: number; y: number }) => {
+    updatePresenceUser(p.userId, { cursor: { x: p.x, y: p.y } } as any);
+  }, [updatePresenceUser]);
+
+  const { sendCursor } = useLiveCursor(workspaceId, currentUser, onRemoteMove);
+  const lastSendRef = useRef<number>(0);
 
   // Context Menu State
   const [menu, setMenu] = useState<{ x: number, y: number, visible: boolean } | null>(null);
@@ -738,10 +753,28 @@ export function KonvaStageWorkspace({
           }
         }}
         onMouseMove={(event) => {
-          if (activeTool === "eraser" && isErasingRef.current && canEdit) {
-            eraseAtCurrentPos();
-            return;
+          // Broadcast pointer position (normalized) with light throttling
+          try {
+            const stage = event.target.getStage();
+            const pointer = stage?.getPointerPosition();
+            if (pointer && sendCursor && !isFollowing) {
+              const now = Date.now();
+              if (now - lastSendRef.current > 30) {
+                lastSendRef.current = now;
+                const xNorm = Math.max(0, Math.min(1, pointer.x / STAGE_WIDTH));
+                const yNorm = Math.max(0, Math.min(1, pointer.y / STAGE_HEIGHT));
+                sendCursor(xNorm, yNorm);
+              }
+            }
+
+            if (activeTool === "eraser" && isErasingRef.current && canEdit) {
+              eraseAtCurrentPos();
+              return;
+            }
+          } catch (e) {
+            // ignore errors reading pointer
           }
+
           if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
           const pos = getStagePos(event);
           if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);

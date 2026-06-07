@@ -20,6 +20,10 @@ let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
 type CursorListener = (payload: CursorBroadcast) => void;
 let cursorListeners: CursorListener[] = [];
 
+// Camera sync listeners
+type CameraSyncListener = (payload: CameraSyncBroadcastPayload) => void;
+let cameraSyncListeners: CameraSyncListener[] = [];
+
 // Element click broadcast listeners (collaborative elevation)
 export interface ElementClickBroadcast {
   user_id: string;
@@ -32,6 +36,15 @@ type PresenceState = Record<string, PresenceMeta>;
 type PresenceJoinPayload = { key: string; newPresences: PresenceMeta[] };
 type PresenceLeavePayload = { key: string };
 type CursorBroadcastPayload = { payload: CursorBroadcast };
+export type SelectionBroadcastPayload = { user_id: string; element_id: string | null };
+export type TypingStatusBroadcastPayload = { userId: string; isTyping: boolean };
+export type CameraSyncBroadcastPayload = {
+	presenterId: string;
+	clientX: number;
+	clientY: number;
+	zoomScale: number;
+};
+export type SelectionLockResult = { ok: true } | { ok: false; lockedBy: string };
 type PresenceEventMeta = {
 	onSync?: (presences: PresenceState) => void;
 	onJoin?: (userId: string, meta: PresenceMeta) => void;
@@ -66,6 +79,54 @@ export interface CursorBroadcast {
 	y: number; // normalized [0, 1]
 }
 
+function flattenChannelPresenceState(): PresenceState {
+	if (!presenceChannel) return {};
+	const state = presenceChannel.presenceState() as Record<string, PresenceMeta[]>;
+	const flat: PresenceState = {};
+	Object.entries(state).forEach(([user_id, arr]) => {
+		if (arr && arr.length > 0) flat[user_id] = arr[0];
+	});
+	return flat;
+}
+
+export function getSelectionLocks(): Record<string, string> {
+	const locks: Record<string, string> = {};
+	const users = flattenChannelPresenceState();
+	Object.entries(users).forEach(([userId, meta]) => {
+		if (!meta.selection) return;
+		if (!locks[meta.selection]) {
+			locks[meta.selection] = userId;
+		}
+	});
+	return locks;
+}
+
+export function getElementLockOwner(elementId: string): string | null {
+	const locks = getSelectionLocks();
+	return locks[elementId] ?? null;
+}
+
+export function acquireSelectionLock(userId: string, elementId: string | null): SelectionLockResult {
+	if (!presenceChannel) {
+		return { ok: true };
+	}
+
+	if (!elementId) {
+		updatePresence({ selection: null });
+		broadcastSelection(userId, null);
+		return { ok: true };
+	}
+
+	const owner = getElementLockOwner(elementId);
+	if (owner && owner !== userId) {
+		return { ok: false, lockedBy: owner };
+	}
+
+	updatePresence({ selection: elementId });
+	broadcastSelection(userId, elementId);
+	return { ok: true };
+}
+
 /**
  * Initialize the presence channel for a workspace.
  * @param workspaceId The workspace (room) ID
@@ -82,23 +143,21 @@ export function initPresenceChannel(
 		presenceChannel = null;
 	}
 	cursorListeners = [];
+	cameraSyncListeners = [];
+	selectionListeners = [];
+	typingListeners = [];
+	viewportListeners = [];
 
-	const flattenPresenceState = (): PresenceState => {
-		const state = presenceChannel!.presenceState() as Record<string, PresenceMeta[]>;
-		const flat: PresenceState = {};
-		Object.entries(state).forEach(([user_id, arr]) => {
-			if (arr && arr.length > 0) flat[user_id] = arr[0];
-		});
-		return flat;
-	};
-
-	presenceChannel = supabase.channel(`presence-${workspaceId}`, {
-		config: { presence: { key: meta.user_id } }
+	presenceChannel = supabase.channel(`room:${workspaceId}`, {
+		config: {
+			broadcast: { ack: false, self: false },
+			presence: { key: meta.user_id }
+		}
 	});
 
 	// Listen for presence sync events
 	presenceChannel.on('presence', { event: 'sync' }, () => {
-		events.onSync?.(flattenPresenceState());
+		events.onSync?.(flattenChannelPresenceState());
 	});
 
 	presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }: PresenceJoinPayload) => {
@@ -117,15 +176,19 @@ presenceChannel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadca
   cursorListeners.forEach((fn) => fn(payload));
 });
 
+presenceChannel.on('broadcast', { event: 'camera-sync' }, ({ payload }: { payload: CameraSyncBroadcastPayload }) => {
+	cameraSyncListeners.forEach((fn) => fn(payload));
+});
+
 presenceChannel.on('broadcast', { event: 'element-click' }, ({ payload }: { payload: ElementClickBroadcast }) => {
   elementClickListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'selection' }, ({ payload }: { payload: { user_id: string; element_id: string | null } }) => {
+presenceChannel!.on('broadcast', { event: 'selection' }, ({ payload }: { payload: SelectionBroadcastPayload }) => {
   selectionListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'typing' }, ({ payload }: { payload: { user_id: string; typing: boolean } }) => {
+presenceChannel!.on('broadcast', { event: 'typing-status' }, ({ payload }: { payload: TypingStatusBroadcastPayload }) => {
   typingListeners.forEach((fn) => fn(payload));
 });
 
@@ -166,9 +229,32 @@ export const broadcastCursor = throttle((user_id: string, x: number, y: number) 
 	}
 }, 20); 
 
+export const broadcastCameraSync = throttle((presenterId: string, clientX: number, clientY: number, zoomScale: number) => {
+	if (presenceChannel) {
+		updatePresence({
+			viewport: {
+				zoom: zoomScale,
+				panX: clientX,
+				panY: clientY,
+			},
+		});
+
+		presenceChannel.send({
+			type: 'broadcast',
+			event: 'camera-sync',
+			payload: { presenterId, clientX, clientY, zoomScale },
+		});
+	}
+}, 16);
+
 export function onCursorBroadcast(listener: CursorListener) {
 	cursorListeners.push(listener);
 	return () => { cursorListeners = cursorListeners.filter((fn) => fn !== listener); };
+}
+
+export function onCameraSyncBroadcast(listener: CameraSyncListener) {
+	cameraSyncListeners.push(listener);
+	return () => { cameraSyncListeners = cameraSyncListeners.filter((fn) => fn !== listener); };
 }
 
 // New broadcast functions for collaboration metadata
@@ -182,15 +268,15 @@ export const broadcastSelection = throttle((user_id: string, element_id: string 
   }
 }, 50);
 
-export const broadcastTyping = throttle((user_id: string, typing: boolean) => {
-  if (presenceChannel) {
-    presenceChannel.send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: { user_id, typing },
-    });
-  }
-}, 200);
+export function broadcastTyping(userId: string, isTyping: boolean) {
+	if (presenceChannel) {
+		presenceChannel.send({
+			type: 'broadcast',
+			event: 'typing-status',
+			payload: { userId, isTyping },
+		});
+	}
+}
 
 export const broadcastViewport = throttle((user_id: string, zoom: number, panX: number, panY: number) => {
   if (presenceChannel) {
@@ -203,14 +289,14 @@ export const broadcastViewport = throttle((user_id: string, zoom: number, panX: 
 }, 100);
 
 // Listener arrays
-type SelectionListener = (payload: { user_id: string; element_id: string | null }) => void;
+type SelectionListener = (payload: SelectionBroadcastPayload) => void;
 let selectionListeners: SelectionListener[] = [];
 export function onSelectionBroadcast(listener: SelectionListener) {
   selectionListeners.push(listener);
   return () => { selectionListeners = selectionListeners.filter((fn) => fn !== listener); };
 }
 
-type TypingListener = (payload: { user_id: string; typing: boolean }) => void;
+type TypingListener = (payload: TypingStatusBroadcastPayload) => void;
 let typingListeners: TypingListener[] = [];
 export function onTypingBroadcast(listener: TypingListener) {
   typingListeners.push(listener);
@@ -257,7 +343,11 @@ export function leavePresenceChannel() {
 		presenceChannel = null;
 	}
 	cursorListeners = [];
+	cameraSyncListeners = [];
 	elementClickListeners = [];
+	selectionListeners = [];
+	typingListeners = [];
+	viewportListeners = [];
 }
 
 // Ensure cleanup on tab close or reload
