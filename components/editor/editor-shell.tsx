@@ -17,10 +17,12 @@ import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import {
   acquireSelectionLock,
+  broadcastCanvasUpdate,
   initPresenceChannel,
   leavePresenceChannel,
   onCursorBroadcast,
   onElementClickBroadcast,
+  onRoleChangeBroadcast,
   onSelectionBroadcast,
   type PresenceMeta,
 } from "@/lib/collaboration";
@@ -36,6 +38,7 @@ import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore
 import PresenceOverlay from "@/components/ui/PresenceOverlay";
 import TemplatePicker from "@/components/ui/TemplatePicker";
 import AssetLibraryPanel from "@/components/ui/AssetLibraryPanel";
+import RoleBadge from "@/components/ui/RoleBadge";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
@@ -55,6 +58,16 @@ function isEditableTarget(target: EventTarget | null) {
 
 function isShareAccessLevel(value: unknown): value is WorkspaceAccessLevel {
   return value === "view" || value === "comment" || value === "edit";
+}
+
+function isCanvasRole(value: unknown): value is "owner" | "editor" | "commenter" | "viewer" {
+  return value === "owner" || value === "editor" || value === "commenter" || value === "viewer";
+}
+
+function mapRoleToAccessLevel(role: "owner" | "editor" | "commenter" | "viewer"): WorkspaceAccessLevel {
+  if (role === "commenter") return "comment";
+  if (role === "viewer") return "view";
+  return "edit";
 }
 
 function slugify(value: string) {
@@ -273,6 +286,7 @@ export function EditorShell() {
   const [comments, setComments] = useState<WorkspaceComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [canvasRole, setCanvasRole] = useState<"owner" | "editor" | "commenter" | "viewer" | null>(null);
   const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState(workspaceName);
   const [workspaceRenameSaving, setWorkspaceRenameSaving] = useState(false);
@@ -627,6 +641,48 @@ export function EditorShell() {
       void client.removeChannel(channel);
     };
   }, [authUser, browserClient, workspace?.id, workspace?.owner_id]);
+
+  useEffect(() => {
+    if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) {
+      setCanvasRole(null);
+      return;
+    }
+
+    const loadRoles = async () => {
+      const response = await fetch(`/api/roles/${workspace.id}`, { credentials: "include" });
+      const payload = (await response.json()) as {
+        roles?: Array<{ userId: string; role: string }>;
+        error?: string;
+      };
+
+      if (!response.ok || !Array.isArray(payload.roles)) {
+        return;
+      }
+
+      const currentRole = payload.roles.find((entry) => entry.userId === authUser.id);
+      if (currentRole && isCanvasRole(currentRole.role)) {
+        setCanvasRole(currentRole.role);
+        setWorkspaceAccess(mapRoleToAccessLevel(currentRole.role));
+      }
+    };
+
+    void loadRoles();
+
+    const unsubscribe = onRoleChangeBroadcast((payload) => {
+      if (payload.userId !== authUser.id) {
+        return;
+      }
+
+      if (isCanvasRole(payload.newRole)) {
+        setCanvasRole(payload.newRole);
+        setWorkspaceAccess(mapRoleToAccessLevel(payload.newRole));
+      }
+
+      void loadRoles();
+    });
+
+    return unsubscribe;
+  }, [authUser, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
 
   async function handleAddComment(message: string, targetElementId: string | null) {
     if (!workspace?.id || !authUser) {
@@ -1038,6 +1094,14 @@ export function EditorShell() {
           workspaceName,
         }, "Autosave");
 
+        broadcastCanvasUpdate({
+          workspaceId: workspace.id,
+          workspaceName,
+          elementCount: elements.length,
+          selectedElementId,
+          updatedAt: Date.now(),
+        });
+
         lastPersistedSignatureRef.current = signature;
       } catch (error) {
         console.error("[EditorShell] Autosave failed:", error);
@@ -1240,6 +1304,7 @@ export function EditorShell() {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+            {canvasRole ? <RoleBadge role={canvasRole} /> : null}
             {workspace?.owner_id !== authUser.id ? (
               <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">{accessLevel}</span>
             ) : (
@@ -1454,7 +1519,13 @@ export function EditorShell() {
                     }}
                   />
                 )}
-                {showPresence && <PresenceOverlay />}
+                {showPresence && (
+                  <PresenceOverlay
+                    cursors={remoteCursors}
+                    presences={presences}
+                    currentUserId={currentUserMeta.user_id}
+                  />
+                )}
                 {openTemplatePicker && (
                   <TemplatePicker
                     open={openTemplatePicker}

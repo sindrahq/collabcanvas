@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { canvasChannelName } from '@/lib/canvasRealtime';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,13 +26,14 @@ export async function POST(req: Request) {
     if (userErr || !userData?.user) return new Response('Unauthorized', { status: 401 });
 
     const body = await req.json();
-    const { workspaceId, x, y, userName, color } = body ?? {};
+    const { canvasId, workspaceId, x, y, userName, color } = body ?? {};
+    const roomId = canvasId || workspaceId;
 
-    if (!workspaceId || typeof x !== 'number' || typeof y !== 'number') {
+    if (!roomId || typeof x !== 'number' || typeof y !== 'number') {
       return new Response('Bad Request', { status: 400 });
     }
 
-    const topic = `room:${workspaceId}`;
+    const topic = canvasChannelName(roomId);
 
     // Broadcast the minimal payload. Clients should filter self echoes by `userId`.
     const payload = {
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
     } as Record<string, unknown>;
 
     // Use the realtime channel send method. This returns quickly.
-    await supabase.channel(topic).send({ type: 'broadcast', event: 'mouse-move', payload });
+    await supabase.channel(topic).send({ type: 'broadcast', event: 'cursor-move', payload });
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   } catch (err) {

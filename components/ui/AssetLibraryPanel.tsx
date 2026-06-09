@@ -14,7 +14,7 @@ export type UploadedAsset = {
 /**
  * AssetLibraryPanel
  * ----------------
- * A modal panel that fetches the user's uploaded images (via `/api/upload/list`)
+ * A modal panel that fetches the user's uploaded images (via `/api/uploads/list`)
  * and displays them in a responsive grid. Clicking an image calls the `onSelect`
  * callback with the asset URL so the caller can insert it into the canvas.
  */
@@ -36,7 +36,7 @@ export default function AssetLibraryPanel({
     if (!open) return;
     setLoading(true);
     setError(null);
-    fetch('/api/upload/list')
+    fetch('/api/uploads/list')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setAssets(data);

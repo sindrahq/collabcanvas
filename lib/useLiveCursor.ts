@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
+import { canvasChannelName } from './canvasRealtime';
 
 type User = { id: string; name?: string; color?: string } | null;
 
@@ -21,7 +22,7 @@ export function useLiveCursor(
   useEffect(() => {
     if (!workspaceId) return;
 
-    const topic = `room:${workspaceId}`;
+    const topic = canvasChannelName(workspaceId);
     const channel = supabase.channel(topic, { config: { broadcast: { self: true } } });
     channelRef.current = channel;
 
@@ -33,7 +34,7 @@ export function useLiveCursor(
     }
 
     // Listen for remote mouse movements
-    channel.on('broadcast', { event: 'mouse-move' }, (response: any) => {
+    channel.on('broadcast', { event: 'cursor-move' }, (response: any) => {
       const payload = response.payload as CursorPayload;
       if (!payload) return;
       // Ignore own echoes by `userId` (client may still receive its own broadcast)
@@ -69,7 +70,7 @@ export function useLiveCursor(
       };
 
       // direct client broadcast
-      channel.send({ type: 'broadcast', event: 'mouse-move', payload });
+      channel.send({ type: 'broadcast', event: 'cursor-move', payload });
     },
     [user, workspaceId]
   );

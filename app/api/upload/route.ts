@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { applyResponseCookies, createServiceSupabaseClient, getAuthenticatedUser } from '@/lib/supabase/server';
 
 export const runtime = 'edge'; // or 'nodejs' if you need Node APIs
 
@@ -14,6 +8,18 @@ export async function POST(req: NextRequest) {
   const contentType = req.headers.get('content-type') || '';
   if (!contentType.includes('multipart/form-data')) {
     return NextResponse.json({ error: 'Invalid content type' }, { status: 400 });
+  }
+
+  const auth = await getAuthenticatedUser(req);
+  if (!auth.user) {
+    const response = NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
+    applyResponseCookies(response, auth.cookiesToSet);
+    return response;
+  }
+
+  const supabase = createServiceSupabaseClient() ?? auth.client;
+  if (!supabase) {
+    return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500 });
   }
 
   // Parse form data
@@ -31,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   // Generate unique filename
   const ext = file.type === 'image/png' ? 'png' : 'jpg';
-  const filename = `uploads/${crypto.randomUUID()}.${ext}`;
+  const filename = `uploads/${auth.user.id}/${crypto.randomUUID()}.${ext}`;
 
   // Upload to Supabase Storage
   const { data, error } = await supabase.storage
@@ -50,5 +56,7 @@ export async function POST(req: NextRequest) {
     .from('user-uploads')
     .getPublicUrl(filename);
 
-  return NextResponse.json({ url: publicUrlData.publicUrl });
+  const response = NextResponse.json({ url: publicUrlData.publicUrl, path: filename, name: file.name });
+  applyResponseCookies(response, auth.cookiesToSet);
+  return response;
 }

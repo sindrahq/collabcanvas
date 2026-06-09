@@ -4,9 +4,8 @@ import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { X } from "lucide-react";
+import { templateService } from "@/lib/services/templateService";
 
-// Simple placeholder TemplatePicker modal
-// In a full implementation this would fetch templates from an API and allow insertion
 export default function TemplatePicker({
   open,
   onClose,
@@ -19,16 +18,15 @@ export default function TemplatePicker({
   onSelect: (templateId: string) => void;
 }) {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Placeholder: load dummy templates
   useEffect(() => {
     if (open) {
-      // Simulate fetch
-      setTemplates([
-        { id: "tpl-1", name: "Blank Canvas" },
-        { id: "tpl-2", name: "Presentation" },
-        { id: "tpl-3", name: "Storyboard" },
-      ]);
+      setError(null);
+      templateService
+        .getAll()
+        .then((items) => setTemplates(items.map((item) => ({ id: item.id, name: item.name }))))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load templates"));
     }
   }, [open]);
 
@@ -67,6 +65,7 @@ export default function TemplatePicker({
               <X size={20} />
             </button>
           </div>
+          {error && <p style={{ color: "#b42318", fontSize: "0.85rem" }}>{error}</p>}
           <ul style={{ listStyle: "none", padding: 0 }}>
             {templates.map((t) => (
               <li key={t.id} style={{ marginBottom: "8px" }}>
