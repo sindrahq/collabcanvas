@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { canvasChannelName } from './canvasRealtime';
 
 // Types for user presence metadata
 export interface PresenceMeta {
@@ -39,6 +40,8 @@ type PresenceLeavePayload = { key: string };
 type CursorBroadcastPayload = { payload: CursorBroadcast };
 export type SelectionBroadcastPayload = { user_id: string; element_id: string | null };
 export type TypingStatusBroadcastPayload = { userId: string; isTyping: boolean };
+export type CanvasUpdateBroadcastPayload = { patch: unknown };
+export type RoleChangeBroadcastPayload = { userId: string; newRole: "owner" | "editor" | "commenter" | "viewer" };
 export type CameraSyncBroadcastPayload = {
 	presenterId: string;
 	clientX: number;
@@ -51,6 +54,12 @@ type PresenceEventMeta = {
 	onJoin?: (userId: string, meta: PresenceMeta) => void;
 	onLeave?: (userId: string) => void;
 };
+
+type CanvasUpdateListener = (payload: CanvasUpdateBroadcastPayload) => void;
+let canvasUpdateListeners: CanvasUpdateListener[] = [];
+
+type RoleChangeListener = (payload: RoleChangeBroadcastPayload) => void;
+let roleChangeListeners: RoleChangeListener[] = [];
 
 // Throttle utility
 function throttle<T extends (...args: Parameters<T>) => void>(fn: T, ms: number): T {
@@ -148,9 +157,11 @@ export function initPresenceChannel(
 	selectionListeners = [];
 	typingListeners = [];
 	viewportListeners = [];
+	canvasUpdateListeners = [];
+	roleChangeListeners = [];
 
 	const channelId = ++presenceChannelId;
-	const channel = supabase.channel(`room:${workspaceId}`, {
+	const channel = supabase.channel(canvasChannelName(workspaceId), {
 		config: {
 			broadcast: { ack: false, self: false },
 			presence: { key: meta.user_id }
@@ -174,9 +185,12 @@ export function initPresenceChannel(
 		events.onLeave?.(key);
 	});
 
-// Attach cursor broadcast handler here (fixes TS error)
-channel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
-  cursorListeners.forEach((fn) => fn(payload));
+	channel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
+	cursorListeners.forEach((fn) => fn(payload));
+	});
+
+	channel.on('broadcast', { event: 'cursor-move' }, ({ payload }: CursorBroadcastPayload) => {
+		cursorListeners.forEach((fn) => fn(payload));
 });
 
 channel.on('broadcast', { event: 'camera-sync' }, ({ payload }: { payload: CameraSyncBroadcastPayload }) => {
@@ -197,6 +211,14 @@ channel.on('broadcast', { event: 'typing-status' }, ({ payload }: { payload: Typ
 
 channel.on('broadcast', { event: 'viewport' }, ({ payload }: { payload: { user_id: string; zoom: number; panX: number; panY: number } }) => {
   viewportListeners.forEach((fn) => fn(payload));
+});
+
+channel.on('broadcast', { event: 'canvas-update' }, ({ payload }: { payload: CanvasUpdateBroadcastPayload }) => {
+	canvasUpdateListeners.forEach((fn) => fn(payload));
+});
+
+channel.on('broadcast', { event: 'role-change' }, ({ payload }: { payload: RoleChangeBroadcastPayload }) => {
+	roleChangeListeners.forEach((fn) => fn(payload));
 });
 
 // Subscribe to the channel
@@ -226,7 +248,7 @@ export const broadcastCursor = throttle((user_id: string, x: number, y: number) 
 	if (presenceChannel) {
 		presenceChannel.send({
 			type: 'broadcast',
-			event: 'cursor',
+			event: 'cursor-move',
 			payload: { user_id, x, y }
 		});
 	}
@@ -291,6 +313,26 @@ export const broadcastViewport = throttle((user_id: string, zoom: number, panX: 
   }
 }, 100);
 
+export const broadcastCanvasUpdate = throttle((patch: unknown) => {
+	if (presenceChannel) {
+		presenceChannel.send({
+			type: 'broadcast',
+			event: 'canvas-update',
+			payload: { patch },
+		});
+	}
+}, 100);
+
+export function onCanvasUpdateBroadcast(listener: CanvasUpdateListener) {
+	canvasUpdateListeners.push(listener);
+	return () => { canvasUpdateListeners = canvasUpdateListeners.filter((fn) => fn !== listener); };
+}
+
+export function onRoleChangeBroadcast(listener: RoleChangeListener) {
+	roleChangeListeners.push(listener);
+	return () => { roleChangeListeners = roleChangeListeners.filter((fn) => fn !== listener); };
+}
+
 // Listener arrays
 type SelectionListener = (payload: SelectionBroadcastPayload) => void;
 let selectionListeners: SelectionListener[] = [];
@@ -352,6 +394,8 @@ export function leavePresenceChannel() {
 	selectionListeners = [];
 	typingListeners = [];
 	viewportListeners = [];
+	canvasUpdateListeners = [];
+	roleChangeListeners = [];
 }
 
 // Ensure cleanup on tab close or reload

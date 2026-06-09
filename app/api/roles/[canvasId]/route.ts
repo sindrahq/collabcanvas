@@ -1,76 +1,79 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  applyRequestCookies,
-  createAuthenticatedRequestClients,
-} from "@/lib/supabase/request";
+  applyResponseCookies,
+  createServiceSupabaseClient,
+  getAuthenticatedUser,
+} from "@/lib/supabase/server";
 import type { CanvasRole, RoleAssignment } from "@/types/integration";
 
-function toRole(accessLevel: string): Exclude<CanvasRole, "owner"> {
-  if (accessLevel === "edit") return "editor";
-  if (accessLevel === "comment") return "commenter";
-  return "viewer";
+function isCanvasRole(value: unknown): value is CanvasRole {
+  return value === "owner" || value === "editor" || value === "commenter" || value === "viewer";
 }
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ canvasId: string }> }
 ) {
-  try {
-    const { canvasId } = await context.params;
-    const { user, dbClient, cookiesToSet } = await createAuthenticatedRequestClients(request);
-    if (!user) {
-      return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-    }
+  const { canvasId } = await context.params;
+  if (!canvasId) {
+    return NextResponse.json({ error: "Missing canvas id." }, { status: 400 });
+  }
 
-    const { data: workspace, error: workspaceError } = await dbClient
-      .from("workspaces")
-      .select("id, owner_id")
-      .eq("id", canvasId)
-      .maybeSingle();
-    if (workspaceError) {
-      return NextResponse.json({ error: workspaceError.message }, { status: 400 });
-    }
-    if (!workspace) {
-      return NextResponse.json({ error: "Canvas not found." }, { status: 404 });
-    }
+  const auth = await getAuthenticatedUser(request);
+  if (!auth.user) {
+    const response = NextResponse.json({ error: auth.error || "You must be signed in." }, { status: 401 });
+    applyResponseCookies(response, auth.cookiesToSet);
+    return response;
+  }
 
-    const { data: shares, error: sharesError } = await dbClient
-      .from("workspace_shares")
-      .select("id, shared_with_id, shared_with_email, access_level, active")
-      .eq("workspace_id", canvasId)
-      .eq("active", true);
-    if (sharesError) {
-      return NextResponse.json({ error: sharesError.message }, { status: 400 });
-    }
+  const db = createServiceSupabaseClient() ?? auth.client;
+  if (!db) {
+    return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
+  }
 
-    const assignments: RoleAssignment[] = (shares ?? [])
-      .filter((share) => Boolean(share.shared_with_id))
-      .map((share) => ({
-        id: share.id,
-        userId: share.shared_with_id as string,
-        displayName: share.shared_with_email || "Collaborator",
-        role: toRole(share.access_level),
-      }));
+  const { data, error } = await db
+    .from("canvas_roles")
+    .select("id, user_id, role")
+    .eq("canvas_id", canvasId)
+    .order("created_at", { ascending: true });
 
-    let currentUserRole: CanvasRole = "viewer";
-    if (workspace.owner_id === user.id) {
-      currentUserRole = "owner";
-    } else {
-      const ownAssignment = assignments.find((assignment) => assignment.userId === user.id);
-      if (!ownAssignment) {
-        return NextResponse.json({ error: "You do not have access to this canvas." }, { status: 403 });
-      }
-      currentUserRole = ownAssignment.role;
-    }
-
-    return applyRequestCookies(
-      NextResponse.json({ currentUserRole, assignments }),
-      cookiesToSet
-    );
-  } catch (error) {
+  if (error) {
+    const missingTable = error.message.includes("Could not find the table 'public.canvas_roles'");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to load roles." },
-      { status: 500 }
+      {
+        error: missingTable
+          ? "Canvas roles table is missing. Run the canvas schema migration in Supabase SQL Editor."
+          : error.message,
+      },
+      { status: 400 }
     );
   }
+
+  const { data: workspace } = await db
+    .from("workspaces")
+    .select("owner_id")
+    .eq("id", canvasId)
+    .maybeSingle();
+
+  const roles = (data ?? [])
+    .filter((row) => isCanvasRole(row.role))
+    .map((row) => ({ id: row.id, userId: row.user_id, role: row.role as CanvasRole }));
+
+  if (workspace?.owner_id && !roles.some((entry) => entry.userId === workspace.owner_id)) {
+    roles.unshift({ id: `${canvasId}:${workspace.owner_id}`, userId: workspace.owner_id, role: "owner" });
+  }
+
+  const currentUserRole = roles.find((entry) => entry.userId === auth.user?.id)?.role ?? "viewer";
+  const assignments: RoleAssignment[] = roles
+    .filter((entry): entry is typeof entry & { role: Exclude<CanvasRole, "owner"> } => entry.role !== "owner")
+    .map((entry) => ({
+      id: entry.id,
+      userId: entry.userId,
+      displayName: `Collaborator ${entry.userId.slice(0, 8)}`,
+      role: entry.role,
+    }));
+
+  const response = NextResponse.json({ currentUserRole, assignments, roles });
+  applyResponseCookies(response, auth.cookiesToSet);
+  return response;
 }

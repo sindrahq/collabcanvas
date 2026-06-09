@@ -17,6 +17,7 @@ import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import {
   acquireSelectionLock,
+  broadcastCanvasUpdate,
   initPresenceChannel,
   leavePresenceChannel,
   onCursorBroadcast,
@@ -49,7 +50,7 @@ import { Bookmark } from "lucide-react";
 import { usePresenceStore } from "@/store/presenceStore";
 import { useCanvasIntegration } from "@/hooks/useCanvasIntegration";
 import { useRealtime } from "@/hooks/useRealtime";
-import type { CanvasTemplate } from "@/types/integration";
+import type { CanvasRole, CanvasTemplate } from "@/types/integration";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -59,6 +60,12 @@ function isEditableTarget(target: EventTarget | null) {
 
 function isShareAccessLevel(value: unknown): value is WorkspaceAccessLevel {
   return value === "view" || value === "comment" || value === "edit";
+}
+
+function mapRoleToAccessLevel(role: CanvasRole): WorkspaceAccessLevel {
+  if (role === "commenter") return "comment";
+  if (role === "viewer") return "view";
+  return "edit";
 }
 
 function slugify(value: string) {
@@ -678,6 +685,11 @@ export function EditorShell() {
     };
   }, [authUser, browserClient, workspace?.id, workspace?.owner_id]);
 
+  useEffect(() => {
+    if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) return;
+    setWorkspaceAccess(mapRoleToAccessLevel(currentUserRole));
+  }, [authUser, currentUserRole, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
+
   async function handleAddComment(message: string, targetElementId: string | null) {
     if (!workspace?.id || !authUser) {
       return;
@@ -1087,6 +1099,14 @@ export function EditorShell() {
           selectedElementId,
           workspaceName,
         }, "Autosave");
+
+        broadcastCanvasUpdate({
+          workspaceId: workspace.id,
+          workspaceName,
+          elementCount: elements.length,
+          selectedElementId,
+          updatedAt: Date.now(),
+        });
 
         lastPersistedSignatureRef.current = signature;
       } catch (error) {
