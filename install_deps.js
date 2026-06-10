@@ -1,5 +1,5 @@
-const { exec } = require('child_process');
-const fs = require('fs');
+import { exec } from 'child_process';
+import fs from 'fs';
 
 exec('npm.cmd install', (error, stdout, stderr) => {
   fs.writeFileSync('npm_out.txt', stdout || '');

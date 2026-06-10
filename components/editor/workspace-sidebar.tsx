@@ -24,6 +24,8 @@ type WorkspaceSidebarProps = {
   onAddComment: (message: string, targetElementId: string | null) => Promise<void>;
   activeSection: WorkspaceSidebarSection | null;
   setActiveSection: (section: WorkspaceSidebarSection | null) => void;
+  openAssetLibrary?: () => void;
+  openTemplatePicker?: () => void;
 };
 
 export function WorkspaceSidebar({
@@ -37,6 +39,8 @@ export function WorkspaceSidebar({
   onAddComment,
   activeSection,
   setActiveSection,
+  openAssetLibrary,
+  openTemplatePicker,
 }: WorkspaceSidebarProps) {
   const panelVisible = activeSection !== null;
 
@@ -63,18 +67,20 @@ export function WorkspaceSidebar({
         </div>
 
         <div className="workspace-sidebar-panel-body">
-          {activeSection === "layers" && workspaceId ? <LeftSidebar workspaceId={workspaceId} /> : null}
+          {activeSection === "layers" && workspaceId !== undefined ? <LeftSidebar workspaceId={workspaceId || ""} /> : null}
           {activeSection === "actions" ? (
             <Toolbar
-              workspaceId={workspaceId!}
+              workspaceId={workspaceId || ""}
               workspaceName={workspaceName}
               layout="vertical"
               showSelectionActions={false}
+              openAssetLibrary={openAssetLibrary}
+              openTemplatePicker={openTemplatePicker}
             />
           ) : null}
           {activeSection === "inspector" ? (
             <RightSidebar
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ""}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}
@@ -86,7 +92,7 @@ export function WorkspaceSidebar({
           ) : null}
           {activeSection === "comments" ? (
             <RightSidebar
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ""}
               comments={comments}
               commentsLoading={commentsLoading}
               commentsError={commentsError}
@@ -96,8 +102,8 @@ export function WorkspaceSidebar({
               mode="comments"
             />
           ) : null}
-          {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId ?? "default"} /> : null}
-          {activeSection === "activity" ? <ActivityFeed /> : null}
+          {activeSection === "templates" ? <TemplatePanel workspaceId={workspaceId || "default"} /> : null}
+          {activeSection === "activity" ? <ActivityFeed workspaceId={workspaceId || ""} /> : null}
         </div>
       </motion.div>
     </aside>

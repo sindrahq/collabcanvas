@@ -1,45 +1,20 @@
 "use client";
 
 import type { PresenceMeta } from "@/lib/collaboration";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AudioIndicator } from "./AudioIndicator";
 import { Mic } from "lucide-react";
-import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
 
 type AvatarStackProps = {
 	presences: Record<string, PresenceMeta>;
 	currentUserId: string;
 };
 
+/** Stub – LiveKit voice chat requires @livekit/components-react + a LiveKit server. */
 function LiveKitConnection({ room, identity }: { room: string; identity: string }) {
-	const [token, setToken] = useState("");
-
-	useEffect(() => {
-		(async () => {
-			try {
-				const resp = await fetch(`/api/livekit?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`);
-				const data = await resp.json();
-				if (data.token) {
-					setToken(data.token);
-				}
-			} catch (e) {
-				console.error("LiveKit token error:", e);
-			}
-		})();
-	}, [room, identity]);
-
-	if (!token) return null;
-
-	return (
-		<LiveKitRoom
-			token={token}
-			serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-			connect={true}
-			audio={true}
-		>
-			<RoomAudioRenderer />
-		</LiveKitRoom>
-	);
+	void room;
+	void identity;
+	return null;
 }
 
 export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {

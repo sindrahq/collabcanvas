@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, X } from "lucide-react";
-import { useWorkspaceStore, type CanvasElementType } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory, type CanvasElementType } from "@/store/workspaceStore";
 
-type Props = { open: boolean; onClose: () => void };
+type Props = { open: boolean; onClose: () => void; workspaceId: string };
 
-export function GenerativeUIModal({ open, onClose }: Props) {
+export function GenerativeUIModal({ open, onClose, workspaceId }: Props) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const addElement = useWorkspaceStore((s) => s.addElement);
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const addElement = useStore((s) => s.addElement);
 
   async function handleGenerate() {
     if (!prompt.trim()) return;
@@ -28,15 +29,18 @@ export function GenerativeUIModal({ open, onClose }: Props) {
         text?: string; style?: Record<string, unknown>;
       }>; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      let added = 0;
       for (const el of data.elements ?? []) {
         addElement(el.type as CanvasElementType, {
           x: el.x, y: el.y, width: el.width, height: el.height,
           text: el.text ?? undefined,
           style: (el.style ?? {}) as never,
         });
+        added++;
       }
+      if (added === 0) setError("No elements were generated. Try a different prompt.");
       setPrompt("");
-      onClose();
+      if (added > 0) onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Generation failed");
     } finally {

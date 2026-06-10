@@ -57,6 +57,10 @@ using (
       and w.owner_id = auth.uid()
   )
   or shared_with_id = auth.uid()
+  or (
+    shared_with_email is not null
+    and lower(shared_with_email) = lower(coalesce(auth.jwt() ->> 'email', auth.email(), ''))
+  )
 );
 
 create policy "workspace_shares_write_owner"

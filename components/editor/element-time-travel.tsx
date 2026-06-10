@@ -1,55 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, RotateCcw } from "lucide-react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 
-export function ElementTimeTravelSlider() {
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const elementHistory = useWorkspaceStore((s) => s.elementHistory);
-  const travelElementTo = useWorkspaceStore((s) => s.travelElementTo);
-  const restoreElementToCurrent = useWorkspaceStore((s) => s.restoreElementToCurrent);
+export function ElementTimeTravelSlider({ workspaceId }: { workspaceId: string }) {
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const selectedElementId = useStore((s) => s.selectedElementId);
+  const elementHistory = useStore((s) => s.elementHistory);
+  const timeTravelCursor = useStore((s) => s.timeTravelCursor);
+  const travelElementTo = useStore((s) => s.travelElementTo);
+  const restoreElementToCurrent = useStore((s) => s.restoreElementToCurrent);
 
   const history = elementHistory[selectedElementId ?? ""] ?? [];
-  const maxIndex = history.length; // 0..N-1 = past, N = current
+  const maxIndex = Math.max(history.length - 1, 0);
+  const hasHistory = history.length > 1;
+  const currentIndex = selectedElementId ? (timeTravelCursor?.[selectedElementId] ?? maxIndex) : 0;
 
-  const [sliderValue, setSliderValue] = useState(maxIndex);
-  const prevMaxRef = useRef(maxIndex);
-  const isTravelingRef = useRef(false);
+  const [sliderValue, setSliderValue] = useState(currentIndex);
 
-  // Reset when selected element changes
   useEffect(() => {
-    setSliderValue(maxIndex);
-    isTravelingRef.current = false;
-  }, [selectedElementId]); // eslint-disable-line react-hooks/exhaustive-deps
+    setSliderValue(currentIndex);
+  }, [currentIndex, selectedElementId, history.length]);
 
-  // When new history is added (user made a real edit), snap back to current
-  useEffect(() => {
-    if (prevMaxRef.current !== maxIndex) {
-      prevMaxRef.current = maxIndex;
-      if (!isTravelingRef.current) {
-        setSliderValue(maxIndex);
-      } else {
-        // A real edit happened while time-traveling — reset travel and follow current
-        isTravelingRef.current = false;
-        setSliderValue(maxIndex);
-      }
-    }
-  }, [maxIndex]);
-
-  if (!selectedElementId || maxIndex === 0) return null;
+  if (!selectedElementId) return null;
 
   function handleChange(value: number) {
     if (!selectedElementId) return;
     setSliderValue(value);
-    if (value >= maxIndex) {
-      // Back to present
-      isTravelingRef.current = false;
-      restoreElementToCurrent(selectedElementId);
-    } else {
-      isTravelingRef.current = true;
-      travelElementTo(selectedElementId, value);
-    }
+    travelElementTo(selectedElementId, value);
   }
 
   const isAtPresent = sliderValue >= maxIndex;
@@ -60,7 +39,7 @@ export function ElementTimeTravelSlider() {
       <div className="inspector-section-title">
         <Clock size={12} />
         <span>Time Travel</span>
-        {!isAtPresent && (
+        {hasHistory && !isAtPresent && (
           <span style={{
             marginLeft: "auto", fontSize: 10, fontWeight: 700,
             color: "#D3A5B1", background: "rgba(211,165,177,0.12)",
@@ -78,9 +57,11 @@ export function ElementTimeTravelSlider() {
           max={maxIndex}
           step={1}
           value={sliderValue}
+          onInput={(e) => handleChange(Number((e.target as HTMLInputElement).value))}
           onChange={(e) => handleChange(Number(e.target.value))}
+          disabled={!hasHistory}
           className="inspector-slider"
-          style={{ width: "100%", accentColor: "#D3A5B1" }}
+          style={{ width: "100%", accentColor: "#D3A5B1", opacity: hasHistory ? 1 : 0.45 }}
         />
         <div style={{
           display: "flex", justifyContent: "space-between",
@@ -88,13 +69,28 @@ export function ElementTimeTravelSlider() {
         }}>
           <span>Oldest</span>
           <span style={{ fontWeight: isAtPresent ? 600 : 400, color: isAtPresent ? "#2d3436" : "#9a8f87" }}>
-            {isAtPresent ? "Present" : `Edit ${sliderValue + 1} of ${maxIndex}`}
+            {hasHistory ? (isAtPresent ? "Current State" : `State ${sliderValue + 1} of ${history.length}`) : "No history yet"}
           </span>
           <span>Present</span>
         </div>
       </div>
 
-      {!isAtPresent && (
+      {!hasHistory && (
+        <div style={{
+          fontSize: 12,
+          lineHeight: 1.5,
+          color: "#7b6f66",
+          background: "rgba(211,165,177,0.08)",
+          border: "1px solid rgba(211,165,177,0.16)",
+          borderRadius: 10,
+          padding: "8px 10px",
+          marginTop: 2,
+        }}>
+          Time travel will appear after you make the first edit to this element.
+        </div>
+      )}
+
+      {hasHistory && !isAtPresent && (
         <button
           type="button"
           onClick={() => handleChange(maxIndex)}

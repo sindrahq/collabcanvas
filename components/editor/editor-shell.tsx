@@ -2,10 +2,10 @@
 
 import { subscribeToActivityFeed, broadcastActivity } from "@/lib/activityFeedRealtime";
 import { logActivity as logActivityServer } from "@/lib/logActivity";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle } from "lucide-react";
+import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle, Palette, type LucideIcon } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -16,22 +16,30 @@ import { WorkspaceSidebar, type WorkspaceSidebarSection } from "@/components/edi
 import { Toolbar } from "@/components/editor/toolbar";
 import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import {
+  acquireSelectionLock,
+  broadcastCanvasUpdate,
   initPresenceChannel,
   leavePresenceChannel,
   onCursorBroadcast,
   onElementClickBroadcast,
+  onSelectionBroadcast,
   type PresenceMeta,
 } from "@/lib/collaboration";
 import { CommandBrain, type BrainCommand } from "@/components/editor/command-brain";
 import { createWorkspaceComment, loadWorkspaceComments, type WorkspaceComment } from "@/lib/comments";
 import { exportWorkspaceAsJpeg, exportWorkspaceAsPdf, exportWorkspaceAsPng } from "@/lib/workspaceExport";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 import { saveWorkspaceHistorySnapshot } from "@/lib/history";
 import { loadWorkspace } from "@/lib/workspaceLoader";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
-import { type WorkspaceAccessLevel, useWorkspaceStore } from "@/store/workspaceStore";
-import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+import { type WorkspaceAccessLevel, type CanvasTheme, useWorkspaceStore, useWorkspaceStoreFactory } from "@/store/workspaceStore";
+import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
+import PresenceOverlay from "@/components/ui/PresenceOverlay";
+import TemplatePicker from "@/components/ui/TemplatePicker";
+import AssetLibraryPanel from "@/components/ui/AssetLibraryPanel";
+import RoleBadge from "@/components/ui/RoleBadge";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
+import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -39,6 +47,10 @@ import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 import { InteractiveTutorial } from "@/components/ui/interactive-tutorial";
 import { VoiceCommandManager } from "@/components/voice/VoiceCommandManager";
 import { Bookmark } from "lucide-react";
+import { usePresenceStore } from "@/store/presenceStore";
+import { useCanvasIntegration } from "@/hooks/useCanvasIntegration";
+import { useRealtime } from "@/hooks/useRealtime";
+import type { CanvasRole, CanvasTemplate } from "@/types/integration";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -50,6 +62,12 @@ function isShareAccessLevel(value: unknown): value is WorkspaceAccessLevel {
   return value === "view" || value === "comment" || value === "edit";
 }
 
+function mapRoleToAccessLevel(role: CanvasRole): WorkspaceAccessLevel {
+  if (role === "commenter") return "comment";
+  if (role === "viewer") return "view";
+  return "edit";
+}
+
 function slugify(value: string) {
   const trimmed = value.trim().toLowerCase();
   return trimmed.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "workspace";
@@ -57,21 +75,22 @@ function slugify(value: string) {
 
 type AutoSaveStatus = "saved" | "saving";
 const LOCAL_COMMENTS_STORAGE_PREFIX = "collabcanvas_workspace_comments_";
+const LOCAL_WORKSPACE_DRAFT_PREFIX = "collabcanvas_workspace_draft_";
 
 const PRESENCE_COLORS = ["#0b6e66", "#b35c1c", "#1f6fd6", "#7a3eb3", "#a03a58", "#3d6f2f"];
 
 const NAV_SECTIONS: Array<{
   id: WorkspaceSidebarSection;
   label: string;
-  icon: any;
+  icon: LucideIcon;
 }> = [
-  { id: "layers", label: "Layers", icon: Layers },
-  { id: "actions", label: "Add", icon: LayoutGrid },
-  { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
-  { id: "comments", label: "Comments", icon: MessageSquare },
-  { id: "templates", label: "Templates", icon: Bookmark },
-  { id: "activity", label: "Activity", icon: Activity },
-];
+    { id: "layers", label: "Layers", icon: Layers },
+    { id: "actions", label: "Add", icon: LayoutGrid },
+    { id: "inspector", label: "Inspector", icon: SlidersHorizontal },
+    { id: "comments", label: "Comments", icon: MessageSquare },
+    { id: "templates", label: "Templates", icon: Bookmark },
+    { id: "activity", label: "Activity", icon: Activity },
+  ];
 
 function extractMissingColumnFromMessage(message?: string | null): string | null {
   if (!message) return null;
@@ -100,6 +119,11 @@ function isUuidSyntaxErrorMessage(message?: string | null): boolean {
   return /invalid input syntax for type uuid/i.test(message);
 }
 
+function isDuplicatePrimaryKeyMessage(message?: string | null): boolean {
+  if (!message) return false;
+  return /duplicate key value violates unique constraint\s+"canvas_elements_pkey"/i.test(message);
+}
+
 function buildLocalPresenceMeta(): PresenceMeta {
   if (typeof window === "undefined") {
     return {
@@ -108,6 +132,9 @@ function buildLocalPresenceMeta(): PresenceMeta {
       color: PRESENCE_COLORS[0],
       avatarUrl: "",
       cursor: { x: 0.5, y: 0.5 },
+      selection: null,
+      typing: false,
+      viewport: { zoom: 1, panX: 0, panY: 0 },
     };
   }
 
@@ -128,7 +155,11 @@ function buildLocalPresenceMeta(): PresenceMeta {
     color: PRESENCE_COLORS[Math.floor(Math.random() * PRESENCE_COLORS.length)],
     avatarUrl: "",
     cursor: { x: 0.5, y: 0.5 },
+    selection: null,
+    typing: false,
+    viewport: { zoom: 1, panX: 0, panY: 0 },
   };
+
   window.localStorage.setItem(key, JSON.stringify(meta));
   return meta;
 }
@@ -157,43 +188,49 @@ function AutoSaveBadge({ status }: { status: AutoSaveStatus }) {
   );
 }
 
+
+
 export function EditorShell() {
   // All hooks and state declarations must come first
   const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedElementId = useWorkspaceStore((s) => s.selectedElementId);
-  const duplicateSelectedElement = useWorkspaceStore((s) => s.duplicateSelectedElement);
-  const deleteSelectedElement = useWorkspaceStore((s) => s.deleteSelectedElement);
-  const copySelectedElement = useWorkspaceStore((s) => s.copySelectedElement);
-  const pasteElement = useWorkspaceStore((s) => s.pasteElement);
-  const workspace = useWorkspaceStore((s) => s.workspace);
-  const workspaceName = useWorkspaceStore((s) => s.workspaceName);
-  const accessLevel = useWorkspaceStore((s) => s.accessLevel);
-  const canEdit = useWorkspaceStore((s) => s.canEdit);
-  const setWorkspaceAccess = useWorkspaceStore((s) => s.setWorkspaceAccess);
-  const undo = useWorkspaceStore((s) => s.undo);
-  const redo = useWorkspaceStore((s) => s.redo);
-  const elements = useWorkspaceStore((s) => s.elements);
-  const updateElement = useWorkspaceStore((s) => s.updateElement);
-  const addElement = useWorkspaceStore((s) => s.addElement);
-  const setElevation = useWorkspaceStore((s) => s.setElevation);
-  const pushActivityLog = useWorkspaceStore((s) => s.pushActivityLog);
-  const clearActivityLog = useWorkspaceStore((s) => s.clearActivityLog);
-
-  // Now safe to use hooks in useMemo
   const workspaceIdFromUrl: string = useMemo(() => {
     const id = searchParams.get("workspaceId") || searchParams.get("id") || searchParams.get("projectId");
-    return id || workspace?.id || "";
-  }, [searchParams, workspace]);
+    return id || "";
+  }, [searchParams]);
+
+  // Use the factory store bound to the current workspace ID
+  const useStore = useWorkspaceStoreFactory(workspaceIdFromUrl);
+
+  const selectedElementId = useStore((s) => s.selectedElementId);
+  const selectElement = useStore((s) => s.selectElement);
+  const duplicateSelectedElement = useStore((s) => s.duplicateSelectedElement);
+  const deleteSelectedElement = useStore((s) => s.deleteSelectedElement);
+  const copySelectedElement = useStore((s) => s.copySelectedElement);
+  const pasteElement = useStore((s) => s.pasteElement);
+  const workspace = useStore((s) => s.workspace);
+  const workspaceName = useStore((s) => s.workspaceName);
+  const accessLevel = useStore((s) => s.accessLevel);
+  const canEdit = useStore((s) => s.canEdit);
+  const setWorkspaceAccess = useStore((s) => s.setWorkspaceAccess);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+  const elements = useStore((s) => s.elements);
+  const updateElement = useStore((s) => s.updateElement);
+  const addElement = useStore((s) => s.addElement);
+  const setElevation = useStore((s) => s.setElevation);
+  const pushActivityLog = useStore((s) => s.pushActivityLog);
+  const clearActivityLog = useStore((s) => s.clearActivityLog);
+  const canvasTheme = useGlobalThemeStore((s) => s.theme);
+  const setCanvasTheme = useGlobalThemeStore((s) => s.setTheme);
 
   // Get the Zustand store instance
   // (Zustand does not expose store directly, so we use a workaround for imperative calls)
-  // @ts-ignore
-  const store = useWorkspaceStore;
+  const store = useStore;
 
   // Wrapped element actions to log and broadcast activity
-  function handleAddElement(type: string, extra?: any) {
-    addElement(type as any, extra);
+  function handleAddElement(type: Parameters<typeof addElement>[0], extra?: Parameters<typeof addElement>[1]) {
+    addElement(type, extra);
     logAndBroadcastActivity("added", extra?.name || type, type);
   }
 
@@ -226,7 +263,7 @@ export function EditorShell() {
       element_type: elementType,
     });
   };
-  
+
 
   const [saveStatus, setSaveStatus] = useState<AutoSaveStatus>("saved");
   const [authChecked, setAuthChecked] = useState(false);
@@ -241,6 +278,8 @@ export function EditorShell() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
   const [comments, setComments] = useState<WorkspaceComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -248,6 +287,9 @@ export function EditorShell() {
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState(workspaceName);
   const [workspaceRenameSaving, setWorkspaceRenameSaving] = useState(false);
   const browserClient = useMemo(() => createSupabaseBrowserClient(), []);
+  const setLocalUserId = usePresenceStore((s) => s.setLocalUserId);
+  const updatePresenceUser = usePresenceStore((s) => s.updateUser);
+  const removePresenceUser = usePresenceStore((s) => s.removeUser);
   // Duplicate declaration removed
   const nextPath = useMemo(() => {
     const query = searchParams.toString();
@@ -270,12 +312,111 @@ export function EditorShell() {
       color: PRESENCE_COLORS[Math.abs(authUser.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % PRESENCE_COLORS.length],
       avatarUrl,
       cursor: { x: 0.5, y: 0.5 },
+      selection: null,
+      typing: false,
+      viewport: { zoom: 1, panX: 0, panY: 0 },
     } satisfies PresenceMeta;
   }, [authUser]);
 
+  const {
+    store: integrationStore,
+    refreshAssets,
+    refreshTemplates,
+    saveTemplate,
+    updateRoleOptimistically,
+  } = useCanvasIntegration(workspaceIdFromUrl, Boolean(authUser));
+  const currentUserRole = integrationStore((state) => state.currentUserRole);
+  const roleAssignments = integrationStore((state) => state.roleAssignments);
+  const assetList = integrationStore((state) => state.assetList);
+  const templateList = integrationStore((state) => state.templateList);
+  const assetStatus = integrationStore((state) => state.assetStatus);
+  const templateStatus = integrationStore((state) => state.templateStatus);
+  const assetError = integrationStore((state) => state.assetError);
+  const templateError = integrationStore((state) => state.templateError);
+
+  const handleRealtimeCanvasUpdate = useCallback(() => {
+    if (workspace?.id && !workspace.id.startsWith("local-")) {
+      void loadWorkspace(workspace.id);
+    }
+  }, [workspace?.id]);
+
+  const realtimeUser = authUser
+    ? {
+        id: currentUserMeta.user_id,
+        name: currentUserMeta.name,
+        color: currentUserMeta.color,
+      }
+    : null;
+  const { sendCursor: sendRealtimeCursor } = useRealtime({
+    canvasId: workspaceIdFromUrl,
+    currentUser: realtimeUser,
+    onCanvasUpdate: handleRealtimeCanvasUpdate,
+  });
+
   const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastPersistedSignatureRef = useRef<string>("");
+  const persistNowRef = useRef<(() => void) | null>(null);
+  const persistInFlightRef = useRef(false);
+  const pendingPersistRef = useRef(false);
   const fileBase = slugify(workspaceName);
+  const workspaceDraftKey = useMemo(
+    () => (workspaceIdFromUrl ? `${LOCAL_WORKSPACE_DRAFT_PREFIX}${workspaceIdFromUrl}` : ""),
+    [workspaceIdFromUrl]
+  );
+
+  useEffect(() => {
+    if (!workspaceDraftKey || typeof window === "undefined") return;
+
+    const payload = {
+      workspaceName,
+      selectedElementId,
+      elements,
+      updatedAt: Date.now(),
+    };
+
+    window.localStorage.setItem(workspaceDraftKey, JSON.stringify(payload));
+  }, [elements, selectedElementId, workspaceDraftKey, workspaceName]);
+
+  useEffect(() => {
+    if (!workspaceDraftKey || typeof window === "undefined") return;
+    if (elements.length > 0) return;
+
+    const raw = window.localStorage.getItem(workspaceDraftKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        elements?: typeof elements;
+        selectedElementId?: string | null;
+      };
+
+      if (Array.isArray(parsed.elements) && parsed.elements.length > 0) {
+        store.getState().setElements(parsed.elements);
+        store.getState().setSelectedElementId(parsed.selectedElementId ?? null);
+      }
+    } catch {
+      // Ignore malformed local drafts.
+    }
+  }, [elements.length, store, workspaceDraftKey]);
+
+  useEffect(() => {
+    // Switch to workspace theme
+    document.body.classList.add("cc-workspace-theme");
+    document.body.classList.remove("cc-landing-theme");
+
+    return () => {
+      // Restore landing theme or remove workspace theme
+      document.body.classList.remove("cc-workspace-theme");
+      document.body.classList.add("cc-landing-theme");
+      document.body.classList.remove("theme-cherry", "theme-forest", "theme-ocean", "theme-sunset");
+    };
+  }, []);
+
+  useEffect(() => {
+    // Sync active theme class to document body
+    document.body.classList.remove("theme-cherry", "theme-forest", "theme-ocean", "theme-sunset");
+    document.body.classList.add(`theme-${canvasTheme}`);
+  }, [canvasTheme]);
 
   useEffect(() => {
     if (!isRenamingWorkspace) {
@@ -287,6 +428,9 @@ export function EditorShell() {
     function handlePointerDown(event: MouseEvent) {
       if (!exportMenuRef.current?.contains(event.target as Node)) {
         setExportMenuOpen(false);
+      }
+      if (!themeMenuRef.current?.contains(event.target as Node)) {
+        setThemeMenuOpen(false);
       }
     }
 
@@ -352,16 +496,16 @@ export function EditorShell() {
 
     let active = true;
 
-    void browserClient.auth.getSession().then(({ data }) => {
+    void getSessionSafely(browserClient).then((session) => {
       if (!active) return;
 
-      if (!data.session?.user) {
+      if (!session?.user) {
         setAuthChecked(true);
         router.replace(`/auth?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
-      setAuthUser(data.session.user);
+      setAuthUser(session.user);
       setAuthChecked(true);
     });
 
@@ -384,6 +528,19 @@ export function EditorShell() {
       subscription.unsubscribe();
     };
   }, [browserClient, nextPath, router]);
+
+  // Listen for tutorial events to open inspector sidebar
+  useEffect(() => {
+    const handleTutorialEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ section: string }>;
+      if (customEvent.detail?.section === "inspector") {
+        setActiveSection("inspector");
+      }
+    };
+
+    window.addEventListener("tutorial-open-sidebar", handleTutorialEvent);
+    return () => window.removeEventListener("tutorial-open-sidebar", handleTutorialEvent);
+  }, []);
 
   useEffect(() => {
     if (!workspaceIdFromUrl || !authUser) return;
@@ -451,6 +608,18 @@ export function EditorShell() {
   }, [authUser, browserClient, router, searchParams, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
 
   useEffect(() => {
+    if (!workspace || !authUser || workspace.owner_id === "__loading__") return;
+    const nextRole = workspace.owner_id === authUser.id
+      ? "owner"
+      : accessLevel === "edit"
+        ? "editor"
+        : accessLevel === "comment"
+          ? "commenter"
+          : "viewer";
+    integrationStore.getState().setCurrentUserRole(nextRole);
+  }, [accessLevel, authUser, integrationStore, workspace]);
+
+  useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) {
       setComments([]);
       setCommentsError(null);
@@ -515,6 +684,11 @@ export function EditorShell() {
       void client.removeChannel(channel);
     };
   }, [authUser, browserClient, workspace?.id, workspace?.owner_id]);
+
+  useEffect(() => {
+    if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) return;
+    setWorkspaceAccess(mapRoleToAccessLevel(currentUserRole));
+  }, [authUser, currentUserRole, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
 
   async function handleAddComment(message: string, targetElementId: string | null) {
     if (!workspace?.id || !authUser) {
@@ -581,14 +755,14 @@ export function EditorShell() {
     const localCommentsKey = `${LOCAL_COMMENTS_STORAGE_PREFIX}${workspace.id}`;
     const localComments = typeof window !== "undefined"
       ? (() => {
-          const raw = window.localStorage.getItem(localCommentsKey);
-          if (!raw) return [] as WorkspaceComment[];
-          try {
-            return JSON.parse(raw) as WorkspaceComment[];
-          } catch {
-            return [] as WorkspaceComment[];
-          }
-        })()
+        const raw = window.localStorage.getItem(localCommentsKey);
+        if (!raw) return [] as WorkspaceComment[];
+        try {
+          return JSON.parse(raw) as WorkspaceComment[];
+        } catch {
+          return [] as WorkspaceComment[];
+        }
+      })()
       : [];
 
     const response = await fetch("/api/workspaces/sync-local", {
@@ -655,18 +829,55 @@ export function EditorShell() {
     }
 
     initPresenceChannel(workspace.id, currentUserMeta, {
-      onSync: (nextPresences) => setPresences(nextPresences),
-      onJoin: (userId, meta) => setPresences((previous) => ({ ...previous, [userId]: meta })),
-      onLeave: (userId) =>
+      onSync: (nextPresences) => {
+        setPresences(nextPresences);
+
+        const nextIds = new Set(Object.keys(nextPresences));
+        for (const [userId, meta] of Object.entries(nextPresences)) {
+          updatePresenceUser(userId, meta);
+        }
+        const currentUsers = usePresenceStore.getState().users;
+        for (const userId of Object.keys(currentUsers)) {
+          if (!nextIds.has(userId)) {
+            removePresenceUser(userId);
+          }
+        }
+        setRemoteCursors((previous) => {
+          const next = { ...previous };
+          for (const userId of Object.keys(next)) {
+            if (!nextIds.has(userId)) {
+              delete next[userId];
+            }
+          }
+          return Object.keys(next).length === Object.keys(previous).length ? previous : next;
+        });
+      },
+      onJoin: (userId, meta) => {
+        setPresences((previous) => ({ ...previous, [userId]: meta }));
+        updatePresenceUser(userId, meta);
+      },
+      onLeave: (userId) => {
         setPresences((previous) => {
           const next = { ...previous };
           delete next[userId];
           return next;
-        }),
+        });
+        removePresenceUser(userId);
+        setRemoteCursors((previous) => {
+          if (!(userId in previous)) return previous;
+          const next = { ...previous };
+          delete next[userId];
+          return next;
+        });
+      },
     });
 
     return () => leavePresenceChannel();
-  }, [workspace?.id, currentUserMeta]);
+  }, [workspace?.id, currentUserMeta, removePresenceUser, updatePresenceUser]);
+
+  useEffect(() => {
+    setLocalUserId(currentUserMeta.user_id);
+  }, [currentUserMeta.user_id, setLocalUserId]);
 
   useEffect(() => {
     if (!workspace?.id || workspace.owner_id === "__loading__") return;
@@ -701,6 +912,35 @@ export function EditorShell() {
 
     return unsubscribe;
   }, [currentUserMeta.user_id]);
+
+  useEffect(() => {
+    const unsubscribe = onSelectionBroadcast(({ user_id, element_id }) => {
+      if (user_id === currentUserMeta.user_id) return;
+      updatePresenceUser(user_id, { selection: element_id });
+      setPresences((previous) => {
+        const existing = previous[user_id];
+        if (!existing) return previous;
+        return {
+          ...previous,
+          [user_id]: {
+            ...existing,
+            selection: element_id,
+          },
+        };
+      });
+    });
+
+    return unsubscribe;
+  }, [currentUserMeta.user_id, updatePresenceUser]);
+
+  useEffect(() => {
+    if (!workspace?.id || workspace.owner_id === "__loading__") return;
+
+    const result = acquireSelectionLock(currentUserMeta.user_id, selectedElementId);
+    if (!result.ok && selectedElementId) {
+      selectElement(null);
+    }
+  }, [currentUserMeta.user_id, selectedElementId, selectElement, workspace?.id, workspace?.owner_id]);
 
   // Collaborative elevation: boost shadow when remote users click the same element
   useEffect(() => {
@@ -755,110 +995,181 @@ export function EditorShell() {
       return;
     }
 
+    const persistNow = async () => {
+      if (persistInFlightRef.current) {
+        pendingPersistRef.current = true;
+        return;
+      }
+
+      persistInFlightRef.current = true;
+
+      try {
+        const elementsPayload = elements.map((element) => ({
+          id: element.id,
+          workspace_id: workspace.id,
+          type: element.type,
+          position: {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+          },
+          rotation: element.rotation,
+          text_content: element.text ?? null,
+          style_ext: {
+            fill: element.style.fill,
+            stroke: element.style.stroke,
+            strokeWidth: element.style.strokeWidth,
+            opacity: element.style.opacity,
+            fontSize: element.style.fontSize,
+            fontFamily: element.style.fontFamily,
+            fontStyle: element.style.fontStyle,
+            fontWeight: element.style.fontWeight,
+            textAlign: element.style.textAlign,
+            shadowEnabled: element.style.shadowEnabled,
+            shadowBlur: element.style.shadowBlur,
+            shadowColor: element.style.shadowColor,
+            shadowOffsetX: element.style.shadowOffsetX,
+            shadowOffsetY: element.style.shadowOffsetY,
+            brightness: element.style.brightness ?? 0,
+            contrast: element.style.contrast ?? 0,
+            tint: element.style.tint ?? 0,
+            imageUrl: element.style.imageUrl ?? null,
+          },
+          layer_order: element.layerOrder,
+          visible: element.visible,
+          locked: element.locked,
+        }));
+
+        const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
+        if (deleteResult.error) {
+          throw new Error(deleteResult.error.message || "Failed to clear existing workspace elements.");
+        }
+
+        if (elementsPayload.length) {
+          let candidatePayload = elementsPayload as Record<string, unknown>[];
+          let inserted = false;
+
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const insertResult = await client.from("canvas_elements").insert(candidatePayload);
+            if (!insertResult.error) {
+              inserted = true;
+              break;
+            }
+
+            if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
+              const hasInvalidId = candidatePayload.some(
+                (row) => typeof row.id === "string" && !isUuidValue(row.id)
+              );
+              if (hasInvalidId) {
+                candidatePayload = removeColumnFromRows(candidatePayload, "id");
+                continue;
+              }
+            }
+
+            if (isDuplicatePrimaryKeyMessage(insertResult.error.message)) {
+              const nextPayload = removeColumnFromRows(candidatePayload, "id");
+              if (JSON.stringify(nextPayload) !== JSON.stringify(candidatePayload)) {
+                candidatePayload = nextPayload;
+                continue;
+              }
+            }
+
+            const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
+            if (!missingColumn) {
+              throw new Error(insertResult.error.message || "Failed to insert workspace elements.");
+            }
+
+            const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
+            if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
+              throw new Error(insertResult.error.message || "Failed to adjust workspace element payload.");
+            }
+
+            candidatePayload = nextPayload;
+          }
+
+          if (!inserted) {
+            throw new Error("Could not save workspace elements due to schema mismatch.");
+          }
+        }
+
+        // History snapshot is optional — don't block the save if it fails
+        void saveWorkspaceHistorySnapshot(workspace.id, {
+          elements,
+          selectedElementId,
+          workspaceName,
+        }, "Autosave");
+
+        broadcastCanvasUpdate({
+          workspaceId: workspace.id,
+          workspaceName,
+          elementCount: elements.length,
+          selectedElementId,
+          updatedAt: Date.now(),
+        });
+
+        lastPersistedSignatureRef.current = signature;
+      } catch (error) {
+        console.error("[EditorShell] Autosave failed:", error);
+      } finally {
+        persistInFlightRef.current = false;
+
+        if (pendingPersistRef.current) {
+          pendingPersistRef.current = false;
+          setSaveStatus("saving");
+          setTimeout(() => {
+            persistNowRef.current?.();
+          }, 0);
+          return;
+        }
+
+        setSaveStatus("saved");
+      }
+    };
+
+    persistNowRef.current = () => {
+      void persistNow();
+    };
+
     setSaveStatus("saving");
     clearTimeout(persistTimerRef.current);
-
     persistTimerRef.current = setTimeout(() => {
-      void (async () => {
-        try {
-          const elementsPayload = elements.map((element) => ({
-            id: element.id,
-            workspace_id: workspace.id,
-            type: element.type,
-            position: {
-              x: element.x,
-              y: element.y,
-              width: element.width,
-              height: element.height,
-            },
-            rotation: element.rotation,
-            text_content: element.text ?? null,
-            style_ext: {
-              fill: element.style.fill,
-              stroke: element.style.stroke,
-              strokeWidth: element.style.strokeWidth,
-              opacity: element.style.opacity,
-              fontSize: element.style.fontSize,
-              fontFamily: element.style.fontFamily,
-              fontStyle: element.style.fontStyle,
-              fontWeight: element.style.fontWeight,
-              textAlign: element.style.textAlign,
-              shadowEnabled: element.style.shadowEnabled,
-              shadowBlur: element.style.shadowBlur,
-              shadowColor: element.style.shadowColor,
-              shadowOffsetX: element.style.shadowOffsetX,
-              shadowOffsetY: element.style.shadowOffsetY,
-              imageUrl: (element.style as any).imageUrl ?? null,
-            },
-            layer_order: element.layerOrder,
-            visible: element.visible,
-            locked: element.locked,
-          }));
-
-          const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
-          if (deleteResult.error) {
-            throw deleteResult.error;
-          }
-
-          if (elementsPayload.length) {
-            let candidatePayload = elementsPayload as Record<string, unknown>[];
-            let inserted = false;
-
-            for (let attempt = 0; attempt < 8; attempt += 1) {
-              const insertResult = await client.from("canvas_elements").insert(candidatePayload);
-              if (!insertResult.error) {
-                inserted = true;
-                break;
-              }
-
-              if (isUuidSyntaxErrorMessage(insertResult.error.message)) {
-                const hasInvalidId = candidatePayload.some(
-                  (row) => typeof row.id === "string" && !isUuidValue(row.id)
-                );
-                if (hasInvalidId) {
-                  candidatePayload = removeColumnFromRows(candidatePayload, "id");
-                  continue;
-                }
-              }
-
-              const missingColumn = extractMissingColumnFromMessage(insertResult.error.message);
-              if (!missingColumn) {
-                throw insertResult.error;
-              }
-
-              const nextPayload = removeColumnFromRows(candidatePayload, missingColumn);
-              if (JSON.stringify(nextPayload) === JSON.stringify(candidatePayload)) {
-                throw insertResult.error;
-              }
-
-              candidatePayload = nextPayload;
-            }
-
-            if (!inserted) {
-              throw new Error("Could not save workspace elements due to schema mismatch.");
-            }
-          }
-
-          const historyResult = await saveWorkspaceHistorySnapshot(workspace.id, {
-            elements,
-            selectedElementId,
-            workspaceName,
-          }, "Autosave");
-
-          if (!historyResult) {
-            throw new Error("Unable to save workspace history.");
-          }
-
-          lastPersistedSignatureRef.current = signature;
-          setSaveStatus("saved");
-        } catch {
-          setSaveStatus("saved");
-        }
-      })();
+      persistNowRef.current?.();
     }, 450);
 
     return () => clearTimeout(persistTimerRef.current);
   }, [authUser, browserClient, canEdit, elements, selectedElementId, workspace?.id, workspace?.owner_id, workspaceName]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const flushPendingChanges = () => {
+      if (workspaceDraftKey && typeof window !== "undefined") {
+        window.localStorage.setItem(
+          workspaceDraftKey,
+          JSON.stringify({ workspaceName, selectedElementId, elements, updatedAt: Date.now() })
+        );
+      }
+      clearTimeout(persistTimerRef.current);
+      persistNowRef.current?.();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        flushPendingChanges();
+      }
+    };
+
+    window.addEventListener("pagehide", flushPendingChanges);
+    window.addEventListener("beforeunload", flushPendingChanges);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("pagehide", flushPendingChanges);
+      window.removeEventListener("beforeunload", flushPendingChanges);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [elements, selectedElementId, workspaceDraftKey, workspaceName]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -932,6 +1243,23 @@ export function EditorShell() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [canEdit, copySelectedElement, deleteSelectedElement, duplicateSelectedElement, elements, pasteElement, selectedElementId, undo, redo, updateElement]);
 
+  const [openAssetLibrary, setOpenAssetLibrary] = useState(false);
+  const [openTemplatePicker, setOpenTemplatePicker] = useState(false);
+
+  const handleUseTemplate = useCallback((template: CanvasTemplate) => {
+    const idMap = new Map(template.elements.map((element) => [element.id, crypto.randomUUID()]));
+    template.elements.forEach((element) => {
+      addElement(element.type, {
+        ...element,
+        id: idMap.get(element.id),
+        parentId: element.parentId ? idMap.get(element.parentId) : undefined,
+        x: element.x + 40,
+        y: element.y + 40,
+        style: { ...element.style },
+      });
+    });
+  }, [addElement]);
+
   const mobileTabs = [
     { key: "canvas", label: "Canvas" },
     { key: "layers", label: "Layers" },
@@ -961,19 +1289,19 @@ export function EditorShell() {
   return (
     <main className="editor-page cc-landing-theme relative">
       {/* Mirror Landing Background */}
-      <div 
-        className="fixed inset-0 pointer-events-none z-[0]"
-        style={{ 
-          backgroundImage: 'url("https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2500&auto=format&fit=crop")',
+      <div
+        className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
+        style={{
+          backgroundImage: `url(${THEME_BACKGROUNDS[canvasTheme] || THEME_BACKGROUNDS.cherry})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       />
       <div className="fixed inset-0 pointer-events-none bg-white/20 backdrop-blur-[2px] z-[1]" />
 
-      <PastelBlobBackground />
-      <FallingPetals variant="lavender" />
-      <AccumulatedPetals />
+      <PastelBlobBackground theme={canvasTheme} />
+      <FallingPetals theme={canvasTheme} />
+      <AccumulatedPetals theme={canvasTheme} />
       <div className="workspace-aura" aria-hidden="true" />
       <CustomCursor />
       <InteractiveTutorial />
@@ -981,367 +1309,304 @@ export function EditorShell() {
         className="editor-shell relative z-10"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.28 }}
-      >
-        <motion.header
-          className="editor-topbar"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.06, duration: 0.24 }}
-        >
-          <div className="editor-topbar-left min-w-0">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
-                  {workspace?.owner_id !== authUser.id ? (
-                    <span className="editor-access-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#D3A5B1]/10 text-[#D3A5B1]">
-                      {accessLevel}
-                    </span>
-                  ) : (
-                    <span className="editor-owner-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#2d3436] text-white rounded-md">Owner</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 opacity-60">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#8b7355]">Mode</span>
-                  <span className="text-[9px] font-medium text-[#2d3436] bg-[#D3A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
-                    {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
-                  </span>
-                </div>
-              </div>
-              <div className="workspace-name-wrap">
-                {isRenamingWorkspace ? (
-                  <>
-                    <input
-                      type="text"
-                      className="workspace-name-input"
-                      value={workspaceNameDraft}
-                      onChange={(event) => setWorkspaceNameDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void handleWorkspaceRenameSubmit();
-                        }
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          handleWorkspaceRenameCancel();
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      className="workspace-name-action"
-                      onClick={() => void handleWorkspaceRenameSubmit()}
-                      disabled={workspaceRenameSaving}
-                      title="Save workspace name"
-                    >
-                      {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
-                    </button>
-                    <button
-                      type="button"
-                      className="workspace-name-action"
-                      onClick={handleWorkspaceRenameCancel}
-                      disabled={workspaceRenameSaving}
-                      title="Cancel rename"
-                    >
-                      <X size={14} />
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
-                    {canRenameWorkspace ? (
-                      <button
-                        type="button"
-                        className="workspace-name-action"
-                        onClick={() => setIsRenamingWorkspace(true)}
-                        title="Rename workspace"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
+        transition={{ duration: 0.28 }}>
+      
+        {!previewOpen && (
+  <motion.header
+    className="editor-topbar"
+    initial={{ opacity: 0, y: -8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.06, duration: 0.24 }}
+  >
+    <div className="editor-topbar-left min-w-0">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <AvatarStack presences={presences} currentUserId={currentUserMeta.user_id} />
+            <RoleBadge role={currentUserRole} />
           </div>
-
-          <div className="editor-topbar-center">
-            <div className="flex items-center gap-1.5 bg-[#D3A5B1]/5 rounded-full px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
-              {NAV_SECTIONS.map((section) => {
-                const Icon = section.icon;
-                const active = activeSection === section.id;
-                return (
-                  <GlassTooltip key={section.id} content={section.label}>
-                    <motion.button
-                      type="button"
-                      onClick={() => setActiveSection(current => current === section.id ? null : section.id)}
-                      className={`nav-pill-btn flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
-                        active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#8b7355] hover:bg-[#D3A5B1]/10"
-                      }`}
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.93 }}
-                    >
-                      <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                    </motion.button>
-                  </GlassTooltip>
-                );
-              })}
-            </div>
+          <div className="flex items-center gap-1.5 opacity-60">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-[#2d3436] opacity-70">Mode</span>
+            <span className="text-[9px] font-medium text-[#2d3436] bg-[#D5A5B1]/10 px-1.5 py-0.5 rounded-full border border-[#D3A5B1]/15 leading-none">
+              {workspace?.owner_id === authUser?.id ? "Personal Creator" : "Team Collab"}
+            </span>
           </div>
-
-          <div className="editor-topbar-right min-w-0">
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => setGenUIOpen(true)}
-              title="Generative UI — generate elements with AI"
-            >
-              <Sparkles size={14} />
-              <span>Generate</span>
-            </button>
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => setPreviewOpen(true)}
-              title="Multi-screen preview"
-            >
-              <Monitor size={14} />
-              <span>Preview</span>
-            </button>
-            <button
-              type="button"
-              className="toolbar-button editor-share-button"
-              onClick={() => setShareDialogOpen(true)}
-              title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}
-            >
-              <Share2 size={14} />
-              <span className="">Share</span>
-            </button>
-            <motion.button
-              type="button"
-              className="toolbar-button"
-              onClick={() => window.dispatchEvent(new CustomEvent("start-tutorial"))}
-              title="Help & Tutorial"
-              whileHover={{ y: -1, scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <HelpCircle size={14} />
-            </motion.button>
-
-            <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
-              <button
-                type="button"
-                className="toolbar-button toolbar-button-compact editor-export-button"
-                onClick={() => setExportMenuOpen((open) => !open)}
-                title="Export workspace"
-              >
-                <Download size={14} />
-                <span className="">Export</span>
-                <ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+        </div>
+        <div className="workspace-name-wrap">
+          {isRenamingWorkspace ? (
+            <>
+              <input type="text" className="workspace-name-input" value={workspaceNameDraft} onChange={(event) => setWorkspaceNameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void handleWorkspaceRenameSubmit(); } if (event.key === "Escape") { event.preventDefault(); handleWorkspaceRenameCancel(); } }} autoFocus />
+              <button type="button" className="workspace-name-action" onClick={() => void handleWorkspaceRenameSubmit()} disabled={workspaceRenameSaving} title="Save workspace name">
+                {workspaceRenameSaving ? <LoaderCircle size={14} className="autosave-spin" /> : <Check size={14} />}
               </button>
-
-              <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPng(`${fileBase}.png`);
-                  }}
-                >
-                  PNG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
-                  }}
-                >
-                  JPEG
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-menu-item"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void exportWorkspaceAsPdf(`${fileBase}.pdf`);
-                  }}
-                >
-                  PDF
-                </button>
-              </div>
+              <button type="button" className="workspace-name-action" onClick={handleWorkspaceRenameCancel} disabled={workspaceRenameSaving} title="Cancel rename">
+                <X size={14} />
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="workspace-name-text" title={workspaceName}>{workspaceName}</h1>
+              {canRenameWorkspace && (
+                <button type="button" className="workspace-name-action" onClick={() => setIsRenamingWorkspace(true)} title="Rename workspace"><Pencil size={12} /></button>
+              )}
             </div>
-            <AutoSaveBadge status={saveStatus} />
-            <ProfileMenu
-              displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)}
-              email={authUser.email ?? null}
-              avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null}
-              onLogout={async () => {
-                if (!browserClient) return;
-                await browserClient.auth.signOut();
-                router.replace("/");
-              }}
-            />
-          </div>
-        </motion.header>
-
-        <div className="workspace-layout">
-          <motion.div
-            className="workspace-dock-shell"
-            initial={false}
-            animate={{ 
-              width: activeSection ? 'auto' : 0,
-              opacity: activeSection ? 1 : 0,
-              marginRight: activeSection ? 16 : 0
-            }}
-            transition={{ duration: 0.24 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <WorkspaceSidebar
-              workspaceName={workspaceName}
-              workspaceId={workspace?.id}
-              comments={comments}
-              commentsLoading={commentsLoading}
-              commentsError={commentsError}
-              currentUserId={authUser.id}
-              canComment={accessLevel === "comment" || canEdit}
-              onAddComment={handleAddComment}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-            />
-          </motion.div>
-
-          <motion.div
-            className="workspace-main-shell"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.14, duration: 0.24 }}
-          >
-            <AnimatePresence mode="wait">
-              {selectedElementId ? (
+          )}
+        </div>
+      </div>
+    </div>
+    <div className="editor-topbar-center flex w-max justify-center">
+      <div className="inline-flex w-max items-center gap-1.5 rounded-full bg-[#D3A5B1]/5 px-1.5 py-1.5 border border-[#D3A5B1]/10 backdrop-blur-md">
+        {NAV_SECTIONS.map((section) => {
+          const Icon = section.icon;
+          const active = activeSection === section.id;
+          return (
+            <GlassTooltip key={section.id} content={section.label}>
+              <motion.button type="button" onClick={() => setActiveSection(current => current === section.id ? null : section.id)} className={`nav-pill-btn flex-none flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${active ? "bg-[#D3A5B1] text-white shadow-lg shadow-[#D3A5B1]/25" : "text-[#2d3436] hover:bg-[#D3A5B1]/10"}`} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.93 }}>
+                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+              </motion.button>
+            </GlassTooltip>
+          );
+        })}
+      </div>
+    </div>
+    <div className="editor-topbar-right min-w-0">
+      <button type="button" className="toolbar-button" onClick={() => setGenUIOpen(true)} title="Generative UI — generate elements with AI"><Sparkles size={14} /><span>Generate</span></button>
+      <button type="button" className="toolbar-button" onClick={() => setPreviewOpen(true)} title="Multi-screen preview"><Monitor size={14} /><span>Preview</span></button>
+      {/* Theme Dropdown */}
+      <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
+        <button type="button" className="toolbar-button toolbar-button-compact" onClick={() => setThemeMenuOpen(open => !open)} title="Change canvas theme">
+          <Palette size={14} />
+          <span>Theme</span>
+          <ChevronDown size={13} className={themeMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} />
+        </button>
+        <div className={`toolbar-menu-list${themeMenuOpen ? " open" : ""}`}>
+          {([
+            { id: "cherry", label: "Cherry Blossom", color: "#D3A5B1" },
+            { id: "forest", label: "Forest Moss", color: "#708238" },
+            { id: "ocean", label: "Ocean Breeze", color: "#3b7bb8" },
+            { id: "sunset", label: "Sunset Dusk", color: "#d97d41" },
+          ] satisfies Array<{ id: CanvasTheme; label: string; color: string }>).map((t) => (
+            <button key={t.id} type="button" className={`toolbar-menu-item flex items-center gap-2 ${canvasTheme === t.id ? "font-bold text-[var(--accent)]" : ""}`} onClick={() => { setCanvasTheme(t.id); setThemeMenuOpen(false); }}>
+              <span className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" style={{ backgroundColor: t.color }} />
+              <span>{t.label}</span>
+              {canvasTheme === t.id && <span className="ml-auto text-[10px]">✓</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button type="button" className="toolbar-button editor-share-button" onClick={() => setShareDialogOpen(true)} title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}><Share2 size={14} /><span>Share</span></button>
+      <motion.button type="button" className="toolbar-button" onClick={() => window.dispatchEvent(new CustomEvent('start-tutorial'))} title="Help & Tutorial" whileHover={{ y: -1, scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <HelpCircle size={14} />
+      </motion.button>
+      <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+        <button type="button" className="toolbar-button toolbar-button-compact editor-export-button" onClick={() => setExportMenuOpen(open => !open)} title="Export workspace"><Download size={14} /><span>Export</span><ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} /></button>
+        <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
+          <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsPng(`${fileBase}.png`); }}>PNG</button>
+          <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsJpeg(`${fileBase}.jpeg`); }}>JPEG</button>
+          <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsPdf(`${fileBase}.pdf`); }}>PDF</button>
+        </div>
+      </div>
+      <AutoSaveBadge status={saveStatus} />
+      <ProfileMenu displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)} email={authUser.email ?? null} avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null} onLogout={async () => { if (!browserClient) return; await browserClient.auth.signOut(); router.replace("/"); }} />
+    </div>
+  </motion.header>
+)}
+              <div className="workspace-layout">
                 <motion.div
-                  key="canvas-selection-toolbar"
-                  className="canvas-selection-toolbar-shell"
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.18 }}
+                  className="workspace-dock-shell"
+                  initial={false}
+                  animate={{
+                    width: activeSection ? 'auto' : 0,
+                    opacity: activeSection ? 1 : 0,
+                    marginRight: activeSection ? 16 : 0
+                  }}
+                  transition={{ duration: 0.24 }}
+                  style={{ overflow: 'hidden' }}
                 >
-                  <Toolbar
+                  <WorkspaceSidebar
+                    workspaceName={workspaceName}
+                    workspaceId={workspaceIdFromUrl}
+                    comments={comments}
+                    commentsLoading={commentsLoading}
+                    commentsError={commentsError}
+                    currentUserId={authUser.id}
+                    canComment={accessLevel === "comment" || canEdit}
+                    onAddComment={handleAddComment}
+                    activeSection={activeSection}
+                    setActiveSection={setActiveSection}
+                    openAssetLibrary={() => setOpenAssetLibrary(true)}
+                    openTemplatePicker={() => setOpenTemplatePicker(true)}
+                  />
+                </motion.div>
+
+                <motion.div
+                  className="workspace-main-shell"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.14, duration: 0.24 }}
+                >
+                  <AnimatePresence mode="wait">
+                    {selectedElementId ? (
+                      <motion.div
+                        key="canvas-selection-toolbar"
+                        className="canvas-selection-toolbar-shell"
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <Toolbar
+                          workspaceId={workspaceIdFromUrl || ""}
+                          workspaceName={workspaceName}
+                          openAssetLibrary={() => setOpenAssetLibrary(true)}
+                          openTemplatePicker={() => setOpenTemplatePicker(true)}
+                          showHistoryActions={false}
+                          showAddActions={false}
+                          showSelectionActions
+                        />
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+
+                  <CanvasWorkspace
+                    workspaceId={workspaceIdFromUrl}
+                    currentUserId={currentUserMeta.user_id}
+                    presences={presences}
+                    remoteCursors={remoteCursors}
+                    onRealtimeCursorMove={sendRealtimeCursor}
+                  />
+                </motion.div>
+              </div>
+
+              <div className="editor-mobile-layout">
+                <div className="editor-mobile-tabs" role="tablist" aria-label="Editor panels">
+                  {mobileTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setMobilePanel(tab.key)}
+                      className={`editor-mobile-tab${mobilePanel === tab.key ? " active" : ""}`}
+                      aria-pressed={mobilePanel === tab.key}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="editor-mobile-panel">
+                  {mobilePanel === "canvas" ? (
+                    <div className="editor-mobile-panel-inner">
+                      <Toolbar
                       workspaceId={workspaceIdFromUrl || ""}
                       workspaceName={workspaceName}
-                      showHistoryActions={false}
-                      showAddActions={false}
-                      showSelectionActions
+                      openAssetLibrary={() => setOpenAssetLibrary(true)}
+                      openTemplatePicker={() => setOpenTemplatePicker(true)}
                     />
-                </motion.div>
+                      <CanvasWorkspace
+                        workspaceId={workspaceIdFromUrl || ""}
+                        currentUserId={currentUserMeta.user_id}
+                        presences={presences}
+                        remoteCursors={remoteCursors}
+                        onRealtimeCursorMove={sendRealtimeCursor}
+                      />
+                    </div>
+                  ) : null}
+
+                  {mobilePanel === "layers" ? (
+                    <div className="editor-mobile-panel-inner">
+                      <LeftSidebar workspaceId={workspaceIdFromUrl || ""} />
+                    </div>
+                  ) : null}
+
+                  {mobilePanel === "inspector" ? (
+                    <div className="editor-mobile-panel-inner">
+                      <RightSidebar
+                        workspaceId={workspace?.id}
+                        comments={comments}
+                        commentsLoading={commentsLoading}
+                        commentsError={commentsError}
+                        currentUserId={authUser.id}
+                        canComment={accessLevel === "comment" || canEdit}
+                        onAddComment={handleAddComment}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+                {openAssetLibrary && (
+                  <AssetLibraryPanel
+                    open={openAssetLibrary}
+                    onClose={() => setOpenAssetLibrary(false)}
+                    onSelect={(url) => {
+                      addElement("image", { imageUrl: url });
+                      setOpenAssetLibrary(false);
+                    }}
+                    assets={assetList}
+                    loading={assetStatus === "loading"}
+                    error={assetError}
+                    onRefresh={() => void refreshAssets()}
+                  />
+                )}
+                <PresenceOverlay canvasId={workspaceIdFromUrl} />
+                {openTemplatePicker && (
+                  <TemplatePicker
+                    open={openTemplatePicker}
+                    onClose={() => setOpenTemplatePicker(false)}
+                    onSelect={handleUseTemplate}
+                    templates={templateList}
+                    loading={templateStatus === "loading"}
+                    error={templateError}
+                    onRefresh={() => void refreshTemplates()}
+                    onSaveCurrent={() => void saveTemplate(workspaceName, elements)}
+                  />
+                )}
+              </div>
+
+              <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} workspaceId={workspaceIdFromUrl} />
+              <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} workspaceId={workspaceIdFromUrl} />
+
+              {workspace?.id ? (
+                <ShareDialog
+                  workspaceId={workspace.id}
+                  workspaceName={workspaceName}
+                  open={shareDialogOpen}
+                  onSyncLocalWorkspace={syncLocalWorkspaceToSupabase}
+                  onClose={() => setShareDialogOpen(false)}
+                  currentUserRole={currentUserRole}
+                  roleAssignments={roleAssignments}
+                  onRoleChange={async (userId, role) => {
+                    await updateRoleOptimistically(userId, role);
+                  }}
+                />
               ) : null}
-            </AnimatePresence>
 
-            <CanvasWorkspace
-              workspaceId={workspaceIdFromUrl}
-              currentUserId={currentUserMeta.user_id}
-              presences={presences}
-              remoteCursors={remoteCursors}
-            />
-          </motion.div>
-        </div>
-
-        <div className="editor-mobile-layout">
-          <div className="editor-mobile-tabs" role="tablist" aria-label="Editor panels">
-            {mobileTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setMobilePanel(tab.key)}
-                className={`editor-mobile-tab${mobilePanel === tab.key ? " active" : ""}`}
-                aria-pressed={mobilePanel === tab.key}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="editor-mobile-panel">
-            {mobilePanel === "canvas" ? (
-              <div className="editor-mobile-panel-inner">
-                <Toolbar workspaceId={workspaceIdFromUrl || ""} workspaceName={workspaceName} />
-                <CanvasWorkspace
-                  workspaceId={workspaceIdFromUrl || ""}
-                  currentUserId={currentUserMeta.user_id}
-                  presences={presences}
-                  remoteCursors={remoteCursors}
-                />
-              </div>
-            ) : null}
-
-            {mobilePanel === "layers" ? (
-              <div className="editor-mobile-panel-inner">
-                <LeftSidebar workspaceId={workspaceIdFromUrl || ""} />
-              </div>
-            ) : null}
-
-            {mobilePanel === "inspector" ? (
-              <div className="editor-mobile-panel-inner">
-                <RightSidebar
-                  workspaceId={workspace?.id}
-                  comments={comments}
-                  commentsLoading={commentsLoading}
-                  commentsError={commentsError}
-                  currentUserId={authUser.id}
-                  canComment={accessLevel === "comment" || canEdit}
-                  onAddComment={handleAddComment}
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} />
-        <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} />
-
-        {workspace?.id ? (
-          <ShareDialog
-            workspaceId={workspace.id}
-            workspaceName={workspaceName}
-            open={shareDialogOpen}
-            onSyncLocalWorkspace={syncLocalWorkspaceToSupabase}
-            onClose={() => setShareDialogOpen(false)}
-          />
-        ) : null}
-
-        <CommandBrain
-          open={commandBrainOpen}
-          onClose={() => setCommandBrainOpen(false)}
-          commands={[
-            { id: "add-rect",     label: "Add Rectangle",   category: "Add Elements", icon: <span>▭</span>, action: () => handleAddElement("rectangle") },
-            { id: "add-circle",   label: "Add Circle",      category: "Add Elements", icon: <span>○</span>, action: () => handleAddElement("circle") },
-            { id: "add-text",     label: "Add Text",        category: "Add Elements", icon: <span>T</span>, action: () => handleAddElement("text") },
-            { id: "add-arrow",    label: "Add Arrow",       category: "Add Elements", icon: <span>→</span>, action: () => handleAddElement("arrow") },
-            { id: "add-star",     label: "Add Star",        category: "Add Elements", icon: <span>★</span>, action: () => handleAddElement("star") },
-            { id: "add-triangle", label: "Add Triangle",    category: "Add Elements", icon: <span>△</span>, action: () => handleAddElement("triangle") },
-            { id: "add-diamond",  label: "Add Diamond",     category: "Add Elements", icon: <span>◆</span>, action: () => handleAddElement("diamond") },
-            { id: "add-frame",    label: "Add Frame",       category: "Add Elements", icon: <span>⬜</span>, action: () => handleAddElement("frame") },
-            { id: "undo",    label: "Undo",    category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
-            { id: "redo",    label: "Redo",    category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
-            { id: "layers",    label: "Open Layers",    category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
-            { id: "inspector", label: "Open Inspector", category: "Navigate", icon: <span>⚙</span>, action: () => setActiveSection("inspector") },
-            { id: "comments",  label: "Open Comments",  category: "Navigate", icon: <span>💬</span>, action: () => setActiveSection("comments") },
-            { id: "templates", label: "Open Templates", category: "Navigate", icon: <span>🔖</span>, action: () => setActiveSection("templates") },
-            { id: "activity",  label: "Open Activity",  category: "Navigate", icon: <span>📋</span>, action: () => setActiveSection("activity") },
-            { id: "share",   label: "Share Workspace",   category: "Workspace", icon: <span>🔗</span>, action: () => setShareDialogOpen(true) },
-            { id: "preview", label: "Multi-Screen Preview", category: "Workspace", icon: <span>📱</span>, action: () => setPreviewOpen(true) },
-            { id: "export-png", label: "Export as PNG", category: "Export", icon: <span>🖼</span>, action: () => void exportWorkspaceAsPng(`${workspaceName}.png`) },
-            { id: "export-pdf", label: "Export as PDF", category: "Export", icon: <span>📄</span>, action: () => void exportWorkspaceAsPdf(`${workspaceName}.pdf`) },
-            { id: "gen-ui",  label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
-          ] satisfies BrainCommand[]}
-        />
-        <VoiceCommandManager workspaceId={workspaceIdFromUrl || ""} />
-      </motion.section>
-    </main>
-  );
+              <CommandBrain
+                open={commandBrainOpen}
+                onClose={() => setCommandBrainOpen(false)}
+                commands={[
+                  { id: "add-rect", label: "Add Rectangle", category: "Add Elements", icon: <span>▭</span>, action: () => handleAddElement("rectangle") },
+                  { id: "add-circle", label: "Add Circle", category: "Add Elements", icon: <span>○</span>, action: () => handleAddElement("circle") },
+                  { id: "add-text", label: "Add Text", category: "Add Elements", icon: <span>T</span>, action: () => handleAddElement("text") },
+                  { id: "add-arrow", label: "Add Arrow", category: "Add Elements", icon: <span>→</span>, action: () => handleAddElement("arrow") },
+                  { id: "add-star", label: "Add Star", category: "Add Elements", icon: <span>★</span>, action: () => handleAddElement("star") },
+                  { id: "add-triangle", label: "Add Triangle", category: "Add Elements", icon: <span>△</span>, action: () => handleAddElement("triangle") },
+                  { id: "add-diamond", label: "Add Diamond", category: "Add Elements", icon: <span>◆</span>, action: () => handleAddElement("diamond") },
+                  { id: "add-frame", label: "Add Frame", category: "Add Elements", icon: <span>⬜</span>, action: () => handleAddElement("frame") },
+                  { id: "undo", label: "Undo", category: "Edit", icon: <span>↩</span>, shortcut: "Ctrl+Z", action: undo },
+                  { id: "redo", label: "Redo", category: "Edit", icon: <span>↪</span>, shortcut: "Ctrl+Y", action: redo },
+                  { id: "layers", label: "Open Layers", category: "Navigate", icon: <span>≡</span>, action: () => setActiveSection("layers") },
+                  { id: "inspector", label: "Open Inspector", category: "Navigate", icon: <span>⚙</span>, action: () => setActiveSection("inspector") },
+                  { id: "comments", label: "Open Comments", category: "Navigate", icon: <span>💬</span>, action: () => setActiveSection("comments") },
+                  { id: "templates", label: "Open Templates", category: "Navigate", icon: <span>🔖</span>, action: () => setActiveSection("templates") },
+                  { id: "activity", label: "Open Activity", category: "Navigate", icon: <span>📋</span>, action: () => setActiveSection("activity") },
+                  { id: "share", label: "Share Workspace", category: "Workspace", icon: <span>🔗</span>, action: () => setShareDialogOpen(true) },
+                  { id: "preview", label: "Multi-Screen Preview", category: "Workspace", icon: <span>📱</span>, action: () => setPreviewOpen(true) },
+                  { id: "export-png", label: "Export as PNG", category: "Export", icon: <span>🖼</span>, action: () => void exportWorkspaceAsPng(`${workspaceName}.png`) },
+                  { id: "export-pdf", label: "Export as PDF", category: "Export", icon: <span>📄</span>, action: () => void exportWorkspaceAsPdf(`${workspaceName}.pdf`) },
+                  { id: "gen-ui", label: "Generate UI with AI", category: "AI", icon: <span>✨</span>, action: () => setGenUIOpen(true) },
+                ] satisfies BrainCommand[]}
+              />
+              <VoiceCommandManager workspaceId={workspaceIdFromUrl || ""} />
+            </motion.section>
+          </main>
+        );
 }

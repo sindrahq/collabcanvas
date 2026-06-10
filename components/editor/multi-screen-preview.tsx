@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { Monitor, Tablet, Smartphone, X } from "lucide-react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -57,8 +57,9 @@ const DEVICES = [
   },
 ] as const;
 
-export function MultiScreenPreview({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const canvasDimensions = useWorkspaceStore((s) => s.canvasDimensions);
+export function MultiScreenPreview({ open, onClose, workspaceId }: { open: boolean; onClose: () => void; workspaceId: string }) {
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const canvasDimensions = useStore((s) => s.canvasDimensions);
   const stageW = canvasDimensions.width / STAGE_SCALE;
   const stageH = canvasDimensions.height / STAGE_SCALE;
 
@@ -161,7 +162,7 @@ export function MultiScreenPreview({ open, onClose }: { open: boolean; onClose: 
                             userSelect: "none",
                           }}
                         >
-                          <KonvaStageWorkspace />
+                          <KonvaStageWorkspace workspaceId={workspaceId} />
                         </div>
 
                         {/* Transparent overlay to block all interactions */}
