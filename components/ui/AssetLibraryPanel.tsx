@@ -1,20 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassTooltip } from '@/components/ui/glass-tooltip';
-import { X } from 'lucide-react';
-
-// Types for uploaded asset
-export type UploadedAsset = {
-  id: string;
-  url: string;
-  name: string;
-  mimeType: string;
-};
+import { RefreshCw, X } from 'lucide-react';
+import type { UploadedAsset } from '@/types/integration';
+import Image from "next/image";
 
 /**
  * AssetLibraryPanel
  * ----------------
- * A modal panel that fetches the user's uploaded images (via `/api/uploads/list`)
+ * A modal panel that fetches the user's uploaded images (via `/api/upload/list`)
  * and displays them in a responsive grid. Clicking an image calls the `onSelect`
  * callback with the asset URL so the caller can insert it into the canvas.
  */
@@ -22,30 +16,19 @@ export default function AssetLibraryPanel({
   open,
   onClose,
   onSelect,
+  assets,
+  loading,
+  error,
+  onRefresh,
 }: {
   open: boolean;
   onClose: () => void;
-  /** Called with the URL of the selected asset */
   onSelect: (url: string) => void;
+  assets: UploadedAsset[];
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
 }) {
-  const [assets, setAssets] = useState<UploadedAsset[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    setError(null);
-    fetch('/api/uploads/list')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setAssets(data);
-        else setAssets(data.assets ?? []);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load assets'))
-      .finally(() => setLoading(false));
-  }, [open]);
-
   return (
     <AnimatePresence>
       {open && (
@@ -63,12 +46,26 @@ export default function AssetLibraryPanel({
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Asset Library</h2>
-              <button onClick={onClose} className="p-1 rounded hover:bg-white/20">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  disabled={loading}
+                  className="p-1 rounded hover:bg-white/20 disabled:opacity-50"
+                  title="Refresh assets"
+                >
+                  <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                </button>
+                <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/20" aria-label="Close asset library">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             {loading && <p className="text-sm text-gray-400">Loading...</p>}
             {error && <p className="text-sm text-red-500">{error}</p>}
+            {!loading && !error && assets.length === 0 && (
+              <p className="py-8 text-center text-sm text-gray-400">No uploaded assets yet.</p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {assets.map((asset) => (
                 <GlassTooltip key={asset.id} content="Insert into canvas">
@@ -77,9 +74,12 @@ export default function AssetLibraryPanel({
                     whileHover={{ scale: 1.05 }}
                     onClick={() => onSelect(asset.url)}
                   >
-                    <img
+                    <Image
                       src={asset.url}
                       alt={asset.name}
+                      width={160}
+                      height={96}
+                      unoptimized
                       className="object-cover w-full h-24 rounded"
                     />
                   </motion.button>

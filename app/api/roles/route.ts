@@ -1,20 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { applyResponseCookies, createServiceSupabaseClient, getAuthenticatedUser, requireCanvasOwner } from "@/lib/supabase/server";
+import {
+  applyResponseCookies,
+  createServiceSupabaseClient,
+  getAuthenticatedUser,
+  requireCanvasOwner,
+} from "@/lib/supabase/server";
+import type { CanvasRole, RoleAssignment } from "@/types/integration";
 
 const allowedRoles = new Set(["owner", "editor", "commenter", "viewer"]);
 
+type RoleUpdateBody = {
+  canvasId?: string;
+  userId?: string;
+  role?: CanvasRole;
+};
+
 export async function POST(request: NextRequest) {
-  let body: { canvasId?: string; userId?: string; role?: string };
+  let body: RoleUpdateBody;
 
   try {
-    body = (await request.json()) as { canvasId?: string; userId?: string; role?: string };
+    body = (await request.json()) as RoleUpdateBody;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const canvasId = body.canvasId?.trim();
   const userId = body.userId?.trim();
-  const role = body.role?.trim();
+  const role = body.role?.trim() as CanvasRole | undefined;
 
   if (!canvasId || !userId || !role || !allowedRoles.has(role)) {
     return NextResponse.json({ error: "canvasId, userId, and a valid role are required." }, { status: 400 });
@@ -47,7 +59,7 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: "canvas_id,user_id" }
     )
-    .select("user_id, role")
+    .select("id, user_id, role")
     .single();
 
   if (error) {
@@ -68,7 +80,17 @@ export async function POST(request: NextRequest) {
     payload: { userId, newRole: role },
   });
 
-  const response = NextResponse.json({ role: { userId: data.user_id, role: data.role } });
+  const assignment: RoleAssignment = {
+    id: data.id,
+    userId: data.user_id,
+    displayName: `Collaborator ${data.user_id.slice(0, 8)}`,
+    role: data.role === "owner" ? "editor" : data.role,
+  };
+
+  const response = NextResponse.json({
+    role: { userId: data.user_id, role: data.role },
+    assignment,
+  });
   applyResponseCookies(response, auth.cookiesToSet);
   return response;
 }

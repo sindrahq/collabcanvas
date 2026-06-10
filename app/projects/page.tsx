@@ -58,6 +58,7 @@ type CanvasPreviewElement = {
     strokeWidth?: number;
     opacity?: number;
     fontSize?: number;
+    imageUrl?: string;
   };
   style_ext?: {
     fill?: string;
@@ -65,6 +66,7 @@ type CanvasPreviewElement = {
     strokeWidth?: number;
     opacity?: number;
     fontSize?: number;
+    imageUrl?: string;
   };
   layer_order?: number;
 };
@@ -357,11 +359,11 @@ function ProjectPreview({ elements }: { elements: CanvasPreviewElement[] }) {
           );
         }
 
-        if (element.type === "image" && (element.style as any)?.imageUrl) {
+        if (element.type === "image" && element.style?.imageUrl) {
           return (
             <div key={element.id} className="absolute overflow-hidden" style={{ ...style, border: 'none' }}>
               <img 
-                src={(element.style as any).imageUrl} 
+                src={element.style.imageUrl} 
                 className="h-full w-full object-cover"
                 alt=""
               />
@@ -472,6 +474,7 @@ function ProjectsDashboardContent() {
   useEffect(() => {
     if (authReady && currentUserId && templateName && templateImage && !templateApplied) {
       setTemplateApplied(true);
+      // eslint-disable-next-line react-hooks/immutability
       handleCreateProject(templateName, templateImage);
       
       // Clean up URL params without refreshing
@@ -792,7 +795,7 @@ function ProjectsDashboardContent() {
         workspace_id: workspace.id,
         type: 'image',
         position: { x: 340, y: 150, width: 600, height: 500 },
-        style: { imageUrl: initialImageUrl } as any
+        style: { imageUrl: initialImageUrl }
       }] : [] 
     }));
     setCreatingProject(false);

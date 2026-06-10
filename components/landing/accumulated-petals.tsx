@@ -9,6 +9,7 @@ type AccumulatedParticle = {
   y: number;
   size: number;
   rotation: number;
+  hoverRotation: number;
   scatterX: number;
   scatterY: number;
 };
@@ -30,10 +31,12 @@ export function AccumulatedPetals({ theme = "cherry" }: AccumulatedPetalsProps) 
         ? 8 + Math.random() * 14
         : 14 + Math.random() * 22,
       rotation: Math.random() * 360,
+      hoverRotation: Math.random() > 0.5 ? 120 : -120,
       scatterX: (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 60), // Scatter left or right out of the way
       scatterY: (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 40), // Scatter up or down
     }));
-    setParticles(newParticles);
+    const frame = requestAnimationFrame(() => setParticles(newParticles));
+    return () => cancelAnimationFrame(frame);
   }, [theme]);
 
   const getParticleStyles = (p: AccumulatedParticle) => {
@@ -101,7 +104,7 @@ export function AccumulatedPetals({ theme = "cherry" }: AccumulatedPetalsProps) 
             whileHover={{ 
               x: p.scatterX, 
               y: p.scatterY, 
-              rotate: p.rotation + (Math.random() > 0.5 ? 120 : -120),
+              rotate: p.rotation + p.hoverRotation,
               scale: 1.1
             }}
             transition={{ 

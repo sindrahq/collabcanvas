@@ -6,10 +6,12 @@ import { CanvasTheme } from "@/store/workspaceStore";
 type Particle = {
   id: number;
   x: number;
+  driftX: number;
   delay: number;
   duration: number;
   size: number;
   rotation: number;
+  rotationDelta: number;
 };
 
 type FallingPetalsProps = {
@@ -23,6 +25,7 @@ export function FallingPetals({ theme = "cherry" }: FallingPetalsProps) {
     const newParticles = Array.from({ length: 25 }).map((_, i) => ({
       id: i,
       x: Math.random() * 100,
+      driftX: Math.random() > 0.5 ? 12 : -12,
       delay: Math.random() * 20,
       duration: theme === "ocean" ? 8 + Math.random() * 12 : 12 + Math.random() * 20,
       size: theme === "ocean" 
@@ -31,8 +34,10 @@ export function FallingPetals({ theme = "cherry" }: FallingPetalsProps) {
         ? 4 + Math.random() * 8 
         : 14 + Math.random() * 18,
       rotation: Math.random() * 360,
+      rotationDelta: Math.random() > 0.5 ? 360 : -360,
     }));
-    setParticles(newParticles);
+    const frame = requestAnimationFrame(() => setParticles(newParticles));
+    return () => cancelAnimationFrame(frame);
   }, [theme]);
 
   // Determine physics direction and styles based on theme
@@ -101,9 +106,9 @@ export function FallingPetals({ theme = "cherry" }: FallingPetalsProps) {
               y: isRising ? ["110vh", "-10vh"] : ["0vh", "110vh"],
               x: [
                 `${p.x}vw`, 
-                `${p.x + (Math.random() > 0.5 ? 12 : -12)}vw`
+                `${p.x + p.driftX}vw`
               ],
-              rotate: p.rotation + (Math.random() > 0.5 ? 360 : -360),
+              rotate: p.rotation + p.rotationDelta,
               opacity: [0, 1, 1, 0],
             }}
             transition={{

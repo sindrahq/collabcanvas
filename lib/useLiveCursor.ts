@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
-import { canvasChannelName } from './canvasRealtime';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type User = { id: string; name?: string; color?: string } | null;
 
@@ -12,17 +12,25 @@ type CursorPayload = {
   color?: string;
 };
 
+type BroadcastChannel = RealtimeChannel & {
+  on(
+    type: 'broadcast',
+    filter: { event: string },
+    callback: (response: { payload?: CursorPayload }) => void
+  ): RealtimeChannel;
+};
+
 export function useLiveCursor(
   workspaceId: string | null | undefined,
   user: User,
   onRemoteMove: (p: CursorPayload) => void
 ) {
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!workspaceId) return;
 
-    const topic = canvasChannelName(workspaceId);
+    const topic = `room:${workspaceId}`;
     const channel = supabase.channel(topic, { config: { broadcast: { self: true } } });
     channelRef.current = channel;
 
@@ -34,7 +42,7 @@ export function useLiveCursor(
     }
 
     // Listen for remote mouse movements
-    channel.on('broadcast', { event: 'cursor-move' }, (response: any) => {
+    (channel as BroadcastChannel).on('broadcast', { event: 'mouse-move' }, (response) => {
       const payload = response.payload as CursorPayload;
       if (!payload) return;
       // Ignore own echoes by `userId` (client may still receive its own broadcast)
@@ -42,14 +50,14 @@ export function useLiveCursor(
       onRemoteMove(payload);
     });
 
-    channel.subscribe((status) => {
+    channel.subscribe(() => {
       // no-op; could be used for logging
     });
 
     return () => {
       try {
         channel.unsubscribe();
-      } catch (e) {
+      } catch {
         // ignore
       }
       channelRef.current = null;
@@ -70,7 +78,7 @@ export function useLiveCursor(
       };
 
       // direct client broadcast
-      channel.send({ type: 'broadcast', event: 'cursor-move', payload });
+      channel.send({ type: 'broadcast', event: 'mouse-move', payload });
     },
     [user, workspaceId]
   );

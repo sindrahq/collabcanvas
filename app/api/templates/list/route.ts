@@ -1,17 +1,30 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { applyResponseCookies, createServiceSupabaseClient, getAuthenticatedUser } from "@/lib/supabase/server";
+import {
+  applyResponseCookies,
+  createServiceSupabaseClient,
+  getAuthenticatedUser,
+} from "@/lib/supabase/server";
+import type { CanvasTemplate } from "@/types/integration";
 
-function normalizeTemplate(row: { id: string; owner_id: string | null; name: string; data: unknown; created_at: string }) {
+type TemplateRow = {
+  id: string;
+  owner_id: string | null;
+  name: string;
+  data: unknown;
+  created_at: string;
+};
+
+function normalizeTemplate(row: TemplateRow): CanvasTemplate {
   const data = row.data && typeof row.data === "object" ? (row.data as Record<string, unknown>) : {};
   const elements = Array.isArray(data.elements) ? data.elements : [];
 
   return {
     id: row.id,
     name: row.name,
-    created_at: row.created_at,
-    user_id: row.owner_id ?? "",
-    elements,
-    data,
+    description: typeof data.description === "string" ? data.description : undefined,
+    previewUrl: typeof data.previewUrl === "string" ? data.previewUrl : undefined,
+    elements: elements as CanvasTemplate["elements"],
+    createdAt: row.created_at,
   };
 }
 
@@ -46,7 +59,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const response = NextResponse.json({ templates: (data ?? []).map(normalizeTemplate) });
+  const response = NextResponse.json({ templates: ((data ?? []) as TemplateRow[]).map(normalizeTemplate) });
   applyResponseCookies(response, auth.cookiesToSet);
   return response;
 }

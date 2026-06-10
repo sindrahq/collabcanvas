@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Layout, Plus, Trash2, Search } from "lucide-react";
 import { templateService } from "@/lib/services/templateService";
 import { LayoutTemplate } from "@/types/template";
@@ -14,14 +14,14 @@ export function TemplatePanel({ workspaceId }: { workspaceId: string }) {
   const addElement = store((state: WorkspaceState) => state.addElement);
   const elements = store((state: WorkspaceState) => state.elements);
 
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     const data = await templateService.getAll();
     setTemplates(data);
-  };
+  }, []);
 
   useEffect(() => {
-    loadTemplates();
-  }, []);
+    void Promise.resolve().then(loadTemplates);
+  }, [loadTemplates]);
 
   const handleUseTemplate = (template: LayoutTemplate) => {
     // Add each element from the template to the workspace
@@ -117,7 +117,7 @@ export function TemplatePanel({ workspaceId }: { workspaceId: string }) {
       </div>
 
       <div className="mt-4 rounded-xl bg-[#D3A5B1]/5 p-3 text-[10px] text-[#8b7355]/60 italic">
-        Tip: Right-click any element on the canvas and select "Save as Template" to create a reusable block.
+        Tip: Right-click any element on the canvas and select &quot;Save as Template&quot; to create a reusable block.
       </div>
     </div>
   );

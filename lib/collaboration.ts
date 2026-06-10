@@ -16,6 +16,7 @@ export interface PresenceMeta {
 
 // Presence channel instance (singleton)
 let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
+let presenceChannelId = 0;
 
 // Cursor broadcast listeners
 type CursorListener = (payload: CursorBroadcast) => void;
@@ -148,7 +149,7 @@ export function initPresenceChannel(
 	events: PresenceEventMeta
 ) {
 	if (presenceChannel) {
-		presenceChannel.unsubscribe();
+		void supabase.removeChannel(presenceChannel);
 		presenceChannel = null;
 	}
 	cursorListeners = [];
@@ -156,70 +157,74 @@ export function initPresenceChannel(
 	selectionListeners = [];
 	typingListeners = [];
 	viewportListeners = [];
+	canvasUpdateListeners = [];
+	roleChangeListeners = [];
 
-	presenceChannel = supabase.channel(canvasChannelName(workspaceId), {
+	const channelId = ++presenceChannelId;
+	const channel = supabase.channel(canvasChannelName(workspaceId), {
 		config: {
 			broadcast: { ack: false, self: false },
 			presence: { key: meta.user_id }
 		}
 	});
+	presenceChannel = channel;
 
 	// Listen for presence sync events
-	presenceChannel.on('presence', { event: 'sync' }, () => {
+	channel.on('presence', { event: 'sync' }, () => {
 		events.onSync?.(flattenChannelPresenceState());
 	});
 
-	presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }: PresenceJoinPayload) => {
+	channel.on('presence', { event: 'join' }, ({ key, newPresences }: PresenceJoinPayload) => {
 		const incoming = (newPresences as unknown as PresenceMeta[] | undefined)?.[0];
 		if (incoming) {
 			events.onJoin?.(key, incoming);
 		}
 	});
 
-	presenceChannel.on('presence', { event: 'leave' }, ({ key }: PresenceLeavePayload) => {
+	channel.on('presence', { event: 'leave' }, ({ key }: PresenceLeavePayload) => {
 		events.onLeave?.(key);
 	});
 
-presenceChannel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
+	channel.on('broadcast', { event: 'cursor' }, ({ payload }: CursorBroadcastPayload) => {
 	cursorListeners.forEach((fn) => fn(payload));
+	});
+
+	channel.on('broadcast', { event: 'cursor-move' }, ({ payload }: CursorBroadcastPayload) => {
+		cursorListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel.on('broadcast', { event: 'cursor-move' }, ({ payload }: CursorBroadcastPayload) => {
-	cursorListeners.forEach((fn) => fn(payload));
-});
-
-presenceChannel.on('broadcast', { event: 'camera-sync' }, ({ payload }: { payload: CameraSyncBroadcastPayload }) => {
+channel.on('broadcast', { event: 'camera-sync' }, ({ payload }: { payload: CameraSyncBroadcastPayload }) => {
 	cameraSyncListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel.on('broadcast', { event: 'element-click' }, ({ payload }: { payload: ElementClickBroadcast }) => {
+channel.on('broadcast', { event: 'element-click' }, ({ payload }: { payload: ElementClickBroadcast }) => {
   elementClickListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'selection' }, ({ payload }: { payload: SelectionBroadcastPayload }) => {
+channel.on('broadcast', { event: 'selection' }, ({ payload }: { payload: SelectionBroadcastPayload }) => {
   selectionListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'typing-status' }, ({ payload }: { payload: TypingStatusBroadcastPayload }) => {
+channel.on('broadcast', { event: 'typing-status' }, ({ payload }: { payload: TypingStatusBroadcastPayload }) => {
   typingListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'viewport' }, ({ payload }: { payload: { user_id: string; zoom: number; panX: number; panY: number } }) => {
+channel.on('broadcast', { event: 'viewport' }, ({ payload }: { payload: { user_id: string; zoom: number; panX: number; panY: number } }) => {
   viewportListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'canvas-update' }, ({ payload }: { payload: CanvasUpdateBroadcastPayload }) => {
+channel.on('broadcast', { event: 'canvas-update' }, ({ payload }: { payload: CanvasUpdateBroadcastPayload }) => {
 	canvasUpdateListeners.forEach((fn) => fn(payload));
 });
 
-presenceChannel!.on('broadcast', { event: 'role-change' }, ({ payload }: { payload: RoleChangeBroadcastPayload }) => {
+channel.on('broadcast', { event: 'role-change' }, ({ payload }: { payload: RoleChangeBroadcastPayload }) => {
 	roleChangeListeners.forEach((fn) => fn(payload));
 });
 
 // Subscribe to the channel
-	presenceChannel.subscribe((status: string) => {
-		if (status === 'SUBSCRIBED') {
-			presenceChannel?.track(meta);
+	channel.subscribe((status: string) => {
+		if (status === 'SUBSCRIBED' && presenceChannelId === channelId) {
+			channel.track(meta);
 		}
 	});
 }
@@ -379,8 +384,9 @@ export function denormalizeCoords(x: number, y: number, canvasRect: DOMRect): { 
  */
 export function leavePresenceChannel() {
 	if (presenceChannel) {
-		presenceChannel.unsubscribe();
+		void supabase.removeChannel(presenceChannel);
 		presenceChannel = null;
+		presenceChannelId += 1;
 	}
 	cursorListeners = [];
 	cameraSyncListeners = [];

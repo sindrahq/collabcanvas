@@ -14,6 +14,8 @@ import { GlassTooltip } from "@/components/ui/glass-tooltip";
 import { SmartCropModal } from "./smart-crop";
 import { FramePicker } from "./frame-picker";
 import React, { useRef, useState } from "react";
+import { fetchUploadedAssets } from "@/lib/api/canvasIntegration";
+import { useCanvasIntegrationStoreFactory } from "@/store/canvasIntegrationStore";
 
 
 function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
@@ -22,6 +24,7 @@ function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const store = useWorkspaceStoreFactory(workspaceId);
   const addElement = store((s) => s.addElement);
+  const integrationStore = useCanvasIntegrationStoreFactory(workspaceId);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,6 +44,9 @@ function UploadPictureButton({ workspaceId }: { workspaceId: string }) {
       console.log("Uploaded image URL:", data.url);
       // Add image element to canvas
       addElement("image", { imageUrl: data.url });
+      const result = await fetchUploadedAssets();
+      integrationStore.getState().setAssetList(result.assets);
+      integrationStore.getState().setResourceState("asset", "ready");
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -675,7 +681,7 @@ export function Toolbar({
 
           {isCropping && selectedElement && (
             <SmartCropModal
-              imageUrl={selectedElement.type === "image" ? (selectedElement as any).imageUrl : "https://placehold.co/600x400/f7f2ea/2f2f2f?text=Shape+Crop"}
+              imageUrl={selectedElement.type === "image" ? selectedElement.imageUrl ?? selectedElement.style.imageUrl ?? "" : "https://placehold.co/600x400/f7f2ea/2f2f2f?text=Shape+Crop"}
               onClose={() => setIsCropping(false)}
               onApply={(newImageUrl, filters) => {
                 const mappedFilters = {
@@ -688,7 +694,7 @@ export function Toolbar({
                   updateElement(selectedElement.id, {
                     imageUrl: newImageUrl,
                     style: { ...selectedElement.style, ...mappedFilters }
-                  } as any);
+                  });
                 } else {
                   updateElement(selectedElement.id, {
                     style: { ...selectedElement.style, ...mappedFilters }

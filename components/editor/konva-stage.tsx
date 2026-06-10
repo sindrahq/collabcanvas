@@ -20,12 +20,10 @@ import { useWorkspaceStoreFactory, useWorkspaceStore } from "@/store/workspaceSt
 import type { CanvasElement } from "@/store/workspaceStore";
 import type { PresenceMeta } from "@/lib/collaboration";
 
-import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import { RemoteSelectionHighlights } from "@/components/presence/RemoteSelectionHighlights";
 import { TypingIndicator } from "@/components/presence/TypingIndicator";
 import { FollowButton } from "@/components/presence/FollowButton";
 import { usePresenceStore } from "@/store/presenceStore";
-import { useLiveCursor } from "@/lib/useLiveCursor";
 import Konva from "konva";
 import { KonvaImage } from "./konva-image";
 import { KonvaVideo } from "./konva-video";
@@ -454,14 +452,10 @@ export function KonvaStageWorkspace({
   const snapToGrid = useStore((state) => state.snapToGrid);
   const activeTool = useStore((state) => state.activeTool);
   const addPencilElement = useStore((state) => state.addPencilElement);
-  const deleteElement = useStore((state) => state.deleteElement);
   const partialErasePencilStroke = useStore((state) => state.partialErasePencilStroke);
   const eraserSize = useStore((state) => state.eraserSize);
   const elevations = useStore((state) => state.elevations);
-  const currentUserMeta = useRef<string>("local");
   const isFollowing = usePresenceStore((s) => !!s.followedUserId);
-  const localUserId = usePresenceStore((s) => s.localUserId);
-  const updatePresenceUser = usePresenceStore((s) => s.updateUser);
 
   const eraserCursor = useMemo(() => {
     const r = Math.max(4, eraserSize);
@@ -594,19 +588,6 @@ export function KonvaStageWorkspace({
     if (!pos) return null;
     return { x: pos.x * STAGE_SCALE, y: pos.y * STAGE_SCALE };
   }, []);
-
-  // Build a minimal user object for the live-cursor hook
-  const currentUser = localUserId
-    ? { id: localUserId, name: presences?.[localUserId]?.name, color: presences?.[localUserId]?.color }
-    : null;
-
-  // Update presence store when remote cursor moves are received
-  const onRemoteMove = useCallback((p: { userId: string; x: number; y: number }) => {
-    updatePresenceUser(p.userId, { cursor: { x: p.x, y: p.y } } as any);
-  }, [updatePresenceUser]);
-
-  const { sendCursor } = useLiveCursor(workspaceId, currentUser, onRemoteMove);
-  const lastSendRef = useRef<number>(0);
 
   // Context Menu State
   const [menu, setMenu] = useState<{ x: number, y: number, visible: boolean } | null>(null);
@@ -753,20 +734,7 @@ export function KonvaStageWorkspace({
           }
         }}
         onMouseMove={(event) => {
-          // Broadcast pointer position (normalized) with light throttling
           try {
-            const stage = event.target.getStage();
-            const pointer = stage?.getPointerPosition();
-            if (pointer && sendCursor && !isFollowing) {
-              const now = Date.now();
-              if (now - lastSendRef.current > 30) {
-                lastSendRef.current = now;
-                const xNorm = Math.max(0, Math.min(1, pointer.x / STAGE_WIDTH));
-                const yNorm = Math.max(0, Math.min(1, pointer.y / STAGE_HEIGHT));
-                sendCursor(xNorm, yNorm);
-              }
-            }
-
             if (activeTool === "eraser" && isErasingRef.current && canEdit) {
               eraseAtCurrentPos();
               return;
@@ -804,7 +772,9 @@ export function KonvaStageWorkspace({
           const pointer = stage.getPointerPosition();
           if (!pointer) return;
           if (e.target !== stage) {
-            const id = (e.target.attrs as any).id || (e.target.parent?.attrs as any).id;
+            const targetAttrs = e.target.attrs as { id?: string };
+            const parentAttrs = e.target.parent?.attrs as { id?: string } | undefined;
+            const id = targetAttrs.id || parentAttrs?.id;
             if (id) selectElement(id);
           } else {
             selectElement(null);
@@ -845,7 +815,7 @@ export function KonvaStageWorkspace({
               draggable: canEdit && !element.locked,
               visible: element.visible,
               opacity: element.style.opacity,
-              dragBoundFunc: (pos: any) => {
+              dragBoundFunc: (pos: Konva.Vector2d) => {
                 const gridPos = {
                   x: snapToGrid ? Math.round(pos.x / 20) * 20 : pos.x,
                   y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
@@ -892,7 +862,7 @@ export function KonvaStageWorkspace({
               draggable: canEdit && !element.locked,
               visible: element.visible,
               opacity: element.style.opacity,
-              dragBoundFunc: (pos: any) => {
+              dragBoundFunc: (pos: Konva.Vector2d) => {
                 const gridPos = {
                   x: snapToGrid ? Math.round(pos.x / 20) * 20 : pos.x,
                   y: snapToGrid ? Math.round(pos.y / 20) * 20 : pos.y,
@@ -1023,7 +993,7 @@ export function KonvaStageWorkspace({
             }
 
             if (element.type === "video") {
-              if ((element as any).videoUrl) {
+              if (element.videoUrl) {
                 return (
                   <KonvaVideo
                     key={element.id}
@@ -1032,12 +1002,12 @@ export function KonvaStageWorkspace({
                     y={element.y / STAGE_SCALE}
                     width={elementWidth}
                     height={elementHeight}
-                    videoUrl={(element as any).videoUrl}
-                    trimStart={(element as any).trimStart ?? 0}
-                    ref={(node: any) => { nodeRefs.current[element.id] = node; }}
+                    videoUrl={element.videoUrl}
+                    trimStart={element.trimStart ?? 0}
+                    ref={(node: unknown) => { nodeRefs.current[element.id] = node as Konva.Shape | null; }}
                     {...sharedShadow}
-                    onTransformEnd={(event: any) =>
-                      updateFromTransform(element, event.target, updateElement)
+                    onTransformEnd={(event: Konva.KonvaEventObject<Event>) =>
+                      updateFromTransform(element, event.target as Konva.Shape, updateElement)
                     }
                   />
                 );
