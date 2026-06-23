@@ -1,6 +1,5 @@
 -- Fix for: Could not find the table 'public.workspace_comments' in the schema cache
 -- Run this in Supabase SQL Editor.
--- Posting comments requires comment or edit access on the workspace share.
 
 create extension if not exists pgcrypto;
 

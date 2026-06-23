@@ -1,19 +1,16 @@
 // Supabase Realtime Broadcast setup for activity feed (browser)
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type ActivityPayload = Record<string, unknown>;
-type BroadcastPayload<T> = { payload?: T };
-
-export function subscribeToActivityFeed(workspaceId: string, onActivity: (activity: ActivityPayload) => void) {
+export function subscribeToActivityFeed(workspaceId: string, onActivity: (activity: any) => void) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return () => {};
 
   const channel = supabase.channel(`activity_feed:${workspaceId}`);
 
-  channel.on('broadcast', { event: 'activity' }, (payload: BroadcastPayload<ActivityPayload>) => {
+  channel.on('broadcast', { event: 'activity' }, (payload: any) => {
     try {
-      if (payload.payload) onActivity(payload.payload);
-    } catch {
+      onActivity(payload.payload);
+    } catch (e) {
       // swallow
     }
   });
@@ -25,7 +22,7 @@ export function subscribeToActivityFeed(workspaceId: string, onActivity: (activi
   };
 }
 
-export function broadcastActivity(workspaceId: string, activity: ActivityPayload) {
+export function broadcastActivity(workspaceId: string, activity: any) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return;
   void supabase.channel(`activity_feed:${workspaceId}`).send({ type: 'broadcast', event: 'activity', payload: activity });

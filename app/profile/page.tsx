@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Cropper, { type Area } from "react-easy-crop";
-import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildProfileMetadata, getProfileFormState } from "@/lib/profile";
 
 type ProfileFormState = {
@@ -103,15 +103,15 @@ export default function ProfilePage() {
       return;
     }
 
-    void getSessionSafely(supabase).then((session) => {
-      if (!session?.user) {
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!data.session?.user) {
         router.replace("/auth?next=%2Fprofile");
         return;
       }
 
-      setUserId(session.user.id);
-      setEmail(session.user.email || "");
-      setProfile(getProfileFormState(session.user.user_metadata));
+      setUserId(data.session.user.id);
+      setEmail(data.session.user.email || "");
+      setProfile(getProfileFormState(data.session.user.user_metadata));
       setLoading(false);
     });
   }, [router, supabase]);

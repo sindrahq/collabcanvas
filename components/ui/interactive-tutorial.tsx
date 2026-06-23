@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight, Sparkles } from "lucide-react";
 
@@ -23,21 +23,21 @@ const TUTORIAL_STEPS: Step[] = [
     id: "toolbar",
     title: "The Toolbar",
     description: "Here you can add shapes, text, images, and toggle the snapping grid.",
-    targetSelector: ".editor-topbar",
+    targetSelector: ".toolbar",
     placement: "bottom",
   },
   {
     id: "canvas",
     title: "Canvas Area",
     description: "Drag, drop, and resize elements here. Right-click any element for more options.",
-    targetSelector: ".canvas-stage-container",
+    targetSelector: ".konva-frame",
     placement: "center",
   },
   {
     id: "sidebar",
     title: "Properties & History",
     description: "View your layers, adjust document settings, and undo/redo actions from the sidebar.",
-    targetSelector: ".inspector-panel",
+    targetSelector: ".workspace-sidebar, .right-sidebar",
     placement: "left",
   },
 ];
@@ -71,112 +71,26 @@ export function InteractiveTutorial() {
   }, []);
 
   const step = TUTORIAL_STEPS[currentStep];
-  const selectorCandidates = useMemo(
-    () => step.targetSelector?.split(",").map((part) => part.trim()).filter(Boolean) ?? [],
-    [step.targetSelector]
-  );
-
-  // Auto-open inspector sidebar when sidebar step is reached
-  useEffect(() => {
-    if (isActive && currentStep === 3 && step.id === "sidebar") {
-      const event = new CustomEvent("tutorial-open-sidebar", { detail: { section: "inspector" } });
-      window.dispatchEvent(event);
-    }
-  }, [isActive, currentStep, step.id]);
 
   useEffect(() => {
-    if (!isActive || selectorCandidates.length === 0) {
-      const raf = requestAnimationFrame(() => setTargetRect(null));
-      return () => cancelAnimationFrame(raf);
+    if (!isActive || !step.targetSelector) {
+      setTargetRect(null);
+      return;
     }
-
-    let raf = 0;
-    let observer: ResizeObserver | null = null;
-
-    const getBestTarget = () => {
-      const candidates = selectorCandidates
-        .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
-        .filter((node): node is HTMLElement => node instanceof HTMLElement)
-        .map((node) => ({ node, rect: node.getBoundingClientRect() }))
-        .filter(({ node, rect }) => {
-          const style = window.getComputedStyle(node);
-          return (
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            rect.width > 0 &&
-            rect.height > 0
-          );
-        });
-
-      if (!candidates.length) return null;
-
-      candidates.sort((a, b) => (b.rect.width * b.rect.height) - (a.rect.width * a.rect.height));
-      return candidates[0];
-    };
-
-    const createRect = (left: number, top: number, width: number, height: number) => {
-      if (typeof DOMRect !== "undefined") {
-        return new DOMRect(left, top, width, height);
-      }
-      return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) } as DOMRect;
-    };
-
-    const getCanvasCenterRect = () => {
-      const viewport = document.querySelector(".canvas-viewport");
-      if (!(viewport instanceof HTMLElement)) return null;
-
-      const rect = viewport.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return null;
-
-      // Keep focus centered within the canvas viewport and avoid covering the entire workspace.
-      const focusWidth = Math.max(260, Math.min(rect.width * 0.72, 1040));
-      const focusHeight = Math.max(240, Math.min(rect.height * 0.78, 820));
-      const centeredLeft = rect.left + (rect.width - focusWidth) / 2;
-      const leftOffset = Math.min(rect.width * 0.115, 96);
-      const left = Math.max(rect.left + 12, centeredLeft - leftOffset);
-      const centeredTop = rect.top + (rect.height - focusHeight) / 2;
-      const upwardOffset = Math.min(rect.height * 0.26, 176);
-      const top = Math.max(rect.top + 12, centeredTop - upwardOffset);
-
-      return createRect(left, top, focusWidth, focusHeight);
-    };
 
     const updateRect = () => {
-      if (step.id === "canvas") {
-        setTargetRect(getCanvasCenterRect());
-        return;
-      }
-
-      const match = getBestTarget();
-      setTargetRect(match?.rect ?? null);
-
-      if (observer) {
-        observer.disconnect();
-        observer = null;
-      }
-
-      if (match?.node && "ResizeObserver" in window) {
-        observer = new ResizeObserver(() => {
-          cancelAnimationFrame(raf);
-          raf = requestAnimationFrame(updateRect);
-        });
-        observer.observe(match.node);
+      const el = document.querySelector(step.targetSelector!);
+      if (el) {
+        setTargetRect(el.getBoundingClientRect());
+      } else {
+        setTargetRect(null);
       }
     };
 
     updateRect();
     window.addEventListener("resize", updateRect);
-    window.addEventListener("orientationchange", updateRect);
-    window.addEventListener("scroll", updateRect, true);
-
-    return () => {
-      window.removeEventListener("resize", updateRect);
-      window.removeEventListener("orientationchange", updateRect);
-      window.removeEventListener("scroll", updateRect, true);
-      cancelAnimationFrame(raf);
-      if (observer) observer.disconnect();
-    };
-  }, [isActive, currentStep, selectorCandidates, step.id]);
+    return () => window.removeEventListener("resize", updateRect);
+  }, [isActive, currentStep, step.targetSelector]);
 
   const handleStartTour = () => {
     setHasShownPrompt(false);
@@ -249,33 +163,28 @@ export function InteractiveTutorial() {
 
   if (targetRect && step.placement !== "center") {
     const margin = 20;
-    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
-    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 720;
-    const tooltipWidth = 320;
-    const tooltipHeight = 220;
-
     if (step.placement === "bottom") {
       tooltipStyle = {
-        top: Math.min(targetRect.bottom + margin, viewportHeight - tooltipHeight - 16),
-        left: Math.max(16 + tooltipWidth / 2, Math.min(targetRect.left + targetRect.width / 2, viewportWidth - 16 - tooltipWidth / 2)),
+        top: targetRect.bottom + margin,
+        left: targetRect.left + targetRect.width / 2,
         transform: "translateX(-50%)",
       };
     } else if (step.placement === "left") {
       tooltipStyle = {
-        top: Math.max(16 + tooltipHeight / 2, Math.min(targetRect.top + targetRect.height / 2, viewportHeight - 16 - tooltipHeight / 2)),
-        left: Math.max(16 + tooltipWidth, targetRect.left - margin),
+        top: targetRect.top + targetRect.height / 2,
+        left: targetRect.left - margin,
         transform: "translate(-100%, -50%)",
       };
     } else if (step.placement === "right") {
       tooltipStyle = {
-        top: Math.max(16 + tooltipHeight / 2, Math.min(targetRect.top + targetRect.height / 2, viewportHeight - 16 - tooltipHeight / 2)),
-        left: Math.min(targetRect.right + margin, viewportWidth - tooltipWidth - 16),
+        top: targetRect.top + targetRect.height / 2,
+        left: targetRect.right + margin,
         transform: "translate(0, -50%)",
       };
     } else if (step.placement === "top") {
       tooltipStyle = {
-        top: Math.max(16 + tooltipHeight, targetRect.top - margin),
-        left: Math.max(16 + tooltipWidth / 2, Math.min(targetRect.left + targetRect.width / 2, viewportWidth - 16 - tooltipWidth / 2)),
+        top: targetRect.top - margin,
+        left: targetRect.left + targetRect.width / 2,
         transform: "translate(-50%, -100%)",
       };
     }

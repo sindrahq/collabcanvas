@@ -135,29 +135,6 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    if (/user already registered/i.test(error.message)) {
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (!signInError && signInData.session) {
-        const response = NextResponse.json({
-          session: {
-            access_token: signInData.session.access_token,
-            refresh_token: signInData.session.refresh_token,
-          },
-          requiresEmailVerification: false,
-        });
-
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-
-        return response;
-      }
-    }
-
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
@@ -176,30 +153,22 @@ export async function POST(request: NextRequest) {
   );
 
   if (profileInsertError) {
+    // Keep auth and username directory in sync by removing partial users if username reservation fails.
+    await adminClient.auth.admin.deleteUser(newUserId).catch(() => undefined);
+
     if (profileInsertError.code === "23505") {
-      const { data: existingProfileByUserId } = await adminClient
-        .from("user_profiles")
-        .select("user_id")
-        .eq("user_id", newUserId)
-        .maybeSingle();
-
-      if (!existingProfileByUserId?.user_id) {
-        return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
-      }
-    } else {
-      // Keep auth and username directory in sync by removing partial users if username reservation fails.
-      await adminClient.auth.admin.deleteUser(newUserId).catch(() => undefined);
-
-      const missingProfilesTable = profileInsertError.message.includes("Could not find the table 'public.user_profiles'");
-      if (missingProfilesTable) {
-        return NextResponse.json(
-          { error: "Username directory is missing. Run docs/SUPABASE_USERNAMES_SETUP.sql in Supabase SQL Editor." },
-          { status: 400 }
-        );
-      }
-
-      return NextResponse.json({ error: profileInsertError.message }, { status: 400 });
+      return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
     }
+
+    const missingProfilesTable = profileInsertError.message.includes("Could not find the table 'public.user_profiles'");
+    if (missingProfilesTable) {
+      return NextResponse.json(
+        { error: "Username directory is missing. Run docs/SUPABASE_USERNAMES_SETUP.sql in Supabase SQL Editor." },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ error: profileInsertError.message }, { status: 400 });
   }
 
   const response = NextResponse.json({

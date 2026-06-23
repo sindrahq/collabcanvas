@@ -8,12 +8,6 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      colors: {
-        roleOwner: "hsl(210, 80%, 45%)",
-        roleEditor: "hsl(150, 70%, 45%)",
-        roleCommenter: "hsl(30, 80%, 45%)",
-        roleViewer: "hsl(0, 0%, 55%)",
-      },
       keyframes: {
         loaderCircle: {
           "0%": {

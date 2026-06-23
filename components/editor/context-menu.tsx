@@ -1,9 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { useEffect, useLayoutEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Copy, Lock, Trash2, Unlock, ArrowUp, ArrowDown, LayoutGrid, BookmarkPlus } from "lucide-react";
+import { Copy, Lock, Trash2, Unlock, Layers, ArrowUp, ArrowDown, LayoutGrid, BookmarkPlus } from "lucide-react";
 
 interface ContextMenuProps {
   x: number;
@@ -24,7 +24,7 @@ export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: Context
   }, [onClose]);
 
   // Adjust position to stay within viewport
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
       const padding = 10;
@@ -38,21 +38,11 @@ export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: Context
         nextY = window.innerHeight - rect.height - padding;
       }
 
-      const frame = requestAnimationFrame(() => setPos({ x: nextX, y: nextY }));
-      return () => cancelAnimationFrame(frame);
+      setPos({ x: nextX, y: nextY });
     }
   }, [x, y]);
 
-  type MenuItem = {
-    id: string;
-    label?: string;
-    icon?: React.ComponentType<{ size?: number }>;
-    shortcut?: string;
-    type?: string;
-    danger?: boolean;
-  };
-
-  const menuItems: MenuItem[] = [
+  const menuItems = [
     { id: "duplicate", label: "Duplicate", icon: Copy, shortcut: "Ctrl+D" },
     { id: "lock", label: isLocked ? "Unlock" : "Lock", icon: isLocked ? Unlock : Lock },
     { id: "divider-frame", type: "divider" },
@@ -91,17 +81,17 @@ export function CustomContextMenu({ x, y, onClose, onAction, isLocked }: Context
                 onClose();
               }}
               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
-                item.danger 
+                (item as any).danger 
                 ? "text-rose-500 hover:bg-rose-500/10" 
                 : "text-[#8b7355] hover:bg-[#D3A5B1]/10 hover:text-[#D3A5B1]"
               } transition-colors`}
             >
               <div className="flex items-center gap-3">
                 <Icon size={15} />
-                <span className="text-[13px] font-bold">{item.label}</span>
+                <span className="text-[13px] font-bold">{(item as any).label}</span>
               </div>
-              {item.shortcut && (
-                <span className="text-[10px] font-medium opacity-40">{item.shortcut}</span>
+              {(item as any).shortcut && (
+                <span className="text-[10px] font-medium opacity-40">{(item as any).shortcut}</span>
               )}
             </button>
           );
