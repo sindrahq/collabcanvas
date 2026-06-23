@@ -3,11 +3,10 @@
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseBrowserClient, getSessionSafely, setSupabaseSessionPersistence } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, setSupabaseSessionPersistence } from "@/lib/supabase/client";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
-import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
 
 function AuthPage() {
   const router = useRouter();
@@ -15,8 +14,6 @@ function AuthPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const nextPath = searchParams.get("next") || "/projects";
-
-  const theme = useGlobalThemeStore((s) => s.theme);
 
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [firstName, setFirstName] = useState("");
@@ -27,11 +24,8 @@ function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
 
   function mapAuthError(raw: string | undefined) {
     const normalized = (raw || "").toLowerCase();
@@ -65,51 +59,12 @@ function AuthPage() {
   useEffect(() => {
     if (!supabase) return;
 
-    void getSessionSafely(supabase).then((session) => {
-      if (session) {
-        setHasSession(true);
+    void supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
         router.replace(nextPath);
-      } else {
-        setHasSession(false);
       }
     });
   }, [nextPath, router, supabase]);
-
-  async function handleForgotPassword() {
-    setError("");
-    setMessage("");
-
-    if (!email.trim()) {
-      setError("Enter your email to receive a password reset link.");
-      return;
-    }
-
-    setResetLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const payload = (await response.json()) as { error?: string; message?: string };
-
-      if (!response.ok) {
-        setError(mapAuthError(payload.error || "Could not send reset email."));
-      } else {
-        setMessage(payload.message || "If an account exists for this email, a reset link has been sent.");
-        setForgotPasswordOpen(false);
-      }
-    } catch (requestError) {
-      const requestMessage = requestError instanceof Error ? requestError.message : "Unknown network error";
-      setError(`Password reset request failed (${requestMessage}). Please try again.`);
-    } finally {
-      setResetLoading(false);
-    }
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -225,9 +180,9 @@ function AuthPage() {
     <main className="min-h-screen text-[#1a1a1a] relative overflow-hidden">
       {/* Background Assets */}
       <div 
-        className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
+        className="fixed inset-0 pointer-events-none z-[0]"
         style={{
-          backgroundImage: `url(${THEME_BACKGROUNDS[theme] || THEME_BACKGROUNDS.cherry})`,
+          backgroundImage: "url('https://images.unsplash.com/photo-1522228115018-d838bcce5c38?q=80&w=2670&auto=format&fit=crop')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -235,13 +190,13 @@ function AuthPage() {
       <div className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" />
       
       <div className="relative z-10 w-full h-full min-h-screen">
-        <PastelBlobBackground theme={theme} />
+        <PastelBlobBackground />
         <CustomCursor />
-        <FallingPetals theme={theme} />
+        <FallingPetals variant="lavender" />
 
         <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-6 py-12 relative z-20">
           <div className="mb-8 text-center">
-            <Link href={hasSession ? "/projects" : "/auth?next=%2Fprojects"} className="text-4xl font-semibold italic tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <Link href="/" className="text-4xl font-semibold italic tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
               CollabCanvas
             </Link>
           </div>
@@ -326,32 +281,6 @@ function AuthPage() {
               required
               className="w-full rounded-lg border border-[#ddd4c9] px-3 py-2 text-sm outline-none focus:border-[#8b7355]"
             />
-
-            {mode === "login" ? (
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-[#8b7355] hover:text-[#6f5b44]"
-                  onClick={() => setForgotPasswordOpen((open) => !open)}
-                >
-                  Forgot password?
-                </button>
-              </div>
-            ) : null}
-
-            {mode === "login" && forgotPasswordOpen ? (
-              <div className="rounded-lg border border-[#e8ded2] bg-[#faf6f1] px-3 py-2.5 text-xs text-[#6a6257]">
-                <p className="mb-2">Send a reset link to your email.</p>
-                <button
-                  type="button"
-                  onClick={() => void handleForgotPassword()}
-                  disabled={resetLoading}
-                  className="w-full rounded-lg bg-[#2D3436] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black disabled:opacity-70"
-                >
-                  {resetLoading ? "Sending..." : "Send reset email"}
-                </button>
-              </div>
-            ) : null}
 
             {mode === "signup" ? (
               <input

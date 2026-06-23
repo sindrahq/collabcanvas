@@ -1,5 +1,4 @@
 import { supabase } from "./supabaseClient";
-import { createSupabaseBrowserClient } from "./supabase/client";
 
 export type WorkspaceComment = {
 	id: string;
@@ -35,17 +34,13 @@ type CommentAuthor = {
 	email?: string | null;
 };
 
-function getCommentClient() {
-	return createSupabaseBrowserClient() ?? supabase;
-}
-
 function mapCommentsError(message: string | undefined) {
 	const raw = message ?? "";
 	if (raw.includes("Could not find the table 'public.workspace_comments'")) {
 		return "Comments table is missing. Run docs/SUPABASE_WORKSPACE_COMMENTS_TABLE_FIX.sql in Supabase SQL Editor.";
 	}
 	if (raw.includes("violates row-level security policy") && raw.includes("workspace_comments")) {
-		return "You do not have comment permission for this workspace yet. Run docs/SUPABASE_WORKSPACE_COMMENTS_TABLE_FIX.sql (or docs/SUPABASE_RLS_WORKSPACE_SHARING_PATCH.sql) and verify the workspace is owned/shared with your signed-in account email and shared with comment or edit access.";
+		return "You do not have comment permission for this workspace yet. Run docs/SUPABASE_WORKSPACE_COMMENTS_TABLE_FIX.sql (or docs/SUPABASE_RLS_WORKSPACE_SHARING_PATCH.sql) and verify the workspace is owned/shared with your signed-in account email.";
 	}
 
 	return raw || "Unable to load comments.";
@@ -72,8 +67,7 @@ function mapCommentRow(row: WorkspaceCommentRow): WorkspaceComment | null {
 }
 
 export async function loadWorkspaceComments(workspaceId: string): Promise<{ comments: WorkspaceComment[]; error: string | null }> {
-	const client = getCommentClient();
-	const { data, error } = await client
+	const { data, error } = await supabase
 		.from("workspace_comments")
 		.select("id, workspace_id, author_id, author_name, author_email, message, target_element_id, created_at, updated_at, resolved, resolved_at")
 		.eq("workspace_id", workspaceId)
@@ -107,8 +101,7 @@ export async function createWorkspaceComment(
 	message: string,
 	targetElementId: string | null
 ): Promise<{ comment: WorkspaceComment | null; error: string | null }> {
-	const client = getCommentClient();
-	const { data, error } = await client
+	const { data, error } = await supabase
 		.from("workspace_comments")
 		.insert({
 			workspace_id: workspaceId,

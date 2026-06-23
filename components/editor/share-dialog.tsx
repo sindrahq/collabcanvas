@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { AtSign, Copy, X } from "lucide-react";
 import { type WorkspaceAccessLevel } from "@/store/workspaceStore";
-import type { CanvasRole, RoleAssignment } from "@/types/integration";
 
 type ShareDialogProps = {
   workspaceId: string;
@@ -11,29 +10,9 @@ type ShareDialogProps = {
   open: boolean;
   onClose: () => void;
   onSyncLocalWorkspace?: () => Promise<{ workspaceId: string | null; error: string | null }>;
-  currentUserRole?: CanvasRole;
-  roleAssignments?: RoleAssignment[];
-  onRoleChange?: (userId: string, role: Exclude<CanvasRole, "owner">) => Promise<void>;
 };
 
-const ROLE_OPTIONS: Array<Exclude<CanvasRole, "owner">> = ["viewer", "commenter", "editor"];
-
-function roleToAccessLevel(role: Exclude<CanvasRole, "owner">): WorkspaceAccessLevel {
-  if (role === "editor") return "edit";
-  if (role === "commenter") return "comment";
-  return "view";
-}
-
-export function ShareDialog({
-  workspaceId,
-  workspaceName,
-  open,
-  onClose,
-  onSyncLocalWorkspace,
-  currentUserRole = "viewer",
-  roleAssignments = [],
-  onRoleChange,
-}: ShareDialogProps) {
+export function ShareDialog({ workspaceId, workspaceName, open, onClose, onSyncLocalWorkspace }: ShareDialogProps) {
   const [mode, setMode] = useState<"username" | "link">("username");
   const [username, setUsername] = useState("");
   const [accessLevel, setAccessLevel] = useState<WorkspaceAccessLevel>("view");
@@ -43,7 +22,6 @@ export function ShareDialog({
   const [shareLink, setShareLink] = useState("");
   const [syncedWorkspaceId, setSyncedWorkspaceId] = useState<string | null>(null);
   const [linkCache, setLinkCache] = useState<Record<string, string>>({});
-  const [roleSavingUserId, setRoleSavingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -141,21 +119,6 @@ export function ShareDialog({
     if (!shareLink) return;
     await navigator.clipboard.writeText(shareLink);
     setMessage("Share link copied to clipboard.");
-  }
-
-  async function handleRoleChange(userId: string, role: Exclude<CanvasRole, "owner">) {
-    if (!onRoleChange) return;
-    setError("");
-    setMessage("");
-    setRoleSavingUserId(userId);
-    try {
-      await onRoleChange(userId, role);
-      setMessage(`Role updated to ${role}.`);
-    } catch (roleError) {
-      setError(roleError instanceof Error ? roleError.message : "Unable to update role.");
-    } finally {
-      setRoleSavingUserId(null);
-    }
   }
 
   if (!open) return null;
@@ -269,41 +232,6 @@ export function ShareDialog({
 
           {error ? <p className="mt-4 text-sm font-semibold text-[#b43f3f] bg-[#b43f3f]/10 p-3 rounded-xl">{error}</p> : null}
           {!error && message ? <p className="mt-4 text-sm font-semibold text-[#2f6f4f] bg-[#2f6f4f]/10 p-3 rounded-xl">{message}</p> : null}
-
-          {currentUserRole === "owner" && roleAssignments.length > 0 ? (
-            <div className="mt-5 rounded-2xl border border-black/[0.05] bg-white/35 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8b7355] opacity-80">Collaborator roles</p>
-                {roleSavingUserId ? <span className="text-[10px] font-semibold text-[#8b7355]/70">Saving...</span> : null}
-              </div>
-              <div className="space-y-3">
-                {roleAssignments.map((assignment) => (
-                  <div key={assignment.id} className="rounded-xl bg-white/50 p-3">
-                    <div className="mb-2 min-w-0 text-xs font-bold text-[#3f372e]">
-                      {assignment.displayName}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {ROLE_OPTIONS.map((role) => (
-                        <button
-                          key={role}
-                          type="button"
-                          disabled={roleSavingUserId === assignment.userId}
-                          onClick={() => void handleRoleChange(assignment.userId, role)}
-                          className={`h-9 rounded-lg border text-[11px] font-bold capitalize transition-all ${
-                            roleToAccessLevel(role) === roleToAccessLevel(assignment.role)
-                              ? "border-[#FF94B4] bg-[#FF94B4]/15 text-[#8b7355]"
-                              : "border-black/[0.05] bg-white/40 text-[#636E72] hover:border-[#FF94B4]/40"
-                          }`}
-                        >
-                          {role}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
 
           <p className="mt-5 text-[11px] leading-relaxed text-[#636E72] font-medium opacity-80 italic">
             {mode === "username"
