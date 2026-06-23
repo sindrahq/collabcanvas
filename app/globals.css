@@ -101,6 +101,50 @@ body.cc-workspace-theme {
   --pastel-lavender: #FF8EAA;
 }
 
+body.cc-workspace-theme.theme-cherry {
+  --accent: #D3A5B1;
+  --accent-soft: rgba(211, 165, 177, 0.16);
+  --accent-soft-2: rgba(211, 165, 177, 0.28);
+  --muted: #645C52;
+  --line: rgba(211, 165, 177, 0.14);
+  --line-strong: rgba(211, 165, 177, 0.2);
+  --pastel-peach: #F0C3D1;
+  --pastel-lavender: #FF8EAA;
+}
+
+body.cc-workspace-theme.theme-forest {
+  --accent: #708238;
+  --accent-soft: rgba(112, 130, 56, 0.16);
+  --accent-soft-2: rgba(112, 130, 56, 0.28);
+  --muted: #555e37;
+  --line: rgba(112, 130, 56, 0.14);
+  --line-strong: rgba(112, 130, 56, 0.2);
+  --pastel-peach: #d2e3bd;
+  --pastel-lavender: #8ea358;
+}
+
+body.cc-workspace-theme.theme-ocean {
+  --accent: #3b7bb8;
+  --accent-soft: rgba(59, 123, 184, 0.16);
+  --accent-soft-2: rgba(59, 123, 184, 0.28);
+  --muted: #3d5975;
+  --line: rgba(59, 123, 184, 0.14);
+  --line-strong: rgba(59, 123, 184, 0.2);
+  --pastel-peach: #bde3f0;
+  --pastel-lavender: #589fa3;
+}
+
+body.cc-workspace-theme.theme-sunset {
+  --accent: #d97d41;
+  --accent-soft: rgba(217, 125, 65, 0.16);
+  --accent-soft-2: rgba(217, 125, 65, 0.28);
+  --muted: #75553d;
+  --line: rgba(217, 125, 65, 0.14);
+  --line-strong: rgba(217, 125, 65, 0.2);
+  --pastel-peach: #f0d5bd;
+  --pastel-lavender: #a37a58;
+}
+
 body.cc-workspace-theme::before {
   display: none;
 }
@@ -148,13 +192,14 @@ body.cc-workspace-theme .editor-topbar {
   width: calc(100% - 32px);
   max-width: 1600px;
   box-shadow: 0 16px 64px rgba(0, 0, 0, 0.06);
-  display: flex !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center !important;
-  justify-content: space-between !important;
+  justify-content: normal !important;
   position: relative;
   z-index: 1000;
   height: 72px;
-  gap: 8px !important;
+  column-gap: 16px !important;
   overflow: visible !important;
 }
 
@@ -203,7 +248,9 @@ body.cc-workspace-theme .editor-topbar-center {
   align-items: center;
   flex-shrink: 0;
   overflow: visible;
-  margin-right: 40px;
+  width: max-content;
+  justify-self: center;
+  margin-right: 0;
 }
 
 body.cc-workspace-theme .editor-topbar-center > div {
@@ -212,10 +259,11 @@ body.cc-workspace-theme .editor-topbar-center > div {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(211, 165, 177, 0.2);
   border-radius: 9999px;
-  padding: 4px 8px;
-  display: flex;
+  padding: 4px 6px;
+  display: inline-flex;
   gap: 6px;
   white-space: nowrap;
+  width: max-content;
 }
 
 body.cc-workspace-theme .editor-topbar-right {
@@ -278,7 +326,7 @@ body.cc-workspace-theme .workspace-aura {
   transform: translate(-50%, -50%);
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle, rgba(255, 148, 180, 0.25) 0%, rgba(211, 165, 177, 0.1) 40%, transparent 70%);
+  background: radial-gradient(circle, var(--accent-soft-2) 0%, var(--accent-soft) 40%, transparent 70%);
   z-index: 0;
   pointer-events: none;
   filter: blur(80px);
@@ -320,8 +368,8 @@ body.cc-workspace-theme .editor-topbar {
 }
 
 body.cc-workspace-theme .editor-logo-mark {
-  background: linear-gradient(180deg, #e1b4bf, #c998a5);
-  box-shadow: 0 0 0 6px rgba(211, 165, 177, 0.2);
+  background: linear-gradient(180deg, var(--accent), var(--pastel-peach));
+  box-shadow: 0 0 0 6px var(--accent-soft);
 }
 
 body.cc-workspace-theme .editor-heading,
@@ -2125,11 +2173,11 @@ body.cc-workspace-theme .workspace-sidebar-button-label.visible {
 
 body.cc-workspace-theme .workspace-sidebar-panel {
   overflow: visible;
-  border: 1px solid rgba(211, 165, 177, 0.3);
-  border-radius: 20px;
-  background: #FFFFFF !important;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.1);
-  min-height: 400px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  min-height: 0;
   z-index: 50;
 }
 
@@ -2195,6 +2243,19 @@ body.cc-workspace-theme .workspace-sidebar-panel-body {
   max-height: calc(100vh - 160px);
   overflow-y: auto;
   color: #1a1a1a !important;
+}
+
+body.cc-workspace-theme .workspace-sidebar-panel-body .editor-panel {
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+body.cc-workspace-theme .workspace-sidebar-panel-body .layers-panel,
+body.cc-workspace-theme .workspace-sidebar-panel-body .inspector-panel {
+  min-height: 0;
 }
 
 body.cc-workspace-theme .workspace-sidebar-panel-empty {

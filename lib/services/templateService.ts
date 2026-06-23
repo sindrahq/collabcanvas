@@ -1,42 +1,36 @@
 import { LayoutTemplate, CreateTemplateInput } from "@/types/template";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-
-// This is the "Contract" between you and your backend friend.
-// Currently it uses LocalStorage so you can work. 
-// Your friend just needs to uncomment the Supabase code later.
+import { fetchCanvasTemplates, saveCanvasTemplate } from "@/lib/api/canvasIntegration";
 
 export const templateService = {
   async getAll(): Promise<LayoutTemplate[]> {
-    // BACKEND (Friend's part)
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) return [];
-    
-    const { data, error } = await supabase
-      .from('templates')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
+    const { templates } = await fetchCanvasTemplates();
+    return templates.map((template) => ({
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      preview_url: template.previewUrl,
+      elements: template.elements,
+      created_at: template.createdAt,
+      user_id: "",
+    }));
   },
 
   async save(input: CreateTemplateInput): Promise<LayoutTemplate> {
-    const newTemplate: LayoutTemplate = {
-      ...input,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+    const { template } = await saveCanvasTemplate({
+      name: input.name,
+      description: input.description,
+      elements: input.elements,
+    });
+    return {
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      preview_url: template.previewUrl,
+      elements: template.elements,
+      created_at: template.createdAt,
+      user_id: input.user_id,
     };
-
-    // BACKEND (Friend's part)
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) throw new Error("Supabase client not initialized");
-    
-    const { data, error } = await supabase
-      .from('templates')
-      .insert([newTemplate])
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
   },
 
   async delete(id: string): Promise<void> {

@@ -3,17 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react";
 import { FRAME_CATEGORIES, type FramePreset } from "@/lib/constants";
-import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 
-export function FramePicker() {
+export function FramePicker({ workspaceId }: { workspaceId: string }) {
   const [open, setOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(["Desktop"])
   );
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const canvasDimensions = useWorkspaceStore((s) => s.canvasDimensions);
-  const setCanvasDimensions = useWorkspaceStore((s) => s.setCanvasDimensions);
+  const useStore = useWorkspaceStoreFactory(workspaceId);
+  const canvasDimensions = useStore((s) => s.canvasDimensions);
+  const setCanvasDimensions = useStore((s) => s.setCanvasDimensions);
 
   useEffect(() => {
     if (!open) return;

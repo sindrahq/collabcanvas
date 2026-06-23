@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
+import { ThemeSync } from "@/components/theme/ThemeSync";
 
 export const metadata: Metadata = {
   title: "Collaborative Canvas",
@@ -22,7 +23,10 @@ type RootLayoutProps = Readonly<{
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="cc-landing-theme min-h-full flex flex-col">{children}</body>
+      <body className="cc-landing-theme min-h-full flex flex-col">
+        <ThemeSync />
+        {children}
+      </body>
     </html>
   );
 }

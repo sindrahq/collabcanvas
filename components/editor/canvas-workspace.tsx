@@ -5,13 +5,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { RemoteCursors } from "@/components/presence/RemoteCursors";
 import {
+  broadcastCameraSync,
   broadcastCursor,
-  normalizeCoords,
-  updatePresence,
+  onCameraSyncBroadcast,
   type PresenceMeta
 } from "@/lib/collaboration";
 import { useWorkspaceStoreFactory } from "@/store/workspaceStore";
 import type { WorkspaceState } from "@/store/workspaceStore";
+import { usePresenceStore } from "@/store/presenceStore";
 
 const KonvaStageWorkspace = dynamic(
   () => import("@/components/editor/konva-stage").then((m) => m.KonvaStageWorkspace),
@@ -36,13 +37,14 @@ type CanvasWorkspaceProps = {
   currentUserId: string;
   presences: Record<string, PresenceMeta>;
   remoteCursors: Record<string, { x: number; y: number; updatedAt: number }>;
+  onRealtimeCursorMove?: (x: number, y: number) => void;
 };
 
-export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors }: CanvasWorkspaceProps) {
+export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteCursors, onRealtimeCursorMove }: CanvasWorkspaceProps) {
   const store = useWorkspaceStoreFactory(workspaceId);
   const canvasDimensions    = store((s: WorkspaceState) => s.canvasDimensions);
-  const canEdit             = store((s: WorkspaceState) => s.canEdit);
-  const elements            = store((s: WorkspaceState) => s.elements);
+  const isFollowing         = usePresenceStore((s) => !!s.followedUserId);
+  const updatePresenceUser  = usePresenceStore((s) => s.updateUser);
 
   const stageRenderWidth  = canvasDimensions.width  / STAGE_SCALE;
   const stageRenderHeight = canvasDimensions.height / STAGE_SCALE;
@@ -188,11 +190,36 @@ function getTouchDistance(touches: React.TouchList) {
 
   const zoomPercent = Math.round(zoom * 100);
 
+  useEffect(() => {
+    const cleanup = onCameraSyncBroadcast((payload) => {
+      const followedUserId = usePresenceStore.getState().followedUserId;
+      if (payload.presenterId !== followedUserId) return;
+      updatePresenceUser(payload.presenterId, {
+        viewport: {
+          zoom: payload.zoomScale,
+          panX: payload.clientX,
+          panY: payload.clientY,
+        },
+      });
+    });
+
+    return cleanup;
+  }, [updatePresenceUser]);
+
+  useEffect(() => {
+    if (isFollowing) return;
+    broadcastCameraSync(currentUserId, viewportRef.current?.scrollLeft ?? 0, viewportRef.current?.scrollTop ?? 0, zoom);
+  }, [currentUserId, isFollowing, zoom]);
+
   return (
     <section className="canvas-stage-shell">
       <div
         className="canvas-viewport"
         ref={viewportRef}
+        onScroll={() => {
+          if (isFollowing) return;
+          broadcastCameraSync(currentUserId, viewportRef.current?.scrollLeft ?? 0, viewportRef.current?.scrollTop ?? 0, zoom);
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -202,6 +229,7 @@ function getTouchDistance(touches: React.TouchList) {
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
           broadcastCursor(currentUserId, x, y);
+          onRealtimeCursorMove?.(x, y);
         }}
       >
         <div
