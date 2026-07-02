@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, Palette, ChevronDown } from "lucide-react";
+import { Menu, X, ArrowRight, Palette, ChevronDown, Search } from "lucide-react";
 import { LandingFeatureCards } from "@/components/landing/landing-feature-cards";
 import { FeatureGridAnimated } from "@/components/landing/feature-grid-animated";
 import { FeatureComparisonTable } from "@/components/landing/feature-comparison-table";
@@ -15,110 +16,53 @@ import { AccumulatedPetals } from "@/components/landing/accumulated-petals";
 import { useGlobalThemeStore, THEME_BACKGROUNDS } from "@/store/globalThemeStore";
 import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 import type { CanvasTheme } from "@/store/workspaceStore";
+import { builtInTemplates, templateCategories, type TemplateCategory, type BuiltInTemplate } from "@/lib/templates/builtInTemplates";
+import TemplatePreview from "@/components/ui/TemplatePreview";
 
 type SectionId = "features" | "templates" | "about";
-
-type TemplateItem = {
-  img: string;
-  label: string;
-  query: string;
-  aspectClass: string;
-};
-
-const templates: TemplateItem[] = [
-  { img: "https://images.unsplash.com/photo-1510076857177-7470076d4098?q=80&w=1000&auto=format&fit=crop", label: "Invitation", query: "invitation", aspectClass: "aspect-square" },
-  { img: "https://images.unsplash.com/photo-1556761175-b413da4baf72?q=80&w=1000&auto=format&fit=crop", label: "Business", query: "business", aspectClass: "aspect-square" },
-  { img: "/templates/poster-1.png", label: "Poster", query: "poster", aspectClass: "aspect-square" },
-  { img: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=1000&auto=format&fit=crop", label: "Presentation", query: "presentation", aspectClass: "aspect-square" },
-  { img: "/templates/social-media-1.png", label: "Social Media", query: "social-media", aspectClass: "aspect-square" },
-];
-
-const TEMPLATE_DESIGNS: Record<string, string[]> = {
-  "invitation": [
-    "https://images.unsplash.com/photo-1517457373958-b7bdd4587205",
-    "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8",
-    "https://images.unsplash.com/photo-1520854221256-17451cc331bf",
-    "https://images.unsplash.com/photo-1510076857177-7470076d4098",
-    "https://images.unsplash.com/photo-1509315811345-672d83ef2fbc",
-    "https://images.unsplash.com/photo-1519225421980-715cb0215aed",
-    "https://images.unsplash.com/photo-1469334031218-e382a71b716b",
-    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3",
-    "https://images.unsplash.com/photo-1507915977619-6ccfe8003ae6",
-    "https://images.unsplash.com/photo-1527529482837-4698179dc6ce"
-  ],
-  "business": [
-    "https://images.unsplash.com/photo-1589829085413-56de8ae18c73",
-    "https://images.unsplash.com/photo-1556761175-b413da4baf72",
-    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab",
-    "https://images.unsplash.com/photo-1497366216548-37526070297c",
-    "https://images.unsplash.com/photo-1557426272-fc759fdf7a8d",
-    "https://images.unsplash.com/photo-1552664730-d307ca884978",
-    "https://images.unsplash.com/photo-1454165833222-d1d44d26e9b2",
-    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
-    "https://images.unsplash.com/photo-1517048676732-d65bc937f952",
-    "https://images.unsplash.com/photo-1497215728101-856f4ea42174"
-  ],
-  "poster": [
-    "/templates/poster-1.png",
-    "https://images.unsplash.com/photo-1531206715517-5c0ba140b2b8",
-    "https://images.unsplash.com/photo-1541185933-ef5d8ed016c2",
-    "https://images.unsplash.com/photo-1515462277126-2dd0c162007a",
-    "https://images.unsplash.com/photo-1558655146-d09347e92766",
-    "https://images.unsplash.com/photo-1483058712412-4245e9b90334",
-    "https://images.unsplash.com/photo-1542626991-cbc4e32524cc",
-    "https://images.unsplash.com/photo-1544928147-79a2dbc1f389",
-    "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea",
-    "https://images.unsplash.com/photo-1550684848-fac1c5b4e853"
-  ],
-  "presentation": [
-    "https://images.unsplash.com/photo-1557804506-669a67965ba0",
-    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3",
-    "https://images.unsplash.com/photo-1551434678-e076c223a692",
-    "https://images.unsplash.com/photo-1542744173-8e7e53415bb0",
-    "https://images.unsplash.com/photo-1555066931-4365d14bab8c",
-    "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4",
-    "https://images.unsplash.com/photo-1553877522-43269d4ea984",
-    "https://images.unsplash.com/photo-1460925895917-afdab827c52f",
-    "https://images.unsplash.com/photo-1542744173-05336fcc7ad4",
-    "https://images.unsplash.com/photo-1531482615713-2afd69097998"
-  ],
-  "social-media": [
-    "/templates/social-media-1.png",
-    "https://images.unsplash.com/photo-1611224923853-80b023f02d71",
-    "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0",
-    "https://images.unsplash.com/photo-1611606063065-ee7946f0787a",
-    "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6",
-    "https://images.unsplash.com/photo-1492724441997-5dc865305da7",
-    "https://images.unsplash.com/photo-1533750349088-cd871a92f312",
-    "https://images.unsplash.com/photo-1563986768609-322da13575f3",
-    "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6",
-    "https://images.unsplash.com/photo-1611224923853-80b023f02d71"
-  ]
-};
 
 export function LandingHero() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const [activeTemplateCategory, setActiveTemplateCategory] = useState<TemplateCategory>("All");
+  const [templateSearch, setTemplateSearch] = useState("");
   const theme = useGlobalThemeStore((s) => s.theme);
   const setTheme = useGlobalThemeStore((s) => s.setTheme);
   const [logoHref, setLogoHref] = useState("/auth?next=%2Fprojects");
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const fullText = useMemo(() => "Design Without Limits", []);
+  const router = useRouter();
+
+  const filteredTemplates = useMemo(() => {
+    let list = builtInTemplates;
+    if (activeTemplateCategory !== "All") {
+      list = list.filter((t) => t.category === activeTemplateCategory);
+    }
+    if (templateSearch.trim()) {
+      const q = templateSearch.toLowerCase();
+      list = list.filter((t) => t.name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [activeTemplateCategory, templateSearch]);
+
+  function handleUseTemplate(template: BuiltInTemplate) {
+    const templateKey = `collabcanvas_new_template_${Date.now()}`;
+    localStorage.setItem(templateKey, JSON.stringify({
+      name: template.name,
+      elements: template.elements,
+    }));
+    router.push(`/projects?templateKey=${templateKey}`);
+  }
 
   useEffect(() => {
     if (!supabase) return;
-
     let active = true;
     void getSessionSafely(supabase).then((session) => {
       if (!active) return;
       setLogoHref(session?.user ? "/projects" : "/auth?next=%2Fprojects");
     });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [supabase]);
 
   useEffect(() => {
@@ -143,7 +87,6 @@ export function LandingHero() {
 
   return (
     <main className="cc-landing-theme min-h-screen text-[#2D3436] font-sans selection:bg-[#F0C3D1] relative">
-      {/* Full Cherry Blossom Background */}
       <div
         className="fixed inset-0 pointer-events-none z-[0] transition-all duration-1000"
         style={{
@@ -152,17 +95,13 @@ export function LandingHero() {
           backgroundPosition: 'center'
         }}
       />
-      {/* Soft overlay to ensure buttons and content are readable over the floral background */}
-      <div
-        className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]"
-      />
+      <div className="fixed inset-0 pointer-events-none bg-white/50 backdrop-blur-[2px] z-[1]" />
 
       <div className="relative z-10">
         <PastelBlobBackground theme={theme} />
         <CustomCursor />
         <FallingPetals theme={theme} />
 
-        {/* Floating Navbar */}
         <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[min(90%,1200px)]">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
@@ -173,7 +112,6 @@ export function LandingHero() {
               <Link href={logoHref} className="text-xl font-bold tracking-tight italic flex items-center gap-2">
                 CollabCanvas
               </Link>
-
               <div className="hidden md:flex items-center gap-6">
                 {["Features", "Templates", "About"].map((item) => (
                   <button
@@ -186,7 +124,6 @@ export function LandingHero() {
                 ))}
               </div>
             </div>
-
             <div className="flex items-center gap-4">
               <div className="relative">
                 <button
@@ -199,7 +136,6 @@ export function LandingHero() {
                   <span className="hidden sm:inline">Theme</span>
                   <ChevronDown size={14} className={`transition-transform ${themeMenuOpen ? "rotate-180" : ""}`} />
                 </button>
-
                 <AnimatePresence>
                   {themeMenuOpen && (
                     <motion.div
@@ -224,10 +160,7 @@ export function LandingHero() {
                             setThemeMenuOpen(false);
                           }}
                         >
-                          <span
-                            className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0"
-                            style={{ backgroundColor: t.color }}
-                          />
+                          <span className="w-3.5 h-3.5 rounded-full border border-black/10 flex-shrink-0" style={{ backgroundColor: t.color }} />
                           {t.label}
                           {theme === t.id && <span className="ml-auto text-[10px]">✓</span>}
                         </button>
@@ -236,7 +169,6 @@ export function LandingHero() {
                   )}
                 </AnimatePresence>
               </div>
-
               <Link
                 href="/projects"
                 className="hidden sm:inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-sm font-bold shadow-lg shadow-[#D3A5B1]/30 transition-all hover:scale-[1.05]"
@@ -244,16 +176,11 @@ export function LandingHero() {
               >
                 Open App
               </Link>
-              <button
-                className="md:hidden p-2 text-[#636E72]"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-              >
+              <button className="md:hidden p-2 text-[#636E72]" onClick={() => setIsMenuOpen(!isMenuOpen)}>
                 {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </div>
           </motion.div>
-
-          {/* Mobile Menu */}
           <AnimatePresence>
             {isMenuOpen && (
               <motion.div
@@ -306,11 +233,9 @@ export function LandingHero() {
                   Your Shared Canvas
                 </span>
               </h1>
-
               <p className="text-lg md:text-xl text-[#636E72] leading-relaxed max-w-xl mb-10">
                 Transform your creative workflow with a seamless, collaborative editor. Build, style, and ship together in real-time.
               </p>
-
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   href="/projects"
@@ -328,7 +253,6 @@ export function LandingHero() {
                 </button>
               </div>
             </motion.div>
-
             <motion.div
               initial={{ x: 20, opacity: 0, scale: 0.95 }}
               animate={{ x: 0, opacity: 1, scale: 1 }}
@@ -336,7 +260,6 @@ export function LandingHero() {
               className="relative perspective-1000"
             >
               <TiltImage src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop" />
-              {/* Decorative elements */}
               <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#FADBD8] rounded-full blur-[60px] opacity-60" />
               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#D5F5E3] rounded-full blur-[60px] opacity-60" />
             </motion.div>
@@ -360,39 +283,80 @@ export function LandingHero() {
           </div>
         </motion.section>
 
-
         {/* Templates Section */}
         <section id="templates" className="py-24 px-6 overflow-hidden">
           <div className="mx-auto max-w-7xl">
-            <div className="mb-12">
-              <div>
-                <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
-                <p className="text-[#636E72]">Pick a starting point and make it yours.</p>
+            <div className="mb-8">
+              <h2 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Kickstart with templates</h2>
+              <p className="text-[#636E72]">Pick a starting point and make it yours. Open any template to start editing in the app.</p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-2.5 text-[#8b7355]/40" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  className="w-full rounded-xl border border-[#8b7355]/10 bg-white/70 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#D3A5B1]/40 focus:ring-2 focus:ring-[#D3A5B1]/10 transition-all"
+                />
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {templateCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveTemplateCategory(cat)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                      activeTemplateCategory === cat
+                        ? "bg-[#8b7355] text-white shadow-sm"
+                        : "bg-white/60 text-[#8b7355] hover:bg-[#D3A5B1]/10 border border-[#8b7355]/10"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-              {templates.map((template, idx) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredTemplates.map((template, idx) => (
                 <motion.div
-                  key={template.label}
-                  initial={{ y: 20, opacity: 0 }}
-                  whileInView={{ y: 0, opacity: 1 }}
-                  transition={{ delay: idx * 0.1 }}
+                  key={template.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05 }}
                   viewport={{ once: true }}
                 >
                   <div
-                    onClick={() => setSelectedTemplate(template)}
-                    className="group block rounded-3xl overflow-hidden bg-white border border-black/[0.03] shadow-sm hover:shadow-xl transition-all cursor-pointer"
+                    onClick={() => handleUseTemplate(template)}
+                    className="group flex h-[360px] cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#8b7355]/10 bg-white/70 shadow-sm transition-all hover:border-[#D3A5B1]/40 hover:shadow-md sm:h-[380px]"
                   >
-                    <div className={`${template.aspectClass} overflow-hidden bg-black/[0.02]`}>
-                      <img
-                        src={template.img}
-                        alt={template.label}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    <div className="relative h-56 overflow-hidden bg-white/50 sm:h-60">
+                      <TemplatePreview
+                        elements={template.elements}
+                        width={260}
+                        height={240}
+                        className="h-full w-full"
                       />
+                      <span
+                        className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold text-white/90 uppercase tracking-wider"
+                        style={{ backgroundColor: template.color + "cc" }}
+                      >
+                        {template.category}
+                      </span>
+                      <div className="absolute inset-0 bg-black/0 transition-all group-hover:bg-black/30 flex items-center justify-center">
+                        <span className="px-4 py-2 rounded-full bg-white text-[#2D3436] text-xs font-semibold opacity-0 shadow-lg transition-all group-hover:opacity-100 group-hover:translate-y-0 translate-y-2">
+                          Open Template
+                        </span>
+                      </div>
                     </div>
-                    <div className="p-4 flex items-center justify-between">
-                      <span className="font-bold text-sm">{template.label}</span>
+                    <div className="flex flex-1 items-end justify-between p-4">
+                      <div>
+                        <span className="font-bold text-sm text-[#2D3436]">{template.name}</span>
+                        <p className="text-[11px] text-[#636E72]/70 mt-0.5">{template.elements.length} elements · Fully editable</p>
+                      </div>
                       <ArrowRight size={16} className="text-black/20 group-hover:text-black transition-colors" />
                     </div>
                   </div>
@@ -400,69 +364,11 @@ export function LandingHero() {
               ))}
             </div>
 
-            <AnimatePresence>
-              {selectedTemplate && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-8 bg-[#D3A5B1]/10 backdrop-blur-xl"
-                  onClick={() => setSelectedTemplate(null)}
-                >
-                  <motion.div
-                    initial={{ scale: 0.95, y: 20, opacity: 0 }}
-                    animate={{ scale: 1, y: 0, opacity: 1 }}
-                    exit={{ scale: 0.95, y: 20, opacity: 0 }}
-                    className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-[2.5rem] bg-white shadow-[0_32px_64px_rgba(211,165,177,0.25)] border border-[#D3A5B1]/10 flex flex-col relative"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-[#FFF5F8] to-transparent pointer-events-none" />
-
-                    <div className="p-8 md:p-12 pb-6 border-b border-[#D3A5B1]/10 flex items-center justify-between relative z-10">
-                      <div>
-                        <h3 className="text-3xl md:text-4xl font-bold tracking-tight text-[#2D3436]" style={{ fontFamily: "'Playfair Display', serif" }}>
-                          {selectedTemplate.label} Templates
-                        </h3>
-                        <p className="text-[#636E72] mt-2 text-lg">Select a beautifully crafted starting point.</p>
-                      </div>
-                      <button
-                        onClick={() => setSelectedTemplate(null)}
-                        className="w-12 h-12 rounded-full bg-white border border-[#D3A5B1]/20 flex items-center justify-center text-[#D3A5B1] hover:bg-[#D3A5B1] hover:text-white transition-all hover:scale-105"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#FDFBFB]">
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 md:gap-8">
-                        {(TEMPLATE_DESIGNS[selectedTemplate.query] || []).map((imgUrl, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.05 }}
-                            className={`group relative ${selectedTemplate.aspectClass} rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-[#D3A5B1]/30 transition-all duration-300 border border-black/[0.03] bg-white`}
-                          >
-                            <img src={`${imgUrl}?q=80&w=800&auto=format&fit=crop`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                              <button
-                                className="group/btn relative px-8 py-3 rounded-full bg-white text-black font-semibold text-sm transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg overflow-hidden"
-                                onClick={() => {
-                                  // User requested to disable interaction
-                                  console.log("Use Design clicked - disabled by request");
-                                }}
-                              >
-                                Use Design
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {filteredTemplates.length === 0 && (
+              <div className="py-16 text-center">
+                <p className="text-sm text-[#636E72]/50">No templates found. Try a different search or category.</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -480,7 +386,6 @@ export function LandingHero() {
                 Get Started Now
               </Link>
             </div>
-
             <div className="mt-20 flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-black/[0.03]">
               <div className="text-xl font-bold italic">CollabCanvas</div>
               <div className="flex gap-8 text-sm font-medium text-[#636E72]">
@@ -497,4 +402,3 @@ export function LandingHero() {
     </main>
   );
 }
-

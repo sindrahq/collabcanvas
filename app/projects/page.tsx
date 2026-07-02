@@ -10,6 +10,7 @@ import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/cl
 import { getDisplayNameFromMetadata } from "@/lib/profile";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
+import type { CanvasElement as AppCanvasElement } from "@/store/workspaceStore";
 import "../globals.css";
 
 type ProjectRow = {
@@ -94,6 +95,98 @@ type WorkspaceHistoryPreviewRow = {
     }>;
   };
 };
+
+type InsertErrorLike = {
+  message?: string;
+};
+
+function extractMissingColumn(error: InsertErrorLike | null): string | null {
+  const message = error?.message || "";
+  const quoted = message.match(/Could not find the '([^']+)' column/i);
+  if (quoted?.[1]) return quoted[1];
+
+  const generic = message.match(/column\s+"([^"]+)"\s+does not exist/i);
+  if (generic?.[1]) return generic[1];
+
+  return null;
+}
+
+function stripColumn<T extends Record<string, unknown>>(rows: T[], column: string): T[] {
+  return rows.map((row) => {
+    if (!(column in row)) return row;
+    const next = { ...row };
+    delete next[column];
+    return next;
+  });
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isUuidSyntaxError(error: InsertErrorLike | null): boolean {
+  const message = error?.message || "";
+  return /invalid input syntax for type uuid/i.test(message);
+}
+
+function stripInvalidUuidColumnsForTable(
+  table: string,
+  rows: Record<string, unknown>[]
+): { rows: Record<string, unknown>[]; changed: boolean } {
+  if (!rows.length) {
+    return { rows, changed: false };
+  }
+
+  if (table === "canvas_elements") {
+    const shouldDropId = rows.some((row) => typeof row.id === "string" && !isUuid(row.id));
+    if (shouldDropId) {
+      return { rows: stripColumn(rows, "id"), changed: true };
+    }
+  }
+
+  return { rows, changed: false };
+}
+
+async function insertWithSchemaFallback(
+  dbClient: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>,
+  table: string,
+  rows: Record<string, unknown>[]
+) {
+  let candidateRows = rows;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { error } = await dbClient.from(table).insert(candidateRows);
+    if (!error) {
+      return { error: null as null | InsertErrorLike, strippedColumns: attempt };
+    }
+
+    if (isUuidSyntaxError(error)) {
+      const uuidFallback = stripInvalidUuidColumnsForTable(table, candidateRows);
+      if (uuidFallback.changed) {
+        candidateRows = uuidFallback.rows;
+        continue;
+      }
+    }
+
+    const missingColumn = extractMissingColumn(error);
+    if (!missingColumn) {
+      return { error, strippedColumns: attempt };
+    }
+
+    const nextRows = stripColumn(candidateRows, missingColumn);
+    const unchanged = JSON.stringify(nextRows) === JSON.stringify(candidateRows);
+    if (unchanged) {
+      return { error, strippedColumns: attempt };
+    }
+
+    candidateRows = nextRows;
+  }
+
+  return {
+    error: { message: `Insert failed for ${table} after schema fallback attempts.` },
+    strippedColumns: 8,
+  };
+}
 
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const LOCAL_PROJECTS_KEY = "collabcanvas_guest_projects";
@@ -408,6 +501,7 @@ function ProjectsDashboardContent() {
   const searchParams = useSearchParams();
   const templateName = searchParams.get("template");
   const templateImage = searchParams.get("image");
+  const templateKey = searchParams.get("templateKey");
   const [templateApplied, setTemplateApplied] = useState(false);
 
   useEffect(() => {
@@ -472,16 +566,30 @@ function ProjectsDashboardContent() {
   }, [router]);
 
   useEffect(() => {
-    if (authReady && currentUserId && templateName && templateImage && !templateApplied) {
-      setTemplateApplied(true);
-      // eslint-disable-next-line react-hooks/immutability
-      handleCreateProject(templateName, templateImage);
-      
-      // Clean up URL params without refreshing
-      const nextUrl = window.location.pathname;
-      window.history.replaceState({ ...window.history.state, as: nextUrl, url: nextUrl }, '', nextUrl);
+    if (authReady && currentUserId && !templateApplied) {
+      if (templateName && templateImage) {
+        setTemplateApplied(true);
+        handleCreateProject(templateName, undefined, templateImage);
+        const nextUrl = window.location.pathname;
+        window.history.replaceState({ ...window.history.state, as: nextUrl, url: nextUrl }, '', nextUrl);
+      } else if (templateKey) {
+        // Load template from localStorage
+        const raw = localStorage.getItem(templateKey);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as { name: string; elements: unknown[] };
+            setTemplateApplied(true);
+            handleCreateProject(parsed.name, parsed.elements as AppCanvasElement[], undefined);
+            localStorage.removeItem(templateKey);
+          } catch {
+            // ignore parse errors
+          }
+          const nextUrl = window.location.pathname;
+          window.history.replaceState({ ...window.history.state, as: nextUrl, url: nextUrl }, '', nextUrl);
+        }
+      }
     }
-  }, [authReady, currentUserId, templateName, templateImage, templateApplied]);
+  }, [authReady, currentUserId, templateName, templateImage, templateKey, templateApplied]);
 
   useEffect(() => {
     async function fetchProjects() {
@@ -706,7 +814,11 @@ function ProjectsDashboardContent() {
     );
   }
 
-  async function handleCreateProject(initialName?: string, initialImageUrl?: string) {
+  async function handleCreateProject(
+    initialName?: string,
+    templateElements?: AppCanvasElement[],
+    initialImageUrl?: string
+  ) {
     if (!currentUserId) {
       setErrorMessage("Unable to create project: user not authenticated. Please refresh or log in again.");
       return;
@@ -723,7 +835,6 @@ function ProjectsDashboardContent() {
     const name = initialName ? `My ${initialName}` : `Untitled Project ${projectCount}`;
     const nowIso = new Date().toISOString();
 
-    // Only allow local mode if explicitly offline
     if (usingLocalMode) {
       setErrorMessage("You are in offline/local mode. New projects will only be saved locally and will not sync to your account until you are back online.");
       const localProject: ProjectRow = {
@@ -734,7 +845,6 @@ function ProjectsDashboardContent() {
         updated_at: nowIso,
         storage: "local",
       };
-
       upsertLocalProject(localProject);
       setMyProjects((prev) => [localProject, ...prev]);
       setPreviewMap((prev) => ({ ...prev, [localProject.id]: [] }));
@@ -756,12 +866,81 @@ function ProjectsDashboardContent() {
       return;
     }
 
-    if (initialImageUrl) {
-      // Add the template image element
-      if (!browserClient) return;
-      const { error: elementError } = await browserClient
-        .from("canvas_elements")
-        .insert({
+    const insertedElements: CanvasPreviewElement[] = [];
+
+    // Insert all template elements
+    if (templateElements && templateElements.length > 0) {
+      const dbRows = templateElements.map((el, i) => ({
+        workspace_id: workspace.id,
+        type: el.type,
+        position: { x: el.x, y: el.y, width: el.width, height: el.height },
+        rotation: el.rotation ?? 0,
+        text_content: el.text ?? null,
+        style: {
+          ...el.style,
+          fill: el.style.fill ?? "#f7f2ea",
+          stroke: el.style.stroke ?? "transparent",
+          strokeWidth: el.style.strokeWidth ?? 0,
+          opacity: el.style.opacity ?? 1,
+          fontSize: el.style.fontSize ?? 16,
+          fontFamily: el.style.fontFamily ?? "Inter",
+          fontStyle: el.style.fontStyle ?? "normal",
+          fontWeight: el.style.fontWeight ?? "normal",
+          textAlign: el.style.textAlign ?? "left",
+          shadowEnabled: el.style.shadowEnabled ?? false,
+          shadowBlur: el.style.shadowBlur ?? 0,
+          shadowColor: el.style.shadowColor ?? "transparent",
+          shadowOffsetX: el.style.shadowOffsetX ?? 0,
+          shadowOffsetY: el.style.shadowOffsetY ?? 0,
+          brightness: el.style.brightness ?? 0,
+          contrast: el.style.contrast ?? 0,
+          tint: el.style.tint ?? 0,
+          imageUrl: el.imageUrl ?? el.style.imageUrl ?? undefined,
+        },
+        style_ext: {
+          ...el.style,
+          fill: el.style.fill ?? "#f7f2ea",
+          stroke: el.style.stroke ?? "transparent",
+          strokeWidth: el.style.strokeWidth ?? 0,
+          opacity: el.style.opacity ?? 1,
+          fontSize: el.style.fontSize ?? 16,
+          fontFamily: el.style.fontFamily ?? "Inter",
+          fontStyle: el.style.fontStyle ?? "normal",
+          fontWeight: el.style.fontWeight ?? "normal",
+          textAlign: el.style.textAlign ?? "left",
+          shadowEnabled: el.style.shadowEnabled ?? false,
+          shadowBlur: el.style.shadowBlur ?? 0,
+          shadowColor: el.style.shadowColor ?? "transparent",
+          shadowOffsetX: el.style.shadowOffsetX ?? 0,
+          shadowOffsetY: el.style.shadowOffsetY ?? 0,
+          brightness: el.style.brightness ?? 0,
+          contrast: el.style.contrast ?? 0,
+          tint: el.style.tint ?? 0,
+          imageUrl: el.imageUrl ?? el.style.imageUrl ?? undefined,
+        },
+        layer_order: i,
+        visible: el.visible ?? true,
+        locked: el.locked ?? false,
+      }));
+
+      const { error: elementsError } = await insertWithSchemaFallback(browserClient, "canvas_elements", dbRows);
+
+      if (elementsError) {
+        console.error("Error adding template elements:", elementsError.message || elementsError);
+      } else {
+        insertedElements.push(...dbRows.map((row) => ({
+          id: crypto.randomUUID(),
+          workspace_id: workspace.id,
+          type: row.type,
+          position: row.position,
+          style: row.style_ext as Record<string, unknown>,
+        })));
+      }
+    }
+
+    // Legacy single-image fallback
+    if (!templateElements && initialImageUrl) {
+      const { error: elementError } = await insertWithSchemaFallback(browserClient, "canvas_elements", [{
           workspace_id: workspace.id,
           type: "image",
           position: { x: 340, y: 150, width: 600, height: 500 },
@@ -775,29 +954,28 @@ function ProjectsDashboardContent() {
             shadowBlur: 20,
             shadowColor: "rgba(0,0,0,0.15)",
             shadowOffsetX: 0,
-            shadowOffsetY: 10
+            shadowOffsetY: 10,
           },
           layer_order: 0,
           visible: true,
-          locked: false
-        });
-        
+          locked: false,
+        }]);
+
       if (elementError) {
-        console.error("Error adding template element:", elementError);
+        console.error("Error adding template element:", elementError.message || elementError);
+      } else {
+        insertedElements.push({
+          id: "initial-img",
+          workspace_id: workspace.id,
+          type: "image",
+          position: { x: 340, y: 150, width: 600, height: 500 },
+          style: { imageUrl: initialImageUrl },
+        });
       }
     }
 
     setMyProjects((prev) => [{ ...(workspace as ProjectRow), storage: "remote" }, ...prev]);
-    setPreviewMap((prev) => ({ 
-      ...prev, 
-      [workspace.id]: initialImageUrl ? [{
-        id: 'initial-img',
-        workspace_id: workspace.id,
-        type: 'image',
-        position: { x: 340, y: 150, width: 600, height: 500 },
-        style: { imageUrl: initialImageUrl }
-      }] : [] 
-    }));
+    setPreviewMap((prev) => ({ ...prev, [workspace.id]: insertedElements }));
     setCreatingProject(false);
   }
 
