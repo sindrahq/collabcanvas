@@ -242,10 +242,16 @@ export async function POST(request: NextRequest) {
         shadowColor: element.style?.shadowColor,
         shadowOffsetX: element.style?.shadowOffsetX,
         shadowOffsetY: element.style?.shadowOffsetY,
+        parentId: (element as any).parentId ?? null,
+        layoutProps: (element as any).layoutProps ?? null,
+        points: (element as any).points ?? null,
       },
       layer_order: element.layerOrder ?? 0,
       visible: element.visible ?? true,
       locked: element.locked ?? false,
+      video_url: (element as any).videoUrl ?? null,
+      trim_start: (element as any).trimStart ?? null,
+      trim_end: (element as any).trimEnd ?? null,
     }));
 
     const { error: insertElementsError } = await insertWithSchemaFallback(dbClient, "canvas_elements", rows);

@@ -1,4 +1,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
+// Prefix for storing local workspace drafts in localStorage
+const LOCAL_WORKSPACE_DRAFT_PREFIX = "collabcanvas_workspace_draft_";
 import { type CanvasElement, getOrCreateWorkspaceStore } from "../store/workspaceStore";
 import type { CanvasElement as DbCanvasElement, WorkspaceMeta } from "../types/canvas";
 
@@ -17,7 +20,7 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
     workspaceId: element.workspace_id,
     name: label,
     label,
-    type: element.type,
+    type: element.type as any,
     x: element.position.x,
     y: element.position.y,
     width: element.position.width,
@@ -49,16 +52,66 @@ function mapDbElement(element: DbCanvasElement): CanvasElement {
       imageUrl:      pick("imageUrl", undefined),
     },
     imageUrl: pick("imageUrl", undefined),
+    parentId: pick("parentId", undefined),
+    layoutProps: pick("layoutProps", undefined),
+    points: pick("points", undefined),
+    videoUrl: element.video_url ?? undefined,
+    trimStart: element.trim_start ?? undefined,
+    trimEnd: element.trim_end ?? undefined,
   };
 }
 
 export async function loadWorkspace(workspaceId: string, redirect404?: () => void): Promise<boolean> {
+  // If this is a local workspace (prefixed with "local-"), load from localStorage instead of Supabase.
+  if (workspaceId.startsWith('local-')) {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(`${LOCAL_WORKSPACE_DRAFT_PREFIX}${workspaceId}`) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw) as { workspaceName?: string; selectedElementId?: string | null; elements?: any[] };
+        const store = getOrCreateWorkspaceStore(workspaceId).getState();
+        // Populate store with saved draft data.
+        store.setWorkspace({ id: workspaceId, name: parsed.workspaceName ?? 'Untitled Project', owner_id: 'local-user' });
+        if (Array.isArray(parsed.elements)) store.setElements(parsed.elements);
+        store.setSelectedElementId(parsed.selectedElementId ?? null);
+        // No activity log for local workspaces.
+        store.clearActivityLog();
+        return true;
+      }
+    } catch {
+      // If parsing fails, fall through to empty workspace.
+    }
+    // If no local data exists, initialize empty workspace state.
+    const store = getOrCreateWorkspaceStore(workspaceId).getState();
+    store.setWorkspace({ id: workspaceId, name: 'Untitled Project', owner_id: 'local-user' });
+    store.setElements([]);
+    store.setSelectedElementId(null);
+    store.clearActivityLog();
+    return true;
+  }
+
   const workspaceStore = getOrCreateWorkspaceStore(workspaceId);
   const store = workspaceStore.getState();
+  // Attempt to hydrate from a local draft before DB load (elements + optional name)
+  const draftRaw = typeof window !== 'undefined' ? window.localStorage.getItem(`${LOCAL_WORKSPACE_DRAFT_PREFIX}${workspaceId}`) : null;
+  let draftWorkspaceName: string | undefined;
+  if (draftRaw) {
+    try {
+      const draft = JSON.parse(draftRaw) as { workspaceName?: string; selectedElementId?: string | null; elements?: any[] };
+      if (draft.workspaceName) draftWorkspaceName = draft.workspaceName;
+      if (Array.isArray(draft.elements) && draft.elements.length > 0) {
+        // Preserve draft elements without overwriting the real owner_id.
+        store.setElements(draft.elements);
+        store.setSelectedElementId(draft.selectedElementId ?? null);
+        // Continue loading the workspace from Supabase – do NOT return early.
+      }
+    } catch {}
+  }
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return false;
 
   store.setLoading(true);
+
+  
 
   try {
     const { data: workspace, error: workspaceError } = await supabase

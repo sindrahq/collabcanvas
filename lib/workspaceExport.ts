@@ -9,6 +9,15 @@ function getStageCanvas(): HTMLCanvasElement | null {
   return document.querySelector(".konva-stage canvas");
 }
 
+async function getStageInstance() {
+  if (typeof window === "undefined") return null;
+  const container = document.querySelector(".konva-stage");
+  if (!container) return null;
+  // Dynamic import so Konva is never bundled for SSR
+  const Konva = (await import("konva")).default;
+  return Konva.stages.find((stage) => stage.container() === container) ?? null;
+}
+
 function downloadDataUrl(dataUrl: string, filename: string) {
   const anchor = document.createElement("a");
   anchor.href = dataUrl;
@@ -17,40 +26,35 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 /**
- * Ensures the UI has rendered the "deselected" state before capturing.
- * This is crucial for Optimistic UI flow so transformer boxes don't appear in exports.
- */
-function nextFrame() {
-  return new Promise<void>((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve()); // Double frame for React state + Konva draw cycle
-    });
-  });
-}
-
-/**
- * Wrapper to hide selection transformers before export.
- * This ensures the exported image doesn't have the "Blue Selection Box" on it.
+ * Wrapper to hide selection transformers and UI layers before export.
+ * This ensures the exported image doesn't include selection handles or guides.
  */
 async function withSelectionHidden<T>(workspaceId: string, task: () => Promise<T>): Promise<T> {
-  const store = getOrCreateWorkspaceStore(workspaceId).getState();
-  const previousSelection = store.selectedElementId;
-
-  if (previousSelection) {
-    store.setSelectedElementId(null);
-    // Wait for Konva to clear the transformer from the canvas
-    await nextFrame();
+  const stage = await getStageInstance();
+  if (!stage) {
+    return await task();
   }
+
+  const layers = stage.getLayers();
+  const mainLayer = layers[0];
+  const otherLayers = layers.slice(1);
+  const transformers = mainLayer ? mainLayer.find("Transformer") : [];
+
+  // Hide UI layers and transformers
+  otherLayers.forEach((l) => l.hide());
+  transformers.forEach((t) => t.hide());
+  stage.draw();
 
   try {
     return await task();
   } finally {
-    // Optimistically restore selection after export task starts/completes
-    if (previousSelection) {
-      store.setSelectedElementId(previousSelection);
-    }
+    // Restore UI layers and transformers
+    otherLayers.forEach((l) => l.show());
+    transformers.forEach((t) => t.show());
+    stage.draw();
   }
 }
+
 
 export async function exportWorkspaceAsPng(workspaceId: string, filename = "workspace.png"): Promise<boolean> {
   return withSelectionHidden(workspaceId, async () => {
