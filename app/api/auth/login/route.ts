@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
         cookiesToSet = nextCookies;
       },
     },
+    cookieOptions: {
+      maxAge: 604800, // 7 days
+      path: "/",
+    },
   });
 
   const { data, error } = await supabase.auth.signInWithPassword({

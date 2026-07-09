@@ -177,8 +177,7 @@ function AuthPage() {
           if (supabase) {
             await supabase.auth.setSession(signUpPayload.session);
           }
-          void router.prefetch(nextPath);
-          router.replace(nextPath);
+          window.location.href = nextPath;
         } else if (signUpPayload.requiresEmailVerification) {
           setMessage("Sign up successful. Please verify your email to complete login.");
         } else {
@@ -207,8 +206,7 @@ function AuthPage() {
           if (supabase && loginPayload.session) {
             await supabase.auth.setSession(loginPayload.session);
           }
-          void router.prefetch(nextPath);
-          router.replace(nextPath);
+          window.location.href = nextPath;
         }
       }
     } catch (submitError) {
