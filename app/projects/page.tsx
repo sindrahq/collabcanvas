@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Cormorant_Garamond, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
+import { Folder, Users, Plus, Trash2 } from "lucide-react";
 import { ProfileMenu } from "@/components/profile/ProfileMenu";
 import { createSupabaseBrowserClient, getSessionSafely } from "@/lib/supabase/client";
 import { getDisplayNameFromMetadata } from "@/lib/profile";
@@ -517,7 +518,8 @@ function ProjectsDashboardContent() {
       if (!active) return;
 
       if (!session?.user) {
-        router.replace("/auth?next=%2Fprojects");
+        const nextUrl = window.location.pathname + window.location.search;
+        router.replace(`/auth?next=${encodeURIComponent(nextUrl)}`);
         return;
       }
 
@@ -543,7 +545,8 @@ function ProjectsDashboardContent() {
         setCurrentUserDisplayName(null);
         setCurrentUserAvatarUrl(null);
         setAuthReady(false);
-        router.replace("/auth?next=%2Fprojects");
+        const nextUrl = window.location.pathname + window.location.search;
+        router.replace(`/auth?next=${encodeURIComponent(nextUrl)}`);
         return;
       }
 
@@ -944,6 +947,18 @@ function ProjectsDashboardContent() {
           workspace_id: workspace.id,
           type: "image",
           position: { x: 340, y: 150, width: 600, height: 500 },
+          style: {
+            fill: "#ffffff",
+            stroke: "transparent",
+            strokeWidth: 0,
+            opacity: 1,
+            imageUrl: initialImageUrl,
+            shadowEnabled: true,
+            shadowBlur: 20,
+            shadowColor: "rgba(0,0,0,0.15)",
+            shadowOffsetX: 0,
+            shadowOffsetY: 10,
+          },
           style_ext: {
             fill: "#ffffff",
             stroke: "transparent",
@@ -1210,7 +1225,7 @@ function ProjectsDashboardContent() {
         }}
       >
       {/* Top Menu Bar */}
-      <nav className="flex w-full items-center justify-between border-b border-[var(--projects-line)] bg-[var(--projects-bg)] px-6 py-4 text-[var(--projects-text)]">
+      <nav className="flex w-full items-center justify-between border-b border-[var(--projects-line)] bg-[var(--projects-bg)] px-4 md:px-6 py-4 text-[var(--projects-text)]">
         <div className="flex items-center gap-5">
           <Link href="/projects" className={`${headingSerif.className} text-xl font-black tracking-[-0.02em]`}>CollabCanvas</Link>
         </div>
@@ -1270,7 +1285,7 @@ function ProjectsDashboardContent() {
         />
         {/* Main Content Area */}
         <main className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto bg-[var(--projects-bg)]">
-          <section className="flex flex-1 flex-col px-8 py-8 lg:px-10 lg:py-10">
+          <section className="flex flex-1 flex-col px-4 py-6 md:px-8 md:py-8 lg:px-10 lg:py-10">
             <div className="flex w-full flex-1 flex-col">
               <div className="flex flex-col gap-6 border-b border-[var(--projects-line)] pb-10 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-5">
@@ -1352,13 +1367,13 @@ function ProjectsDashboardContent() {
                   <p className="text-sm text-[var(--projects-muted)]">Loading projects...</p>
                 ) : displayedProjects.length === 0 ? (
                   activeSection === "my-projects" ? (
-                    <div className="flex flex-wrap items-start gap-3">
+                    <div className="flex flex-col md:flex-row md:items-center items-start gap-4">
                       {viewMode === "grid" ? (
                         <button
                           type="button"
                           onClick={() => handleCreateProject()}
                           disabled={creatingProject}
-                          className="group relative flex h-48 w-72 flex-none flex-col items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] text-sm font-semibold text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-10px_24px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px"
+                          className="group relative flex h-48 w-full md:w-72 md:flex-none flex-col items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] text-sm font-semibold text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-10px_24px_rgba(0,0,0,0.22),0_24px_44px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px"
                         >
                           <span className="pointer-events-none absolute inset-x-3 top-2 h-10 rounded-full bg-gradient-to-b from-[#fff5e7]/28 to-transparent blur-[1px]" aria-hidden="true" />
                           <span className="relative text-3xl leading-none text-[#EDE3D3]">+</span>
@@ -1369,7 +1384,7 @@ function ProjectsDashboardContent() {
                           type="button"
                           onClick={() => handleCreateProject()}
                           disabled={creatingProject}
-                          className="group relative inline-flex items-center gap-2 overflow-hidden rounded-[14px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] px-5 py-2.5 text-sm text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-8px_18px_rgba(0,0,0,0.18),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all hover:-translate-y-px"
+                          className="group relative inline-flex w-full md:w-auto items-center justify-center gap-2 overflow-hidden rounded-[14px] border border-[#f4e9d9]/30 bg-[linear-gradient(145deg,rgba(38,38,38,0.78),rgba(18,18,18,0.82))] px-5 py-2.5 text-sm text-[#FAF9F6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-8px_18px_rgba(0,0,0,0.18),0_20px_36px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all hover:-translate-y-px"
                         >
                           <span className="pointer-events-none absolute inset-x-2 top-1.5 h-6 rounded-full bg-gradient-to-b from-[#fff5e7]/25 to-transparent" aria-hidden="true" />
                           <span className="relative text-lg leading-none text-[#EDE3D3]">+</span>
@@ -1386,7 +1401,7 @@ function ProjectsDashboardContent() {
                     </p>
                   )
                 ) : (
-                  <div className={viewMode === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(18rem,18rem))] justify-between items-start gap-3" : "space-y-2"}>
+                  <div className={viewMode === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] justify-center md:justify-between items-start gap-4" : "space-y-2"}>
                       {activeSection === "my-projects" && viewMode === "grid" ? (
                         <button
                           type="button"
@@ -1610,28 +1625,41 @@ function ProjectsDashboardContent() {
         ) : null}
 
         {/* Mobile Navigation (BottomNavBar) */}
-        <nav className="md:hidden fixed bottom-0 left-0 w-full glass-panel flex justify-around items-center h-12 px-2 z-50">
-          <a className="flex flex-col items-center gap-0.5 text-[#c0c1ff]" href="#">
-            <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: 'FILL 1' }}>folder_shared</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Projects</span>
-          </a>
-          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
-            <span className="material-symbols-outlined text-base">group</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Shared</span>
-          </a>
-          <div className="relative -top-4">
-            <button className="bg-primary-container text-on-primary-container h-8 w-8 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-              <span className="material-symbols-outlined text-lg">add</span>
+        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-[var(--projects-line)] flex justify-around items-center h-14 px-2 z-50 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] animate-in slide-in-from-bottom duration-200">
+          <button
+            type="button"
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${activeSection === "my-projects" ? "text-[#FF94B4] scale-105" : "text-[#8b7355]/70 active:scale-95"}`}
+            onClick={() => setActiveSection("my-projects")}
+          >
+            <Folder size={18} className="stroke-[2.25]" />
+            <span className="text-[9px] font-black uppercase tracking-tighter mt-0.5">Projects</span>
+          </button>
+          <button
+            type="button"
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${activeSection === "shared" ? "text-[#FF94B4] scale-105" : "text-[#8b7355]/70 active:scale-95"}`}
+            onClick={() => setActiveSection("shared")}
+          >
+            <Users size={18} className="stroke-[2.25]" />
+            <span className="text-[9px] font-black uppercase tracking-tighter mt-0.5">Shared</span>
+          </button>
+          <div className="relative -top-2.5">
+            <button
+              type="button"
+              onClick={() => void handleCreateProject()}
+              disabled={creatingProject}
+              className="bg-[#1A1A1A] text-[#FAF9F6] h-11 w-11 rounded-full flex items-center justify-center shadow-lg shadow-black/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              <Plus size={20} className="stroke-[2.5]" />
             </button>
           </div>
-          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
-            <span className="material-symbols-outlined text-base">auto_awesome_motion</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Templates</span>
-          </a>
-          <a className="flex flex-col items-center gap-0.5 text-[#e5e1e4]/60" href="#">
-            <span className="material-symbols-outlined text-base">settings</span>
-            <span className="text-[9px] font-bold uppercase tracking-tighter">Settings</span>
-          </a>
+          <button
+            type="button"
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${activeSection === "trash" ? "text-[#FF94B4] scale-105" : "text-[#8b7355]/70 active:scale-95"}`}
+            onClick={() => setActiveSection("trash")}
+          >
+            <Trash2 size={18} className="stroke-[2.25]" />
+            <span className="text-[9px] font-black uppercase tracking-tighter mt-0.5">Trash</span>
+          </button>
         </nav>
       </div>
     </>

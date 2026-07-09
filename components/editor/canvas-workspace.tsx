@@ -54,6 +54,8 @@ export function CanvasWorkspace({ workspaceId, currentUserId, presences, remoteC
   const viewportRef = useRef<HTMLDivElement>(null);
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef<number>(1);
+  const pinchStartCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchStartScrollRef = useRef<{ left: number; top: number } | null>(null);
 
   const fitZoom = useMemo(() => {
     const width = Math.max(1, viewportSize.width - 24);
@@ -144,27 +146,65 @@ function getTouchDistance(touches: React.TouchList) {
   return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
 }
 
+function getTouchCenter(touches: React.TouchList) {
+  const first = touches.item(0);
+  const second = touches.item(1);
+  if (!first || !second) return null;
+
+  return {
+    x: (first.clientX + second.clientX) / 2,
+    y: (first.clientY + second.clientY) / 2,
+  };
+}
+
   function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
     if (event.touches.length === 2) {
       setAutoFitEnabled(false);
       pinchStartDistanceRef.current = getTouchDistance(event.touches);
       pinchStartZoomRef.current = zoom;
+      pinchStartCenterRef.current = getTouchCenter(event.touches);
+      pinchStartScrollRef.current = viewportRef.current
+        ? {
+            left: viewportRef.current.scrollLeft,
+            top: viewportRef.current.scrollTop,
+          }
+        : null;
     }
   }
 
   function handleTouchMove(event: React.TouchEvent<HTMLDivElement>) {
     if (event.touches.length !== 2 || !pinchStartDistanceRef.current) return;
     event.preventDefault();
+
     const currentDistance = getTouchDistance(event.touches);
     if (!currentDistance) return;
+
     const scale = currentDistance / pinchStartDistanceRef.current;
     setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, parseFloat((pinchStartZoomRef.current * scale).toFixed(2)))));
+
+    const currentCenter = getTouchCenter(event.touches);
+    const startCenter = pinchStartCenterRef.current;
+    const startScroll = pinchStartScrollRef.current;
+    const viewport = viewportRef.current;
+
+    if (currentCenter && startCenter && startScroll && viewport) {
+      viewport.scrollLeft = Math.max(0, startScroll.left - (currentCenter.x - startCenter.x));
+      viewport.scrollTop = Math.max(0, startScroll.top - (currentCenter.y - startCenter.y));
+    }
   }
 
   function handleTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
     if (event.touches.length < 2) {
       pinchStartDistanceRef.current = null;
+      pinchStartCenterRef.current = null;
+      pinchStartScrollRef.current = null;
     }
+  }
+
+  function handleTouchCancel() {
+    pinchStartDistanceRef.current = null;
+    pinchStartCenterRef.current = null;
+    pinchStartScrollRef.current = null;
   }
 
   function zoomIn() {
@@ -223,6 +263,7 @@ function getTouchDistance(touches: React.TouchList) {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
         onMouseMove={(e) => {
           if (!viewportRef.current) return;
           const rect = viewportRef.current.getBoundingClientRect();

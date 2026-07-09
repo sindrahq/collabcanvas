@@ -76,7 +76,7 @@ export function MultiScreenPreview({ open, onClose, workspaceId }: { open: boole
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[200] flex items-center justify-center"
+          className="fixed inset-0 z-[200] flex items-start justify-center p-3 pt-6 md:items-center md:p-0"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -94,9 +94,9 @@ export function MultiScreenPreview({ open, onClose, workspaceId }: { open: boole
               background: "rgba(255,253,248,0.97)",
               borderRadius: 20,
               boxShadow: "0 32px 80px rgba(20,28,24,0.32)",
-              padding: "28px 32px 32px",
-              maxWidth: "calc(100vw - 48px)",
-              maxHeight: "calc(100vh - 48px)",
+              padding: "20px 16px 20px",
+              maxWidth: "min(1200px, calc(100vw - 24px))",
+              maxHeight: "calc(100dvh - 24px)",
               overflow: "auto",
             }}
           >
@@ -115,7 +115,7 @@ export function MultiScreenPreview({ open, onClose, workspaceId }: { open: boole
                 onClick={onClose}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 32, height: 32, borderRadius: 8, border: "none",
+                  width: 44, height: 44, borderRadius: 12, border: "none",
                   background: "rgba(211,165,177,0.12)", cursor: "pointer", color: "#8b7355",
                 }}
               >

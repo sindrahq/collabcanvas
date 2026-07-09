@@ -2,7 +2,7 @@
 export interface CanvasElement {
   id: string;
   workspace_id: string;
-  type: 'rectangle' | 'circle' | 'text';
+  type: string;
   position: { x: number; y: number; width: number; height: number };
   rotation?: number;
   text_content?: string | null;
@@ -17,6 +17,9 @@ export interface CanvasElement {
   layer_order: number;
   visible: boolean;
   locked: boolean;
+  video_url?: string | null;
+  trim_start?: number | null;
+  trim_end?: number | null;
 }
 
 // Types for workspace metadata

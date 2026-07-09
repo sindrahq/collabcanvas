@@ -42,7 +42,7 @@ export default function Sidebar({
   return (
     <aside
       className={clsx(
-        "group/sidebar flex h-full w-20 flex-col overflow-hidden border-r px-2 py-4 transition-[width] duration-300 ease-out hover:w-56",
+        "group/sidebar hidden md:flex h-full w-20 flex-col overflow-hidden border-r px-2 py-4 transition-[width] duration-300 ease-out hover:w-56",
         isProjectsTheme
           ? "border-[rgba(26,26,26,0.14)] bg-white/40 backdrop-blur-md"
           : "border-white/10 bg-[#121212]"

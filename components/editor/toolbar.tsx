@@ -171,6 +171,7 @@ export function Toolbar({
   showSelectionActions = true,
   openAssetLibrary,
   openTemplatePicker,
+  onActionComplete,
 }: {
   workspaceId: string;
   workspaceName: string;
@@ -180,6 +181,7 @@ export function Toolbar({
   showSelectionActions?: boolean;
   openAssetLibrary?: () => void;
   openTemplatePicker?: () => void;
+  onActionComplete?: () => void;
 }) {
   const store = useWorkspaceStoreFactory(workspaceId);
   const selectedElementId        = store((s: WorkspaceState) => s.selectedElementId);
@@ -317,7 +319,10 @@ export function Toolbar({
                       height: '38px',
                       borderRadius: '12px'
                     }}
-                    onClick={() => addElement(item.action)}
+                    onClick={() => {
+                      addElement(item.action);
+                      onActionComplete?.();
+                    }}
                     disabled={!canEdit}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -347,7 +352,10 @@ export function Toolbar({
                 height: '38px',
                 borderRadius: '12px'
               }}
-              onClick={() => addElement('text')}
+              onClick={() => {
+                addElement('text');
+                onActionComplete?.();
+              }}
               disabled={!canEdit}
               title="Add Text"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -430,9 +438,10 @@ export function Toolbar({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 16px 0' }}>
             <motion.button
               type="button"
-              className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "pencil" ? " active" : ""}`}
-              style={{ width: '38px', height: '38px', borderRadius: '12px' }}
-              onClick={() => setActiveTool(activeTool === "pencil" ? "select" : "pencil")}
+              onClick={() => {
+                setActiveTool(activeTool === "pencil" ? "select" : "pencil");
+                onActionComplete?.();
+              }}
               disabled={!canEdit}
               title={activeTool === "pencil" ? "Pencil (active — click to deactivate)" : "Pencil tool"}
               whileHover={{ y: -2, scale: 1.03 }}
@@ -444,7 +453,10 @@ export function Toolbar({
               type="button"
               className={`toolbar-icon-btn toolbar-shape-btn${activeTool === "eraser" ? " active" : ""}`}
               style={{ width: '38px', height: '38px', borderRadius: '12px' }}
-              onClick={() => setActiveTool(activeTool === "eraser" ? "select" : "eraser")}
+              onClick={() => {
+                setActiveTool(activeTool === "eraser" ? "select" : "eraser");
+                onActionComplete?.();
+              }}
               disabled={!canEdit}
               title={activeTool === "eraser" ? "Eraser (active — click to deactivate)" : "Eraser tool"}
               whileHover={{ y: -2, scale: 1.03 }}
@@ -477,7 +489,10 @@ export function Toolbar({
               type="button"
               className="toolbar-icon-btn"
               style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(211, 165, 177, 0.15)', color: '#8b7355' }}
-              onClick={() => addElement('frame')}
+              onClick={() => {
+                addElement('frame');
+                onActionComplete?.();
+              }}
               disabled={!canEdit}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}

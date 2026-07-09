@@ -1,10 +1,13 @@
+"use client";
+
 import React from 'react';
 import { usePresenceStore } from '@/store/presenceStore';
+import { Eye, EyeOff } from 'lucide-react';
 
 /**
- * Simple button to follow/unfollow the first remote user.
- * When a user is followed, the canvas viewport syncs to that user's viewport.
- * Clicking again unfollows (clears follow state).
+ * Follow button — syncs the local canvas viewport to a remote collaborator's viewport.
+ * Only renders when at least one other user is present.
+ * Click to follow the first remote user; click again to stop following.
  */
 export const FollowButton: React.FC = () => {
   const users = usePresenceStore((s) => s.users);
@@ -12,11 +15,15 @@ export const FollowButton: React.FC = () => {
   const followedUserId = usePresenceStore((s) => s.followedUserId);
   const setFollowedUser = usePresenceStore((s) => s.setFollowedUser);
 
-  // Choose the first remote user (excluding local) to follow
   const remoteUserIds = Object.keys(users).filter((id) => id !== localId);
   const firstRemoteId = remoteUserIds[0] ?? null;
 
+  // Don't render if there's nobody to follow
+  if (!firstRemoteId && !followedUserId) return null;
+
   const isFollowing = !!followedUserId;
+  const followedUser = followedUserId ? users[followedUserId] : null;
+  const followedName = followedUser?.name || 'collaborator';
 
   const handleClick = () => {
     if (isFollowing) {
@@ -28,11 +35,27 @@ export const FollowButton: React.FC = () => {
 
   return (
     <button
+      id="follow-user-button"
       onClick={handleClick}
-      className="absolute top-2 right-2 px-3 py-1 bg-gray-800 text-white rounded hover:bg-gray-700 transition"
-      title={isFollowing ? 'Unfollow user' : 'Follow a user'}
+      className={[
+        'follow-presence-btn',
+        isFollowing ? 'follow-presence-btn--active' : '',
+      ].join(' ')}
+      title={isFollowing ? `Stop following ${followedName}` : `Follow ${users[firstRemoteId!]?.name || 'collaborator'}`}
+      aria-pressed={isFollowing}
+      aria-label={isFollowing ? 'Stop following collaborator' : 'Follow collaborator'}
     >
-      {isFollowing ? 'Unfollow' : 'Follow'}
+      {isFollowing ? (
+        <>
+          <EyeOff size={12} />
+          <span>Unfollow</span>
+        </>
+      ) : (
+        <>
+          <Eye size={12} />
+          <span>Follow</span>
+        </>
+      )}
     </button>
   );
 };

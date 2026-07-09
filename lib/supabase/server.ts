@@ -35,6 +35,10 @@ export function createRequestSupabaseClient(
         cookiesToSet.push(...nextCookies);
       },
     },
+    cookieOptions: {
+      maxAge: 604800, // 7 days
+      path: "/",
+    },
   });
 }
 

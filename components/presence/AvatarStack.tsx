@@ -1,32 +1,16 @@
 "use client";
 
 import type { PresenceMeta } from "@/lib/collaboration";
-import { useState } from "react";
-import { AudioIndicator } from "./AudioIndicator";
-import { Mic } from "lucide-react";
 
 type AvatarStackProps = {
 	presences: Record<string, PresenceMeta>;
 	currentUserId: string;
 };
 
-/** Stub – LiveKit voice chat requires @livekit/components-react + a LiveKit server. */
-function LiveKitConnection({ room, identity }: { room: string; identity: string }) {
-	void room;
-	void identity;
-	return null;
-}
-
 export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
-	const [activeVoiceUser, setActiveVoiceUser] = useState<string | null>(null);
-
 	const collaborators = Object.values(presences)
 		.filter((presence) => presence && presence.user_id !== currentUserId)
 		.slice(0, 5);
-
-	const currentRoom = activeVoiceUser 
-		? `voice-${[currentUserId, activeVoiceUser].sort().join("-")}` 
-		: null;
 
 	return (
 		<div className="avatar-stack-wrap" aria-label="Collaborators online">
@@ -40,32 +24,20 @@ export function AvatarStack({ presences, currentUserId }: AvatarStackProps) {
 					return (
 						<div
 							key={presence.user_id || displayName}
-							className={`avatar-chip relative cursor-pointer transition-transform hover:scale-110 ${activeVoiceUser === presence.user_id ? " ring-2 ring-indigo-500" : ""}`}
+							className="avatar-chip relative"
 							style={{ background: presence.color || "#FF94B4" }}
-							title={`Click to start voice chat with ${displayName}`}
-							onClick={() => setActiveVoiceUser(activeVoiceUser === presence.user_id ? null : presence.user_id)}
+							title={displayName}
 						>
-							<AudioIndicator active={activeVoiceUser === presence.user_id} />
 							{avatarUrl ? (
 								<img src={avatarUrl} alt={displayName} className="avatar-chip-image relative z-10" />
 							) : (
 								<span className="relative z-10">{initial}</span>
-							)}
-							{activeVoiceUser === presence.user_id && (
-								<div className="absolute -bottom-1 -right-1 z-20 rounded-full bg-indigo-500 p-0.5 text-white">
-									<Mic size={8} />
-								</div>
 							)}
 						</div>
 					);
 				})}
 			</div>
 			<span className="avatar-count">{Object.keys(presences).length} live</span>
-
-			{currentRoom && (
-				<LiveKitConnection room={currentRoom} identity={currentUserId} />
-			)}
 		</div>
 	);
 }
-
