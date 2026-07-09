@@ -55,7 +55,7 @@ function createCanvasIntegrationStore() {
     roleError: null,
     assetError: null,
     templateError: null,
-    setCurrentUserRole: (currentUserRole) => set({ currentUserRole }),
+    setCurrentUserRole: (currentUserRole) => set((state) => (state.currentUserRole === currentUserRole ? state : { currentUserRole })),
     setRoleAssignments: (roleAssignments) => set({ roleAssignments }),
     updateRoleAssignment: (userId, role) =>
       set((state) => ({

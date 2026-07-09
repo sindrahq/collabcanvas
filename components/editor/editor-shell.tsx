@@ -5,7 +5,7 @@ import { logActivity as logActivityServer } from "@/lib/logActivity";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle, Palette, type LucideIcon } from "lucide-react";
+import { Activity, Check, ChevronDown, Download, LoaderCircle, Monitor, Pencil, Share2, Sparkles, X, Layers, LayoutGrid, MessageSquare, SlidersHorizontal, HelpCircle, Palette, Undo2, Redo2, Menu, LogOut, Plus, type LucideIcon } from "lucide-react";
 import { CanvasWorkspace } from "@/components/editor/canvas-workspace";
 import { LeftSidebar } from "@/components/editor/left-sidebar";
 import { AvatarStack } from "@/components/presence/AvatarStack";
@@ -40,6 +40,7 @@ import AssetLibraryPanel from "@/components/ui/AssetLibraryPanel";
 import RoleBadge from "@/components/ui/RoleBadge";
 import { GenerativeUIModal } from "@/components/editor/generative-ui-modal";
 import { MultiScreenPreview } from "@/components/editor/multi-screen-preview";
+import { TemplatePanel } from "@/components/editor/template-panel";
 import { PastelBlobBackground } from "@/components/landing/pastel-blob-background";
 import { CustomCursor } from "@/components/landing/custom-cursor";
 import { FallingPetals } from "@/components/landing/falling-petals";
@@ -270,7 +271,9 @@ export function EditorShell() {
   const [authUser, setAuthUser] = useState<{ id: string; email?: string; user_metadata?: Record<string, unknown> } | null>(null);
   const [presences, setPresences] = useState<Record<string, PresenceMeta>>({});
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; updatedAt: number }>>({});
-  const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector">("canvas");
+  const [mobilePanel, setMobilePanel] = useState<"canvas" | "layers" | "inspector" | "templates">("canvas");
+  const [mobileAddOpen, setMobileAddOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<WorkspaceSidebarSection | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [genUIOpen, setGenUIOpen] = useState(false);
@@ -333,12 +336,13 @@ export function EditorShell() {
   const templateStatus = integrationStore((state) => state.templateStatus);
   const assetError = integrationStore((state) => state.assetError);
   const templateError = integrationStore((state) => state.templateError);
+  const lastLoadTimestampRef = useRef<number>(0);
 
   const handleRealtimeCanvasUpdate = useCallback(() => {
-    if (workspace?.id && !workspace.id.startsWith("local-")) {
+    if (workspace?.id && !workspace.id.startsWith("local-") && store.getState().elements.length === 0) {
       void loadWorkspace(workspace.id);
     }
-  }, [workspace?.id]);
+  }, [workspace?.id, store]);
 
   const realtimeUser = authUser
     ? {
@@ -423,6 +427,15 @@ export function EditorShell() {
       setWorkspaceNameDraft(workspaceName);
     }
   }, [isRenamingWorkspace, workspaceName]);
+
+  useEffect(() => {
+    if (selectedElementId) {
+      setMobileInspectorOpen(true);
+      setMobileAddOpen(false);
+    } else {
+      setMobileInspectorOpen(false);
+    }
+  }, [selectedElementId]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -542,8 +555,9 @@ export function EditorShell() {
     return () => window.removeEventListener("tutorial-open-sidebar", handleTutorialEvent);
   }, []);
 
+  // Load the workspace only when its ID or the authenticated user ID changes
   useEffect(() => {
-    if (!workspaceIdFromUrl || !authUser) return;
+    if (!workspaceIdFromUrl || !authUser?.id) return;
 
     const currentStore = store.getState();
     // Reset all workspace state before loading a new workspace
@@ -557,22 +571,36 @@ export function EditorShell() {
     if (!workspaceIdFromUrl.startsWith("local-")) {
       void loadWorkspace(workspaceIdFromUrl);
     }
-  }, [authUser, workspaceIdFromUrl]);
+  }, [authUser?.id, workspaceIdFromUrl]);
 
+  // Resolve workspace access level – runs only when stable identifiers change
   useEffect(() => {
-    if (!workspace?.id || !authUser || workspace.owner_id === "__loading__") return;
+    console.log('Access effect start', { workspaceOwnerId: workspace?.owner_id, authUserId: authUser?.id, accessLevel });
+    if (!workspace?.id || !authUser?.id || workspace.owner_id === "__loading__") return;
 
     const client = browserClient;
     if (!client) return;
 
-    if (workspace.owner_id === authUser.id) {
-      setWorkspaceAccess("edit");
+    const authUserId = authUser.id;
+    const authUserEmail = authUser.email?.trim().toLowerCase() ?? "";
+
+    // Owner gets edit access automatically (robust trim)
+    const trimmedOwnerId = (workspace.owner_id ?? "").trim();
+    const trimmedUserId = (authUserId ?? "").trim();
+    console.log('Owner check', { trimmedOwnerId, trimmedUserId, accessLevel });
+    if (trimmedOwnerId && trimmedUserId && trimmedOwnerId === trimmedUserId) {
+      if (accessLevel !== "edit") {
+        setWorkspaceAccess("edit");
+      }
+      console.log('Owner detected, edit access set');
       return;
     }
 
     const accessFromUrl = searchParams.get("access");
     if (isShareAccessLevel(accessFromUrl)) {
-      setWorkspaceAccess(accessFromUrl);
+      if (accessLevel !== accessFromUrl) {
+        setWorkspaceAccess(accessFromUrl);
+      }
       return;
     }
 
@@ -587,28 +615,36 @@ export function EditorShell() {
         if (!active) return;
 
         if (!error && data?.length) {
-          const email = authUser.email?.trim().toLowerCase() ?? "";
           const match = data.find((row) => (
-            row.shared_with_id === authUser.id ||
-            (email && typeof row.shared_with_email === "string" && row.shared_with_email.toLowerCase() === email)
+            row.shared_with_id === authUserId ||
+            (authUserEmail && typeof row.shared_with_email === "string" && row.shared_with_email.toLowerCase() === authUserEmail)
           ));
 
           if (match && isShareAccessLevel(match.access_level)) {
-            setWorkspaceAccess(match.access_level);
+            if (accessLevel !== match.access_level) {
+              setWorkspaceAccess(match.access_level);
+            }
             return;
           }
         }
 
+        // SAFEGUARD: ensure we are not the owner before redirect
+        const ownerId = (workspace.owner_id ?? "").trim();
+        const userId = (authUser?.id ?? "").trim();
+        if (ownerId && userId && ownerId === userId) {
+          // Owner – do nothing (owner case handled earlier)
+          return;
+        }
         router.replace("/projects");
       });
 
     return () => {
       active = false;
     };
-  }, [authUser, browserClient, router, searchParams, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
+  }, [accessLevel, authUser, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
 
   useEffect(() => {
-    if (!workspace || !authUser || workspace.owner_id === "__loading__") return;
+    if (!workspace?.id || !authUser?.id || workspace.owner_id === "__loading__") return;
     const nextRole = workspace.owner_id === authUser.id
       ? "owner"
       : accessLevel === "edit"
@@ -616,10 +652,8 @@ export function EditorShell() {
         : accessLevel === "comment"
           ? "commenter"
           : "viewer";
-    integrationStore.getState().setCurrentUserRole(nextRole);
-  }, [accessLevel, authUser, integrationStore, workspace]);
 
-  useEffect(() => {
+    const currentRole = integrationStore.getState().currentUserRole;
     if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) {
       setComments([]);
       setCommentsError(null);
@@ -683,12 +717,9 @@ export function EditorShell() {
       active = false;
       void client.removeChannel(channel);
     };
-  }, [authUser, browserClient, workspace?.id, workspace?.owner_id]);
+  }, [authUser?.id, browserClient, workspace?.id, workspace?.owner_id]);
 
-  useEffect(() => {
-    if (!workspace?.id || workspace.owner_id === "__loading__" || !authUser) return;
-    setWorkspaceAccess(mapRoleToAccessLevel(currentUserRole));
-  }, [authUser, currentUserRole, setWorkspaceAccess, workspace?.id, workspace?.owner_id]);
+
 
   async function handleAddComment(message: string, targetElementId: string | null) {
     if (!workspace?.id || !authUser) {
@@ -1016,6 +1047,29 @@ export function EditorShell() {
           },
           rotation: element.rotation,
           text_content: element.text ?? null,
+          style: {
+            fill: element.style.fill,
+            stroke: element.style.stroke,
+            strokeWidth: element.style.strokeWidth,
+            opacity: element.style.opacity,
+            fontSize: element.style.fontSize,
+            fontFamily: element.style.fontFamily,
+            fontStyle: element.style.fontStyle,
+            fontWeight: element.style.fontWeight,
+            textAlign: element.style.textAlign,
+            shadowEnabled: element.style.shadowEnabled,
+            shadowBlur: element.style.shadowBlur,
+            shadowColor: element.style.shadowColor,
+            shadowOffsetX: element.style.shadowOffsetX,
+            shadowOffsetY: element.style.shadowOffsetY,
+            brightness: element.style.brightness ?? 0,
+            contrast: element.style.contrast ?? 0,
+            tint: element.style.tint ?? 0,
+            imageUrl: element.style.imageUrl ?? null,
+            parentId: element.parentId ?? null,
+            layoutProps: element.layoutProps ?? null,
+            points: element.points ?? null,
+          },
           style_ext: {
             fill: element.style.fill,
             stroke: element.style.stroke,
@@ -1035,10 +1089,16 @@ export function EditorShell() {
             contrast: element.style.contrast ?? 0,
             tint: element.style.tint ?? 0,
             imageUrl: element.style.imageUrl ?? null,
+            parentId: element.parentId ?? null,
+            layoutProps: element.layoutProps ?? null,
+            points: element.points ?? null,
           },
           layer_order: element.layerOrder,
           visible: element.visible,
           locked: element.locked,
+          video_url: element.videoUrl ?? null,
+          trim_start: element.trimStart ?? null,
+          trim_end: element.trimEnd ?? null,
         }));
 
         const deleteResult = await client.from("canvas_elements").delete().eq("workspace_id", workspace.id);
@@ -1245,6 +1305,7 @@ export function EditorShell() {
 
   const [openAssetLibrary, setOpenAssetLibrary] = useState(false);
   const [openTemplatePicker, setOpenTemplatePicker] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleUseTemplate = useCallback((template: CanvasTemplate) => {
     const idMap = new Map(template.elements.map((element) => [element.id, crypto.randomUUID()]));
@@ -1264,6 +1325,7 @@ export function EditorShell() {
     { key: "canvas", label: "Canvas" },
     { key: "layers", label: "Layers" },
     { key: "inspector", label: "Inspector" },
+    { key: "templates", label: "Templates" },
   ] as const;
 
   if (!authChecked) {
@@ -1352,6 +1414,35 @@ export function EditorShell() {
             </div>
           )}
         </div>
+        {/* Undo / Redo */}
+        {canEdit && (
+          <div className="flex items-center gap-0.5 ml-1">
+            <GlassTooltip content="Undo (Ctrl+Z)">
+              <button
+                type="button"
+                id="undo-button"
+                className="workspace-name-action"
+                onClick={() => undo()}
+                title="Undo"
+                aria-label="Undo"
+              >
+                <Undo2 size={14} />
+              </button>
+            </GlassTooltip>
+            <GlassTooltip content="Redo (Ctrl+Shift+Z)">
+              <button
+                type="button"
+                id="redo-button"
+                className="workspace-name-action"
+                onClick={() => redo()}
+                title="Redo"
+                aria-label="Redo"
+              >
+                <Redo2 size={14} />
+              </button>
+            </GlassTooltip>
+          </div>
+        )}
       </div>
     </div>
     <div className="editor-topbar-center flex w-max justify-center">
@@ -1370,10 +1461,10 @@ export function EditorShell() {
       </div>
     </div>
     <div className="editor-topbar-right min-w-0">
-      <button type="button" className="toolbar-button" onClick={() => setGenUIOpen(true)} title="Generative UI — generate elements with AI"><Sparkles size={14} /><span>Generate</span></button>
-      <button type="button" className="toolbar-button" onClick={() => setPreviewOpen(true)} title="Multi-screen preview"><Monitor size={14} /><span>Preview</span></button>
+      <button type="button" className="hidden md:inline-flex toolbar-button" onClick={() => setGenUIOpen(true)} title="Generative UI — generate elements with AI"><Sparkles size={14} /><span>Generate</span></button>
+      <button type="button" className="hidden md:inline-flex toolbar-button" onClick={() => setPreviewOpen(true)} title="Multi-screen preview"><Monitor size={14} /><span>Preview</span></button>
       {/* Theme Dropdown */}
-      <div className="toolbar-menu editor-export-menu" ref={themeMenuRef}>
+      <div className="hidden md:block toolbar-menu editor-export-menu" ref={themeMenuRef}>
         <button type="button" className="toolbar-button toolbar-button-compact" onClick={() => setThemeMenuOpen(open => !open)} title="Change canvas theme">
           <Palette size={14} />
           <span>Theme</span>
@@ -1394,11 +1485,11 @@ export function EditorShell() {
           ))}
         </div>
       </div>
-      <button type="button" className="toolbar-button editor-share-button" onClick={() => setShareDialogOpen(true)} title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}><Share2 size={14} /><span>Share</span></button>
-      <motion.button type="button" className="toolbar-button" onClick={() => window.dispatchEvent(new CustomEvent('start-tutorial'))} title="Help & Tutorial" whileHover={{ y: -1, scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+      <button type="button" className="hidden md:inline-flex toolbar-button editor-share-button" onClick={() => setShareDialogOpen(true)} title={workspace?.owner_id === authUser.id ? "Share workspace" : "Open sharing dialog"}><Share2 size={14} /><span>Share</span></button>
+      <motion.button type="button" className="hidden md:inline-flex toolbar-button" onClick={() => window.dispatchEvent(new CustomEvent('start-tutorial'))} title="Help & Tutorial" whileHover={{ y: -1, scale: 1.05 }} whileTap={{ scale: 0.95 }}>
         <HelpCircle size={14} />
       </motion.button>
-      <div className="toolbar-menu editor-export-menu" ref={exportMenuRef}>
+      <div className="hidden md:block toolbar-menu editor-export-menu" ref={exportMenuRef}>
         <button type="button" className="toolbar-button toolbar-button-compact editor-export-button" onClick={() => setExportMenuOpen(open => !open)} title="Export workspace"><Download size={14} /><span>Export</span><ChevronDown size={13} className={exportMenuOpen ? "toolbar-menu-chevron open" : "toolbar-menu-chevron"} /></button>
         <div className={`toolbar-menu-list${exportMenuOpen ? " open" : ""}`}>
           <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsPng(`${fileBase}.png`); }}>PNG</button>
@@ -1406,6 +1497,17 @@ export function EditorShell() {
           <button type="button" className="toolbar-menu-item" onClick={() => { setExportMenuOpen(false); void exportWorkspaceAsPdf(`${fileBase}.pdf`); }}>PDF</button>
         </div>
       </div>
+      <button
+        type="button"
+        className="inline-flex md:hidden toolbar-button editor-mobile-menu-trigger"
+        onClick={() => setMobileMenuOpen(open => !open)}
+        title="Open workspace menu"
+        aria-expanded={mobileMenuOpen}
+        aria-controls="editor-mobile-menu"
+      >
+        <Menu size={14} />
+        <span>Menu</span>
+      </button>
       <AutoSaveBadge status={saveStatus} />
       <ProfileMenu displayName={getDisplayNameFromMetadata(authUser.user_metadata || {}, authUser.email)} email={authUser.email ?? null} avatarUrl={typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null} onLogout={async () => { if (!browserClient) return; await browserClient.auth.signOut(); router.replace("/"); }} />
     </div>
@@ -1484,8 +1586,24 @@ export function EditorShell() {
                     <button
                       key={tab.key}
                       type="button"
-                      onClick={() => setMobilePanel(tab.key)}
-                      className={`editor-mobile-tab${mobilePanel === tab.key ? " active" : ""}`}
+                      onClick={() => {
+                        if (tab.key === "inspector") {
+                          setMobilePanel("canvas");
+                          setMobileInspectorOpen((prev) => !prev);
+                          setMobileAddOpen(false);
+                        } else {
+                          setMobilePanel(tab.key);
+                          setMobileInspectorOpen(false);
+                          setMobileAddOpen(false);
+                        }
+                      }}
+                      className={`editor-mobile-tab${
+                        (tab.key === "inspector" && mobileInspectorOpen) ||
+                        (tab.key === "canvas" && mobilePanel === "canvas" && !mobileInspectorOpen) ||
+                        (tab.key !== "inspector" && tab.key !== "canvas" && mobilePanel === tab.key)
+                          ? " active"
+                          : ""
+                      }`}
                       aria-pressed={mobilePanel === tab.key}
                     >
                       {tab.label}
@@ -1495,13 +1613,22 @@ export function EditorShell() {
 
                 <div className="editor-mobile-panel">
                   {mobilePanel === "canvas" ? (
-                    <div className="editor-mobile-panel-inner">
-                      <Toolbar
-                      workspaceId={workspaceIdFromUrl || ""}
-                      workspaceName={workspaceName}
-                      openAssetLibrary={() => setOpenAssetLibrary(true)}
-                      openTemplatePicker={() => setOpenTemplatePicker(true)}
-                    />
+                    <div className="editor-mobile-panel-inner relative flex-1 flex flex-col min-h-0">
+                      {/* Floating Add Element FAB */}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMobileAddOpen((prev) => !prev);
+                            setMobileInspectorOpen(false);
+                          }}
+                          className="fixed bottom-24 right-4 z-[39] flex items-center justify-center w-12 h-12 rounded-full bg-[#D3A5B1] text-white shadow-lg border border-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
+                          title="Add Elements"
+                        >
+                          <Plus size={24} strokeWidth={2.5} />
+                        </button>
+                      )}
+
                       <CanvasWorkspace
                         workspaceId={workspaceIdFromUrl || ""}
                         currentUserId={currentUserMeta.user_id}
@@ -1509,6 +1636,105 @@ export function EditorShell() {
                         remoteCursors={remoteCursors}
                         onRealtimeCursorMove={sendRealtimeCursor}
                       />
+
+                      {/* Add Menu Bottom Sheet */}
+                      <AnimatePresence>
+                        {mobileAddOpen && (
+                          <>
+                            {/* Backdrop overlay */}
+                            <div className="fixed inset-0 bg-black/10 z-[40]" onClick={() => setMobileAddOpen(false)} />
+                            
+                            <motion.div
+                              className="fixed bottom-0 left-0 right-0 z-[50] rounded-t-3xl border-t border-[#D3A5B1]/30 bg-white/95 shadow-2xl backdrop-blur-md px-4 pb-8 max-h-[50vh] overflow-y-auto"
+                              initial={{ y: "100%" }}
+                              animate={{ y: 0 }}
+                              exit={{ y: "100%" }}
+                              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                            >
+                              {/* Drag handle / Header */}
+                              <div className="flex flex-col items-center py-3 border-b border-black/[0.04] mb-3 sticky top-0 bg-white/95 backdrop-blur-md z-10">
+                                <div className="w-12 h-1 bg-[#8b7355]/20 rounded-full mb-2" />
+                                <div className="w-full flex items-center justify-between">
+                                  <span className="text-xs font-bold uppercase tracking-wider text-[#8b7355]">Add to Canvas</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setMobileAddOpen(false)}
+                                    className="p-1 rounded-full hover:bg-black/5 text-[#8b7355] transition-colors"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              {/* Add Tools Content */}
+                              <div className="mobile-add-content pb-4">
+                                <Toolbar
+                                  workspaceId={workspaceIdFromUrl || ""}
+                                  workspaceName={workspaceName}
+                                  openAssetLibrary={() => {
+                                    setMobileAddOpen(false);
+                                    setOpenAssetLibrary(true);
+                                  }}
+                                  openTemplatePicker={() => {
+                                    setMobileAddOpen(false);
+                                    setOpenTemplatePicker(true);
+                                  }}
+                                  showHistoryActions={false}
+                                  showAddActions={true}
+                                  showSelectionActions={false}
+                                  onActionComplete={() => setMobileAddOpen(false)}
+                                />
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Inspector Bottom Sheet */}
+                      <AnimatePresence>
+                        {mobileInspectorOpen && (
+                          <>
+                            {/* Backdrop overlay */}
+                            <div className="fixed inset-0 bg-black/5 z-[40]" onClick={() => selectElement(null)} />
+                            
+                            <motion.div
+                              className="fixed bottom-0 left-0 right-0 z-[50] rounded-t-3xl border-t border-[#D3A5B1]/30 bg-white/95 shadow-2xl backdrop-blur-md px-4 pb-8 max-h-[50vh] overflow-y-auto"
+                              initial={{ y: "100%" }}
+                              animate={{ y: 0 }}
+                              exit={{ y: "100%" }}
+                              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                            >
+                              {/* Drag handle / Header */}
+                              <div className="flex flex-col items-center py-3 border-b border-black/[0.04] mb-3 sticky top-0 bg-white/95 backdrop-blur-md z-10">
+                                <div className="w-12 h-1 bg-[#8b7355]/20 rounded-full mb-2" />
+                                <div className="w-full flex items-center justify-between">
+                                  <span className="text-xs font-bold uppercase tracking-wider text-[#8b7355]">Inspector / Properties</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => selectElement(null)}
+                                    className="p-1 rounded-full hover:bg-black/5 text-[#8b7355] transition-colors"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              {/* Inspector Content */}
+                              <div className="mobile-inspector-content pb-4">
+                                <RightSidebar
+                                  workspaceId={workspace?.id}
+                                  comments={comments}
+                                  commentsLoading={commentsLoading}
+                                  commentsError={commentsError}
+                                  currentUserId={authUser.id}
+                                  canComment={accessLevel === "comment" || canEdit}
+                                  onAddComment={handleAddComment}
+                                />
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
                     </div>
                   ) : null}
 
@@ -1518,17 +1744,11 @@ export function EditorShell() {
                     </div>
                   ) : null}
 
-                  {mobilePanel === "inspector" ? (
+                  {mobilePanel === "inspector" ? null : null}
+
+                  {mobilePanel === "templates" ? (
                     <div className="editor-mobile-panel-inner">
-                      <RightSidebar
-                        workspaceId={workspace?.id}
-                        comments={comments}
-                        commentsLoading={commentsLoading}
-                        commentsError={commentsError}
-                        currentUserId={authUser.id}
-                        canComment={accessLevel === "comment" || canEdit}
-                        onAddComment={handleAddComment}
-                      />
+                      <TemplatePanel workspaceId={workspaceIdFromUrl || "default"} />
                     </div>
                   ) : null}
                 </div>
@@ -1563,6 +1783,113 @@ export function EditorShell() {
 
               <MultiScreenPreview open={previewOpen} onClose={() => setPreviewOpen(false)} workspaceId={workspaceIdFromUrl} />
               <GenerativeUIModal open={genUIOpen} onClose={() => setGenUIOpen(false)} workspaceId={workspaceIdFromUrl} />
+
+              <AnimatePresence>
+                {mobileMenuOpen && (
+                  <div className="fixed inset-0 z-[150] bg-black/30 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}>
+                    <motion.div
+                      id="editor-mobile-menu"
+                      className="absolute right-0 top-0 bottom-0 w-64 bg-[#fffdf8] shadow-2xl p-5 flex flex-col gap-4 border-l border-black/5"
+                      initial={{ x: 260 }}
+                      animate={{ x: 0 }}
+                      exit={{ x: 260 }}
+                      transition={{ type: "spring", damping: 25, stiffness: 350 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between border-b border-black/[0.05] pb-3">
+                        <span className="font-bold text-[#8b7355] text-xs uppercase tracking-wider">Workspace Menu</span>
+                        <button type="button" onClick={() => setMobileMenuOpen(false)} className="text-[#8b7355] hover:text-[#FF94B4] p-1">
+                          <X size={18} />
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-1 overflow-y-auto flex-1 pr-1 -mr-1">
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#D3A5B1]/10 text-xs font-bold text-[#2d2520] transition-colors"
+                          onClick={() => { setMobileMenuOpen(false); setGenUIOpen(true); }}
+                        >
+                          <Sparkles size={14} className="text-[#D3A5B1]" />
+                          <span>Generate with AI</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#D3A5B1]/10 text-xs font-bold text-[#2d2520] transition-colors"
+                          onClick={() => { setMobileMenuOpen(false); setPreviewOpen(true); }}
+                        >
+                          <Monitor size={14} className="text-[#D3A5B1]" />
+                          <span>Multi-Screen Preview</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#D3A5B1]/10 text-xs font-bold text-[#2d2520] transition-colors"
+                          onClick={() => { setMobileMenuOpen(false); setShareDialogOpen(true); }}
+                        >
+                          <Share2 size={14} className="text-[#D3A5B1]" />
+                          <span>Share Workspace</span>
+                        </button>
+
+                        <div className="border-t border-black/[0.05] my-2 pt-2">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-[#8b7355]/60 px-3">Canvas Theme</span>
+                          <div className="grid grid-cols-2 gap-1.5 p-1">
+                            {([
+                              { id: "cherry", label: "Cherry", color: "#D3A5B1" },
+                              { id: "forest", label: "Forest", color: "#708238" },
+                              { id: "ocean", label: "Ocean", color: "#3b7bb8" },
+                              { id: "sunset", label: "Sunset", color: "#d97d41" },
+                            ] as const).map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                className={`flex items-center gap-1.5 p-2 rounded-lg text-[10px] transition-colors ${canvasTheme === t.id ? "bg-[#D3A5B1]/15 text-[#8b7355] font-bold" : "hover:bg-black/5 text-[#2d2520]"}`}
+                                onClick={() => { setCanvasTheme(t.id); setMobileMenuOpen(false); }}
+                              >
+                                <span className="w-3 h-3 rounded-full border border-black/10 flex-shrink-0" style={{ backgroundColor: t.color }} />
+                                <span>{t.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-black/[0.05] my-2 pt-2">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-[#8b7355]/60 px-3">Export As</span>
+                          <div className="grid grid-cols-3 gap-1.5 p-1">
+                            {(["PNG", "JPEG", "PDF"] as const).map((format) => (
+                              <button
+                                key={format}
+                                type="button"
+                                className="py-2 rounded-lg border border-black/[0.05] hover:bg-black/5 text-[10px] text-center font-bold text-[#2d2520] transition-colors"
+                                onClick={() => {
+                                  setMobileMenuOpen(false);
+                                  if (format === "PNG") void exportWorkspaceAsPng(`${fileBase}.png`);
+                                  else if (format === "JPEG") void exportWorkspaceAsJpeg(`${fileBase}.jpeg`);
+                                  else void exportWorkspaceAsPdf(`${fileBase}.pdf`);
+                                }}
+                              >
+                                {format}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-auto border-t border-black/[0.05] pt-3">
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-50 text-xs font-bold text-rose-600 transition-colors"
+                          onClick={async () => {
+                            setMobileMenuOpen(false);
+                            if (!browserClient) return;
+                            await browserClient.auth.signOut();
+                            router.replace("/");
+                          }}
+                        >
+                          <LogOut size={14} />
+                          <span>Log Out</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
 
               {workspace?.id ? (
                 <ShareDialog

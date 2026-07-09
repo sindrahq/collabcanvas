@@ -457,6 +457,22 @@ export function KonvaStageWorkspace({
   const elevations = useStore((state) => state.elevations);
   const isFollowing = usePresenceStore((s) => !!s.followedUserId);
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const transformerAnchorSize = isMobile ? 18 : 10;
+  const transformerPadding = isMobile ? 12 : 6;
+  const lineHitStroke = isMobile ? 24 : 16;
+  const pencilHitStroke = isMobile ? 20 : 12;
+
+
   const eraserCursor = useMemo(() => {
     const r = Math.max(4, eraserSize);
     const size = r * 2 + 4;
@@ -582,7 +598,7 @@ export function KonvaStageWorkspace({
     }
   }
 
-  const getStagePos = useCallback((event: Konva.KonvaEventObject<MouseEvent>) => {
+  const getStagePos = useCallback((event: Konva.KonvaEventObject<any>) => {
     const stage = event.target.getStage();
     const pos = stage?.getPointerPosition();
     if (!pos) return null;
@@ -715,6 +731,9 @@ export function KonvaStageWorkspace({
           cursor: activeTool === "pencil" ? PENCIL_CURSOR
             : activeTool === "eraser" ? eraserCursor
               : "default",
+          touchAction: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         }}
         onMouseDown={(event) => {
           if (isFollowing) return;
@@ -763,6 +782,49 @@ export function KonvaStageWorkspace({
           if (activeTool === "pencil" && drawingPoints && drawingPoints.length >= 4) {
             addPencilElement(drawingPoints);
           }
+          setDrawingPoints(null);
+        }}
+        onTouchStart={(event) => {
+          if (event.evt.touches.length === 2) return;
+          event.evt.preventDefault();
+          if (isFollowing) return;
+          if (activeTool === "eraser" && canEdit) {
+            isErasingRef.current = true;
+            eraseAtCurrentPos();
+            return;
+          }
+          if (activeTool === "pencil" && canEdit) {
+            const pos = getStagePos(event);
+            if (pos) setDrawingPoints([pos.x, pos.y]);
+            return;
+          }
+          if (event.target === event.target.getStage()) {
+            selectElement(null);
+          }
+        }}
+        onTouchMove={(event) => {
+          if (event.evt.touches.length === 2) return;
+          event.evt.preventDefault();
+          try {
+            if (activeTool === "eraser" && isErasingRef.current && canEdit) {
+              eraseAtCurrentPos();
+              return;
+            }
+          } catch (e) {
+            // ignore errors reading pointer
+          }
+
+          if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
+          const pos = getStagePos(event);
+          if (pos) setDrawingPoints((prev) => prev ? [...prev, pos.x, pos.y] : null);
+        }}
+        onTouchEnd={() => {
+          if (activeTool === "eraser") {
+            isErasingRef.current = false;
+            return;
+          }
+          if (activeTool !== "pencil" || !drawingPoints || !canEdit) return;
+          if (drawingPoints.length >= 4) addPencilElement(drawingPoints);
           setDrawingPoints(null);
         }}
         onContextMenu={(e) => {
@@ -1231,7 +1293,7 @@ export function KonvaStageWorkspace({
                   draggable={canEdit && !element.locked}
                   visible={element.visible}
                   opacity={element.style.opacity}
-                  hitStrokeWidth={16}
+                  hitStrokeWidth={lineHitStroke}
                   ref={(node) => {
                     nodeRefs.current[element.id] = node as unknown as Konva.Shape;
                   }}
@@ -1274,7 +1336,7 @@ export function KonvaStageWorkspace({
                   draggable={canEdit && !element.locked}
                   visible={element.visible}
                   opacity={element.style.opacity}
-                  hitStrokeWidth={16}
+                  hitStrokeWidth={lineHitStroke}
                   ref={(node) => {
                     nodeRefs.current[element.id] = node as unknown as Konva.Shape;
                   }}
@@ -1316,7 +1378,7 @@ export function KonvaStageWorkspace({
                   draggable={canEdit && !element.locked}
                   visible={element.visible}
                   opacity={element.style.opacity}
-                  hitStrokeWidth={12}
+                  hitStrokeWidth={pencilHitStroke}
                   onClick={() => selectElement(element.id)}
                   onTap={() => selectElement(element.id)}
                   onDragEnd={(event) => {
@@ -1470,12 +1532,12 @@ export function KonvaStageWorkspace({
             borderStrokeWidth={2}
             anchorFill="#ffffff"
             anchorStroke="#D3A5B1"
-            anchorSize={10}
+            anchorSize={transformerAnchorSize}
             anchorCornerRadius={4}
             rotateAnchorCursor="grab"
-            padding={6}
+            padding={transformerPadding}
             boundBoxFunc={(oldBox, newBox) => {
-              if (newBox.width < 36 || newBox.height < 28) return oldBox;
+              if (newBox.width < 44 || newBox.height < 44) return oldBox;
               if (snapToGrid) {
                 newBox.width = Math.round(newBox.width / 20) * 20;
                 newBox.height = Math.round(newBox.height / 20) * 20;
