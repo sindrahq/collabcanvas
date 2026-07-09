@@ -2332,6 +2332,55 @@ body.cc-workspace-theme .workspace-name-action:hover:not(:disabled) {
   color: #1f1a14;
 }
 
+/* ── Follow Presence Button ──────────────────────────────────────────────── */
+.follow-presence-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(211, 165, 177, 0.25);
+  background: rgba(211, 165, 177, 0.06);
+  color: #D3A5B1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.follow-presence-btn:hover {
+  background: rgba(211, 165, 177, 0.14);
+  border-color: rgba(211, 165, 177, 0.4);
+  color: #c494a0;
+}
+
+.follow-presence-btn--active {
+  background: rgba(211, 165, 177, 0.18);
+  border-color: rgba(211, 165, 177, 0.45);
+  color: #b07a89;
+}
+
+.follow-presence-btn--active:hover {
+  background: rgba(211, 165, 177, 0.26);
+}
+
+body.cc-workspace-theme .follow-presence-btn {
+  color: #8b5e6b;
+  border-color: rgba(139, 94, 107, 0.2);
+  background: rgba(139, 94, 107, 0.06);
+}
+
+body.cc-workspace-theme .follow-presence-btn:hover {
+  background: rgba(139, 94, 107, 0.1);
+  border-color: rgba(139, 94, 107, 0.3);
+}
+
+body.cc-workspace-theme .follow-presence-btn--active {
+  background: rgba(139, 94, 107, 0.14);
+  border-color: rgba(139, 94, 107, 0.35);
+}
+
 body.cc-workspace-theme .editor-heading,
 body.cc-workspace-theme .canvas-title,
 body.cc-workspace-theme .layer-name,
@@ -2822,3 +2871,502 @@ body.cc-workspace-theme .canvas-bg-picker input[type="color"] {
   border-top: 1px solid rgba(211,165,177,0.12);
   font-size: 11px; color: #c4b8aa;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Editor & Dashboard
+   Breakpoints: 768px (tablet), 480px (phone)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 768px: Tablet / Large phone landscape ── */
+@media (max-width: 768px) {
+  /* Page shell */
+  .editor-page {
+    padding: 8px;
+  }
+
+  .editor-shell {
+    padding: 8px;
+    border-radius: 12px;
+    width: 100%;
+  }
+
+  /* Topbar: collapse to single row, wrap items */
+  body.cc-workspace-theme .editor-topbar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  body.cc-workspace-theme .editor-topbar-left {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  body.cc-workspace-theme .editor-topbar-center {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 0;
+  }
+
+  body.cc-workspace-theme .editor-topbar-right {
+    order: 2;
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  /* Hide text labels on small buttons to save space */
+  body.cc-workspace-theme .editor-topbar-right .toolbar-button span,
+  body.cc-workspace-theme .editor-topbar-right .editor-share-button span {
+    display: none;
+  }
+
+  /* Undo/redo stay visible */
+  body.cc-workspace-theme #undo-button,
+  body.cc-workspace-theme #redo-button {
+    display: inline-flex;
+  }
+
+  /* Workspace layout: stack vertically */
+  .workspace-layout {
+    flex-direction: column !important;
+    gap: 8px;
+  }
+
+  /* Sidebar becomes a bottom drawer on mobile */
+  .workspace-dock-shell {
+    width: 100% !important;
+    max-height: 50vh;
+    overflow-y: auto;
+    border-radius: 16px;
+    margin-right: 0 !important;
+  }
+
+  /* Canvas: full width, scrollable container */
+  .workspace-main-shell {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .canvas-stage-shell {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .konva-frame {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* Selection toolbar: show on bottom */
+  .canvas-selection-toolbar-shell {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    border-radius: 16px 16px 0 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    padding: 8px;
+    border-top: 1px solid rgba(211, 165, 177, 0.2);
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+
+  /* Inspector / sidebar panels */
+  .workspace-sidebar,
+  .editor-panel {
+    border-radius: 12px;
+  }
+
+  /* Toolbar wraps on mobile */
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .toolbar-group {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* Make touch targets larger */
+  .toolbar-icon-btn,
+  .toolbar-shape-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .toolbar-button {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  /* Layer panel */
+  .layer-row {
+    padding: 8px 10px;
+    min-height: 44px;
+  }
+
+  /* Hide decorative elements on mobile */
+  .workspace-aura,
+  .cc-landing-theme .falling-petal,
+  .cc-landing-theme .accumulated-petal {
+    display: none !important;
+  }
+
+  /* Follow button: hide on mobile (not useful without viewport sync) */
+  .follow-presence-btn {
+    display: none;
+  }
+
+  /* Profile menu: smaller */
+  .profile-menu-trigger {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+  }
+
+  /* Avatar stack: limit to 2 */
+  .avatar-chip:nth-child(n+3) {
+    display: none;
+  }
+
+  /* Projects dashboard */
+  .projects-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* ── 480px: Small phone portrait ── */
+@media (max-width: 480px) {
+  .editor-page {
+    padding: 4px;
+  }
+
+  .editor-shell {
+    padding: 6px;
+    border-radius: 8px;
+  }
+
+  body.cc-workspace-theme .editor-topbar {
+    gap: 4px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+
+  /* Move center nav below everything */
+  body.cc-workspace-theme .editor-topbar-center {
+    order: 4;
+  }
+
+  /* Single column project cards */
+  .projects-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Hide most topbar right items, keeping undo/redo, save status and mobile menu trigger */
+  body.cc-workspace-theme .editor-topbar-right > *:not(#undo-button):not(#redo-button):not(.autosave-badge):not(.editor-mobile-menu-trigger) {
+    display: none;
+  }
+
+  /* Full-bleed canvas on tiny screens */
+  .canvas-stage-shell {
+    border-radius: 0;
+    margin: 0 -6px;
+    width: calc(100% + 12px);
+  }
+
+  /* Make nav pills smaller */
+  .nav-pill-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  /* Auth page */
+  .auth-card {
+    border-radius: 12px;
+    margin: 8px;
+    padding: 20px 16px;
+  }
+}
+
+/* ── Touch: improve tap targets across the board ── */
+@media (pointer: coarse) {
+  .toolbar-icon-btn,
+  .toolbar-shape-btn,
+  .layer-icon-btn,
+  .workspace-name-action,
+  .zoom-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .toolbar-button {
+    min-height: 40px;
+  }
+
+  /* Prevent text selection on drag */
+  .konva-frame,
+  .canvas-stage-shell {
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+
+/* ── Final Responsive Overrides (mobile <768, tablet 768-1024, desktop >1024) ── */
+body.cc-workspace-theme .editor-page,
+body.cc-workspace-theme .editor-shell,
+body.cc-workspace-theme .editor-topbar,
+body.cc-workspace-theme .workspace-layout,
+body.cc-workspace-theme .editor-mobile-layout,
+body.cc-workspace-theme .editor-mobile-panel {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+body.cc-workspace-theme .canvas-stage-container {
+  transform-origin: top left !important;
+}
+
+@media (max-width: 1024px) {
+  body.cc-workspace-theme .editor-mobile-menu-trigger {
+    display: inline-flex !important;
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  body.cc-workspace-theme .workspace-name-text,
+  body.cc-workspace-theme .eyebrow,
+  body.cc-workspace-theme .toolbar-menu-item,
+  body.cc-workspace-theme .editor-mobile-tab,
+  body.cc-workspace-theme .comment-message,
+  body.cc-workspace-theme .inspector-label,
+  body.cc-workspace-theme .inspector-value {
+    font-size: 14px !important;
+  }
+
+  body.cc-workspace-theme input,
+  body.cc-workspace-theme textarea,
+  body.cc-workspace-theme select,
+  body.cc-workspace-theme .workspace-name-input,
+  body.cc-workspace-theme .comment-input,
+  body.cc-workspace-theme .inspector-name-input,
+  body.cc-workspace-theme .inspector-num-field input,
+  body.cc-workspace-theme .inspector-text-input,
+  body.cc-workspace-theme .video-url-input,
+  body.cc-workspace-theme .command-brain-input,
+  body.cc-workspace-theme .gen-ui-textarea {
+    font-size: 16px !important;
+    line-height: 1.35;
+  }
+
+  body.cc-workspace-theme .toolbar-button,
+  body.cc-workspace-theme .toolbar-icon-btn,
+  body.cc-workspace-theme .toolbar-shape-btn,
+  body.cc-workspace-theme .workspace-name-action,
+  body.cc-workspace-theme .zoom-btn,
+  body.cc-workspace-theme .zoom-level,
+  body.cc-workspace-theme .editor-mobile-tab,
+  body.cc-workspace-theme .gen-ui-close,
+  body.cc-workspace-theme .gen-ui-btn-cancel,
+  body.cc-workspace-theme .gen-ui-btn-generate {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  body.cc-workspace-theme .editor-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  body.cc-workspace-theme .editor-topbar-center {
+    grid-column: 1 / -1;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  body.cc-workspace-theme .workspace-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - 84px);
+    gap: 10px;
+  }
+
+  body.cc-workspace-theme .workspace-dock-shell {
+    margin: 0;
+    width: 100%;
+    max-height: 42dvh;
+    align-self: stretch;
+  }
+
+  body.cc-workspace-theme .workspace-main-shell {
+    min-height: 58dvh;
+  }
+}
+
+@media (max-width: 767.98px) {
+  body.cc-workspace-theme .editor-page {
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  body.cc-workspace-theme .editor-shell {
+    padding: 8px;
+  }
+
+  body.cc-workspace-theme .workspace-layout,
+  body.cc-workspace-theme .workspace-dock-shell {
+    display: none !important;
+  }
+
+  body.cc-workspace-theme .editor-mobile-layout {
+    display: grid !important;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    min-height: calc(100dvh - 96px);
+  }
+
+  body.cc-workspace-theme .editor-mobile-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin-bottom: 0;
+    padding: 4px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  body.cc-workspace-theme .editor-mobile-tab {
+    font-weight: 700;
+    padding: 10px 8px;
+  }
+
+  body.cc-workspace-theme .editor-mobile-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.cc-workspace-theme .editor-mobile-panel-inner {
+    min-height: 0;
+  }
+
+  body.cc-workspace-theme .canvas-stage-shell {
+    min-height: calc(100dvh - 240px);
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body.cc-workspace-theme .canvas-viewport {
+    min-height: calc(100dvh - 280px);
+    width: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: none;
+  }
+
+  body.cc-workspace-theme .konva-frame,
+  body.cc-workspace-theme .konva-shell,
+  body.cc-workspace-theme .konva-stage-wrap {
+    max-width: 100% !important;
+    width: fit-content;
+    margin: 0 auto;
+  }
+
+  body.cc-workspace-theme .canvas-selection-toolbar-shell {
+    margin-bottom: 8px;
+  }
+
+  body.cc-workspace-theme .canvas-zoom-float {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  body.cc-workspace-theme .zoom-controls {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  body.cc-workspace-theme .gen-ui-overlay,
+  body.cc-workspace-theme .command-brain-overlay {
+    align-items: flex-start;
+    padding: 10px;
+    padding-top: 18px;
+  }
+
+  body.cc-workspace-theme .gen-ui-modal,
+  body.cc-workspace-theme .command-brain-modal {
+    width: min(96vw, 520px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 14px;
+    overflow: auto;
+  }
+
+  body.cc-workspace-theme .video-url-popover {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  body.cc-workspace-theme .video-url-input {
+    width: 100%;
+    min-width: 180px;
+  }
+}
+
+/* Mobile Inspector and Add Bottom Sheets overrides */
+.mobile-inspector-content .editor-panel,
+.mobile-add-content .toolbar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.mobile-add-content .toolbar-group {
+  width: 100% !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.mobile-add-content .toolbar-shapes-grid {
+  grid-template-columns: repeat(4, 1fr) !important;
+  width: 100% !important;
+}
+
+/* Ensure mobile inputs are 16px to prevent zoom */
+.mobile-inspector-content input,
+.mobile-inspector-content textarea,
+.mobile-inspector-content select,
+.mobile-add-content input,
+.mobile-add-content textarea,
+.mobile-add-content select {
+  font-size: 16px !important;
+}
+
+
