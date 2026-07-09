@@ -46,12 +46,22 @@ export function LandingHero() {
     return list;
   }, [activeTemplateCategory, templateSearch]);
 
-  function handleUseTemplate(template: BuiltInTemplate) {
+  async function handleUseTemplate(template: BuiltInTemplate) {
     const templateKey = `collabcanvas_new_template_${Date.now()}`;
     localStorage.setItem(templateKey, JSON.stringify({
       name: template.name,
       elements: template.elements,
     }));
+
+    if (supabase) {
+      const session = await getSessionSafely(supabase);
+      if (!session?.user) {
+        const nextUrl = `/projects?templateKey=${templateKey}`;
+        router.push(`/auth?next=${encodeURIComponent(nextUrl)}`);
+        return;
+      }
+    }
+
     router.push(`/projects?templateKey=${templateKey}`);
   }
 
