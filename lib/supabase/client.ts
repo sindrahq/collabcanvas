@@ -101,6 +101,10 @@ export function createSupabaseBrowserClient(): SupabaseClient | null {
         persistSession: true,
         detectSessionInUrl: true,
       },
+      cookieOptions: {
+        maxAge: 604800, // 7 days
+        path: "/",
+      },
     });
 
     // Clear stale persisted auth tokens early to avoid repeated refresh errors.
